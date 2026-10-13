@@ -1,0 +1,59 @@
+{
+  "design_issue": 2,
+  "covers": [
+    3,
+    4,
+    6,
+    7,
+    8,
+    12,
+    13,
+    14,
+    24
+  ],
+  "revision": 1,
+  "versions": {
+    "a": "versions/a.html",
+    "b": "versions/b.html",
+    "c": "versions/c.html"
+  },
+  "states": [
+    "key-empty",
+    "key-checking",
+    "key-malformed",
+    "key-revoked",
+    "key-site-off",
+    "key-unreachable",
+    "key-store-failed",
+    "folder-searching",
+    "folder-found",
+    "folder-several",
+    "folder-not-found",
+    "folder-not-game",
+    "folder-no-addon",
+    "folder-gone",
+    "ready",
+    "reload",
+    "live",
+    "live-full",
+    "no-raids",
+    "offline",
+    "refused",
+    "revoked",
+    "site-off",
+    "queue-damaged",
+    "staging",
+    "settings",
+    "helper-update",
+    "helper-installing",
+    "helper-update-failed",
+    "addon-update",
+    "addon-installing",
+    "addon-rolled-back",
+    "tray",
+    "notification"
+  ],
+  "themes": [
+    "default"
+  ]
+}
