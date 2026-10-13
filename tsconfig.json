@@ -8,7 +8,9 @@
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "types": []
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
   },
-  "include": ["src", "vite.config.ts", "vitest.config.ts"]
+  "include": ["src", "release", "vite.config.ts", "vitest.config.ts"]
 }
