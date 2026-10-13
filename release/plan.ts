@@ -86,9 +86,9 @@ function parseVersion(version: string): [number, number, number] {
 // yet), or undefined when nothing merged calls for a release.
 export function nextVersion(previous: string | undefined, items: Item[]): string | undefined {
   const entries = classify(items);
-  if (previous === undefined) return entries.length > 0 ? "1.0.0" : undefined;
-  const [major, minor, patch] = parseVersion(previous);
   const top = Math.max(NONE, ...entries.map((entry) => entry.rank));
+  if (previous === undefined) return top > NONE ? "1.0.0" : undefined;
+  const [major, minor, patch] = parseVersion(previous);
   if (top === BREAKING) return `${major + 1}.0.0`;
   if (top === FEATURE) return `${major}.${minor + 1}.0`;
   if (top === FIX) return `${major}.${minor}.${patch + 1}`;

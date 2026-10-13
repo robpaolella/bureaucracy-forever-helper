@@ -24,6 +24,9 @@ describe("nextVersion", () => {
     expect(nextVersion(undefined, [pr.fixPr])).toBe("1.0.0");
     expect(nextVersion(undefined, [pr.breakingBangPr])).toBe("1.0.0");
   });
+  it("gives no first release when only non-release types merged", () => {
+    expect(nextVersion(undefined, [pr.docsPr, pr.choreWithNotePr])).toBeUndefined();
+  });
   it("counts a commit with no pull request by its subject", () => {
     expect(nextVersion("1.2.3", [pr.bareCommit])).toBe("1.2.4");
   });
