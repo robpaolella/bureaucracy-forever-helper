@@ -22,8 +22,14 @@ approves it for building.
 Pending Robert's choice.
 
 ## Independent critique
-Pending. Route: `node /git/maestro/routing/route.ts role checker --maker claude-bridge/claude-opus-5-5`
+Route: `node /git/maestro/routing/route.ts role checker --maker claude-bridge/claude-opus-5-5`
 gave GPT-5.6 Terra (`--model openai/gpt-5.6-terra --thinking medium`).
+
+- Command: `node /git/maestro/scripts/read-only-run.ts "$PWD" review /git/maestro/skills/design-feature/reviewer-prompt.md "Design: …/design/2-helper-window. Images and manifest: /tmp/design-review-m82241/versions (also real-size 420x640 captures in …/real-size). Maker: claude-bridge/claude-opus-5-5." -- --model openai/gpt-5.6-terra --thinking medium`
+- Verdict (2026-10-13): **PASS**, no fixes. All 204 reference-width and 102 real-size
+  (420×640) images opened; 34 states × 3 versions × default covered; workspace unchanged.
+- Stated limits: read-only image and HTML review; keyboard use, screen readers, real
+  tray behaviour, file picker and updates are proven only in the builds.
 
 ## Comments and changes
 None yet.
