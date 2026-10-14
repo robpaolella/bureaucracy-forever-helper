@@ -194,10 +194,10 @@ html.bare .proto, html.bare .titlebar, html.bare .desk-caption { display:none; }
 .osmenu .dis { color:#8C8C90; }
 .osmenu .sel { background:#2F63D6; color:#fff; }
 .osmenu hr { border:0; border-top:1px solid #47474A; margin:5px 8px; }
-.toast-os { width:350px; background:#2B2B2D; color:#EEE; border:1px solid #4A4A4C; border-radius:14px; padding:12px; display:flex; gap:10px; font:13px/1.35 system-ui,sans-serif; box-shadow:var(--shadow-pop); }
+.toast-os { width:350px; background:#2B2B2D; color:#EEE; border:1px solid #4A4A4C; border-radius:14px; padding:8px 12px; display:flex; gap:10px; font:13px/1.35 system-ui,sans-serif; box-shadow:var(--shadow-pop); }
 .toast-os img { width:36px; height:36px; border-radius:8px; flex:none; }
 .toast-os b { display:block; font-weight:600; margin-bottom:2px; }
-.toast-os .app { color:#9A9AA0; font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px; }
+.toast-os .app { color:#9A9AA0; font-size:11px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:1px; }
 </style>
 </head><body>
 <script>/* Shared prototype data and helpers. Sample data only: every name is invented. */
@@ -288,6 +288,7 @@ const STATES = {
   'addon-update': { kind: 'main', update: { who: 'addon', phase: 'available' }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, addon: 'update', reserves: 'ok', awards: 'idle' } },
   'addon-installing': { kind: 'main', update: { who: 'addon', phase: 'installing' }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, addon: 'installing', reserves: 'ok', awards: 'idle' } },
   'addon-rolled-back': { kind: 'main', update: { who: 'addon', phase: 'rolled-back' }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids.' }, raids: RAIDS, sent: 0, waiting: 0, list: [{ tone: 'warn', k: 'Add-on update not installed', html: '1.3.2 is still in place.', time: ['8:26 PM', '6:26 PM'] }, ...ACTS_READY], chain: { ...ok, addon: 'rolled-back', reserves: 'ok', awards: 'idle' } },
+  'addon-updated': { kind: 'main', update: { who: 'addon', phase: 'updated' }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids.' }, raids: RAIDS, sent: 0, waiting: 0, list: [{ tone: 'ok', k: 'Add-on updated', html: 'to 1.4.0.', time: ['8:26 PM', '6:26 PM'] }, ...ACTS_READY], chain: { ...ok, addon: 'updated', reserves: 'ok', awards: 'idle' } },
   tray: { kind: 'tray' },
   notification: { kind: 'notification' },
 };
@@ -304,6 +305,7 @@ const UPDATE = {
   addon: {
     available: { tone: 'info', title: 'Add-on 1.4.0 is ready', body: 'After it installs, type /reload in game, or start the game if it’s closed.', actions: [['Install', 'primary'], ['Later', 'ghost']], link: 'What’s new' },
     installing: { tone: 'info', title: 'Installing add-on 1.4.0…', body: 'Your reserves file is kept.', progress: 70 },
+    updated: { tone: 'ok', title: 'Add-on updated to 1.4.0', body: 'It loads the next time you type /reload or start the game.' },
     'rolled-back': { tone: 'warn', title: 'The add-on update didn’t install', body: 'Add-on 1.3.2 is still in place, with your reserves file. Nothing was lost.', actions: [['Try again', 'secondary']] },
   },
 };
@@ -361,7 +363,8 @@ function settingsBody(staging) {
       <p class="mono">${esc(MAC)}/_classic_</p>
       <div class="row"><button class="btn btn-secondary btn-sm" type="button">Change folder</button></div></section>
     <hr class="divider">
-    <section class="stack">${sw('login', 'Start the helper when the computer starts', true)}</section>
+    <section class="stack">${sw('login', 'Start the helper when the computer starts', true)}
+      ${sw('autoaddon', 'Update the add-on automatically', true)}</section>
     <hr class="divider">
     <section class="stack"><h3 class="th" style="margin:0">Versions</h3>
       <div class="row"><span class="small tabular">Helper 0.2.1 · Add-on 1.3.2</span><span class="spacer"></span><button class="btn btn-secondary btn-sm" type="button">Check for updates</button></div></section>`;
@@ -387,14 +390,16 @@ function trayPreview() {
 }
 function notificationPreview() {
   const n = (title, body) => `<div class="toast-os" role="img" aria-label="Notification: ${title}"><img src="${ICON.tile}" alt=""><div><div class="app">Bureaucracy Forever Helper</div><b>${title}</b>${body}</div></div>`;
-  return `<div class="sys">
-    <p class="sys-note">System notifications, only when the officer has to act. Clicking one opens the window. The system may hide them while the game is full screen.</p>
+  return `<div class="sys" style="gap:6px;padding-top:10px">
+    <p class="sys-note">System notifications. Clicking one opens the window.</p>
     ${n('Type /reload in game', 'Reserves for Molten Core are ready.')}
     ${n('Offline: 4 awards waiting', 'They’ll send when you’re back online.')}
     ${n('Your helper key no longer works', 'Add a new key to keep sending awards.')}
     ${n('The site refused 1 award', 'Check Bindings of the Windseeker on the loot log.')}
     ${n('Helper 0.3.0 is ready to install', 'Open the helper to install it.')}
-    <p class="caption">Never sent: awards sent, reserves written without a change, updates installed.</p>
+    ${n('Add-on updated to 1.4.0', 'Loads on your next /reload or game start.')}
+    ${n('The add-on update didn’t install', 'Add-on 1.3.2 is still in place.')}
+    <p class="caption">Only when the officer has to act, or when the helper installs an add-on update by itself (or that fails). The system may hide them while the game is full screen. Never sent: awards sent, reserves written without a change, an update the officer installed by pressing Install.</p>
   </div>`;
 }
 
@@ -432,7 +437,7 @@ function boot(versionName, versionNote, render) {
 const LINKS = {
   site: { name: 'Guild site', ok: ['ok', 'Connected', 'Connected as Aldric'], offline: ['stop', 'Offline', 'Can’t reach the guild site'], revoked: ['stop', 'Key refused', 'The site refused this key'], off: ['stop', 'Switched off', 'The site isn’t accepting the helper'] },
   folder: { name: 'Game folder', ok: ['ok', 'Found', '…/World of Warcraft/_classic_'] },
-  addon: { name: 'Add-on', ok: ['ok', 'Installed', 'Version 1.3.2'], update: ['warn', 'Update ready', 'Version 1.4.0 is ready'], installing: ['closed', 'Installing', 'Installing 1.4.0'], 'rolled-back': ['warn', 'Not updated', 'Still on 1.3.2'] },
+  addon: { name: 'Add-on', ok: ['ok', 'Installed', 'Version 1.3.2'], update: ['warn', 'Update ready', 'Version 1.4.0 is ready'], installing: ['closed', 'Installing', 'Installing 1.4.0'], updated: ['ok', 'Updated', 'Version 1.4.0'], 'rolled-back': ['warn', 'Not updated', 'Still on 1.3.2'] },
   reserves: { name: 'Reserves', ok: ['ok', 'In the game', 'Next 12 hours'], reload: ['warn', '/reload needed', 'Molten Core changed'], none: ['closed', 'No raids soon', 'None in the next 12 hours'] },
   awards: { name: 'Awards', idle: ['closed', 'None yet', 'They send as they’re handed out'], ok: ['ok', 'Sending', 'Going to Molten Core'], waiting: ['stop', 'Waiting', 'Kept until they can send'], refused: ['warn', '1 refused', 'Others still sending'], damaged: ['stop', 'Stopped', 'Waiting list damaged'] },
 };
@@ -468,7 +473,7 @@ function render(s, slug) {
 
   // The first link that isn't fine opens with the status message and its action.
   const states = ORDER.map(id => [id, s.chain[id]]);
-  const broken = states.find(([, st]) => !['ok', 'idle', 'none'].includes(st));
+  const broken = states.find(([, st]) => !['ok', 'idle', 'none', 'updated'].includes(st));
   const msg = `<p class="small" style="color:var(--fg)">${esc(s.status.body)}</p>${s.status.action ? `<div class="row"><button class="btn btn-${s.status.action.kind} btn-sm" type="button">${s.status.action.label}</button></div>` : ''}`;
   const rows = states.map(([id, st]) => {
     let open = '';

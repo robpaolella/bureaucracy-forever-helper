@@ -641,6 +641,26 @@
       "pixelHeight": 900
     },
     {
+      "image": "approved-addon-updated-default-390.png",
+      "version": "approved",
+      "state": "addon-updated",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "approved-addon-updated-default-1440.png",
+      "version": "approved",
+      "state": "addon-updated",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
       "image": "approved-tray-default-390.png",
       "version": "approved",
       "state": "tray",

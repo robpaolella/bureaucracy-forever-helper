@@ -1,5 +1,5 @@
 {
-  "design_issue": 33,
+  "design_issue": 44,
   "covers": [
     3,
     4,
@@ -19,7 +19,7 @@
     39,
     40
   ],
-  "revision": 2,
+  "revision": 3,
   "versions": {
     "approved": "index.html"
   },
@@ -56,6 +56,7 @@
     "addon-update",
     "addon-installing",
     "addon-rolled-back",
+    "addon-updated",
     "tray",
     "notification"
   ],
