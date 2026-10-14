@@ -1,0 +1,3 @@
+/* The helper's fixed 420×640 window (tauri.conf.json). */
+html, body { width: 420px; height: 640px; overflow: hidden; }
+#app { height: 640px; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; }

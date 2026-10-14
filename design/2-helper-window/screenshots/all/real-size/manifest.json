@@ -727,6 +727,17 @@
       "check": "ok Archivo:true,Newsreader:true,Cinzel:false 420x640\\"
     },
     {
+      "image": "b-addon-updated-default-420x640.png",
+      "version": "b",
+      "state": "addon-updated",
+      "theme": "default",
+      "width": 420,
+      "height": 640,
+      "pixelWidth": 420,
+      "pixelHeight": 640,
+      "check": "ok Archivo:true,Newsreader:true,Cinzel:false 420x640\\"
+    },
+    {
       "image": "b-tray-default-420x640.png",
       "version": "b",
       "state": "tray",

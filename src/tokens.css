@@ -1,0 +1,33 @@
+/* Colour, type and shape tokens from the approved design (the guild site's app/tokens.css, dark only). */
+:root {
+  --ink-950:#06080B; --ink-900:#0A0D12; --ink-850:#0E1219; --ink-800:#141922; --ink-700:#1B222E;
+  --line:#232B38; --line-strong:#323C4C; --line-faint:#141922;
+  --fg:#E8EDF7; --fg-2:#A3AFC2; --fg-3:#6F7C90; --fg-muted:#8D97A8;
+  --sand:#E4C08A; --sand-dim:#8A7350; --sand-wash:#241E14;
+  --teal:#6FC8DC; --teal-dim:#2A6B7C; --teal-wash:#0E2830; --teal-line:#1B4450; --teal-text:#A8DCE8;
+  --ok:#79D0A0; --ok-wash:#12251C; --ok-line:#2E5C44;
+  --warn:#E9B872; --warn-wash:#241E14; --warn-line:#6B5530;
+  --stop:#E08A8A; --stop-wash:#241416; --stop-line:#5A3434;
+  --font-display:Newsreader,Georgia,"Times New Roman",serif;
+  --font-eyebrow:Cinzel,Georgia,serif;
+  --font-ui:Archivo,system-ui,-apple-system,sans-serif;
+  --r-tag:2px; --r-control:4px; --r-card:8px; --r-modal:14px;
+  --shadow-pop:0 24px 48px rgba(0,0,0,.6);
+}
+* { box-sizing:border-box; }
+html, body { margin:0; background:var(--ink-950); color:var(--fg); font-family:var(--font-ui); -webkit-font-smoothing:antialiased; }
+:focus-visible { outline:2px solid var(--teal); outline-offset:2px; }
+.tabular { font-variant-numeric:tabular-nums; }
+button, input, select { font:inherit; color:inherit; }
+p { margin:0; }
+
+/* Type roles */
+.eyebrow { font-family:var(--font-eyebrow); font-size:11px; font-weight:600; letter-spacing:.28em; text-transform:uppercase; color:var(--sand); line-height:1.2; }
+.title { font-family:var(--font-display); font-weight:500; font-size:26px; line-height:1.1; letter-spacing:-.01em; margin:0; }
+.title-sm { font-family:var(--font-display); font-weight:500; font-size:20px; line-height:1.3; margin:0; }
+.body { font-size:14px; line-height:1.55; color:var(--fg-2); }
+.small { font-size:13px; line-height:1.55; color:var(--fg-2); }
+.caption { font-size:12px; line-height:1.45; color:var(--fg-muted); }
+.label-field { font-size:12px; font-weight:600; line-height:16px; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-2); }
+.th { font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-muted); }
+.mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; word-break:break-all; color:var(--fg-2); }
