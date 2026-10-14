@@ -1,4 +1,5 @@
 pub mod chatlog;
+pub mod commands;
 pub mod inbox;
 pub mod key;
 pub mod queue;
@@ -9,12 +10,24 @@ use tauri::{
     Manager, WindowEvent,
 };
 
+use commands::Engine;
+use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
+
 const QUIT_ID: &str = "quit";
 const SHOW_ID: &str = "show";
 
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
+            // A missing folder only means the staging setting can't be saved later, which
+            // `set_staging_site` reports; the window still opens.
+            let data_dir = app.path().app_data_dir()?;
+            let _ = std::fs::create_dir_all(&data_dir);
+            app.manage(Engine::new(KeyEngine::open(
+                data_dir.join(SETTINGS_FILE),
+                SystemStore::default(),
+                SiteClient::default(),
+            )));
             let show = MenuItem::with_id(app, SHOW_ID, "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
@@ -37,6 +50,13 @@ pub fn run() {
             tray.build(app)?;
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            commands::connect_key,
+            commands::check_stored_key,
+            commands::remove_stored_key,
+            commands::get_staging,
+            commands::set_staging_site,
+        ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 api.prevent_close();
