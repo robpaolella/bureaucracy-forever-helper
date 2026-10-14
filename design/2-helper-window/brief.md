@@ -1,8 +1,8 @@
 # Design: the helper's window
 
-- Design issue: #2
-- Revision: 1
-- Replaces: none
+- Design issue: #33 (revision 1 was #2)
+- Revision: 2
+- Replaces: revision 1 (#2)
 - Source plan: robpaolella/bureaucracy-forever-addon#3 (plan v3, task 30); covered build issues below
 
 ## Job and audience
