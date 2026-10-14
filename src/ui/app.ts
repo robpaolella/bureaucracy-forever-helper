@@ -2,7 +2,7 @@
 // the full Activity list and the Settings frame. Markup and classes follow the approved
 // design (design/2-helper-window/index.html); styles live in window.css.
 import wordmark from "../assets/wordmark.png";
-import { ACTIVITY_RECENT, formatTime, showSeeAll, zoneName, type ActivityEvent } from "./activity";
+import { ACTIVITY_RECENT, formatTime, guildTime, showSeeAll, zoneName, type ActivityEvent } from "./activity";
 import { ROW_NAMES, ROW_ORDER, firstBroken, type ChainRow, type ChainState, type RowId } from "./chain";
 import { button, el, pill, type Child, type Tone } from "./components";
 
@@ -90,6 +90,9 @@ function activityList(events: ActivityEvent[]): HTMLElement {
     events.map((e) => {
       const time = el("time", "tabular", [formatTime(e.at)]);
       time.dateTime = new Date(e.at).toISOString();
+      time.tabIndex = 0;
+      time.title = `${guildTime(e.at)} guild time`;
+      time.setAttribute("aria-label", `${formatTime(e.at)} ${zoneName(e.at)}, ${guildTime(e.at)} guild time`);
       const what = el("span", "what", [el("span", `k k-${e.tone}`, [`${e.kind}:`])]);
       if (e.strong) what.append(" ", el("b", undefined, [e.strong]));
       if (e.text) what.append(" ", e.text);

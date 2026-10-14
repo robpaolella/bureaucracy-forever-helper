@@ -1,5 +1,6 @@
 // The activity log: today's events, newest first, at most the last 50 (design: "Today,
 // newest first. The last 50 are kept."). Feature issues add events; the window lists them.
+import { GUILD_TIMEZONE } from "../guild";
 import type { Tone } from "./components";
 
 export const ACTIVITY_KEEP = 50;
@@ -58,9 +59,14 @@ export function showSeeAll(count: number): boolean {
   return count > ACTIVITY_RECENT;
 }
 
-/** The officer's own time, such as "11:58 PM". */
-export function formatTime(at: number): string {
-  return new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+/** A time such as "11:58 PM", in the officer's own zone unless `timeZone` is given. */
+export function formatTime(at: number, timeZone?: string): string {
+  return new Date(at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone });
+}
+
+/** The time in the guild's zone, such as "7:00 PM". */
+export function guildTime(at: number): string {
+  return formatTime(at, GUILD_TIMEZONE);
 }
 
 /** The officer's time zone, such as "CDT". */
