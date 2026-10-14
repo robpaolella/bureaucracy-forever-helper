@@ -215,7 +215,6 @@ fn render(raids: &[RaidData], written: i64) -> Result<(Lua, Vec<u8>), InboxError
     if parse_inbox(&out).as_ref() != Ok(&inbox) {
         return Err(InboxError::ReadBackMismatch);
     }
-    out.extend_from_slice(b"}");
     Ok((inbox, out))
 }
 
