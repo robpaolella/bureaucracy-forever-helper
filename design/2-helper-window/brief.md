@@ -1,8 +1,8 @@
 # Design: the helper's window
 
-- Design issue: #33 (revision 1 was #2)
-- Revision: 2
-- Replaces: revision 1 (#2)
+- Design issue: #44 (revision 2 was #33, revision 1 was #2)
+- Revision: 3
+- Replaces: revision 2 (#33)
 - Source plan: robpaolella/bureaucracy-forever-addon#3 (plan v3, task 30); covered build issues below
 
 ## Job and audience
@@ -32,7 +32,7 @@ helper only shows which raids are ready and which raid awards are going to.
 | #6 | Live award lines in status and activity ("sent", including lines the helper carried for the loot master) | Log parsing |
 | #14 | Sync state: waiting, sending, sent, offline with awards waiting, a record refused, key revoked or site off mid-upload, damaged queue | Queue code |
 | #7 | Helper update: available, downloading/installing, failed (no network, file missing, signature refused, interrupted), never without confirmation | Release workflow (#16), docs (#15) |
-| #8 | Add-on update: available (with the game-closed or `/reload` note), installing, installed, rolled back on failure | — |
+| #8 | Add-on update: available (with the game-closed or `/reload` note), installing, installed, rolled back on failure; the Settings switch “Update the add-on automatically” (on by default): with it on, a release installs by itself, the add-on row shows `addon-updated`, and a notification says so; a failed automatic install shows `addon-rolled-back` with its own notification | — |
 | #24 | Settings switch “Start the helper when the computer starts”, on by default (Robert, answer 8) | Other settings |
 | #1 (done) | Tray / menu bar icon and menu: restyled words, order and status | — |
 
@@ -103,15 +103,16 @@ Classic item names; Mac and Windows paths (`/Applications/World of Warcraft`,
 | site-off | Site switched the helper off mid-use | "The guild site has the helper switched off. Awards are kept and will send when it's back on." | — |
 | queue-damaged | Damaged queue file | "Sending has stopped" / "The list of awards waiting to send is damaged, so the helper stopped sending. Nothing was deleted. The add-on still has every award, and they send again at your next /reload or logout." (each helper uploads the add-on's full list at logout or /reload, and repeats are harmless) | No action that could empty the list |
 | staging | Staging setting on | Permanent band "Staging site"; tray hover text says it | — |
-| settings | Settings view | Site toggle "Use the staging site (for testing)"; Helper key "Saved in Keychain" (Replace, Remove); Game folder (Change); "Start the helper when the computer starts" (on); versions "Helper 0.2.1 · Add-on 1.3.2" (Check for updates) | — |
+| settings | Settings view | Site toggle "Use the staging site (for testing)"; Helper key "Saved in Keychain" (Replace, Remove); Game folder (Change); "Start the helper when the computer starts" (on); "Update the add-on automatically" (on); versions "Helper 0.2.1 · Add-on 1.3.2" (Check for updates) | — |
 | helper-update | Helper update found | "Helper 0.3.0 is ready to install." | Install and restart; Later; What's new |
 | helper-installing | Downloading / installing | "Downloading 0.3.0… 45%" | — |
 | helper-update-failed | Failed, old version kept | "The update couldn't be installed, so you're still on 0.2.1." + reason: no network / file missing / safety check failed (nothing installed) / download interrupted | Try again |
-| addon-update | Add-on update found | "Add-on 1.4.0 is ready. Close the game or type /reload after it installs." (from the release notes) | Install; Later |
+| addon-update | Add-on update found, with “Update the add-on automatically” off | "Add-on 1.4.0 is ready. Close the game or type /reload after it installs." (from the release notes) | Install; Later |
 | addon-installing | Installing | "Installing add-on 1.4.0…" | — |
-| addon-rolled-back | Install failed | "The add-on update didn't install, so 1.3.2 is still in place. Your reserves file was kept." | Try again |
+| addon-updated | Add-on installed by itself (switch on) | Add-on row green, “Updated”, Version 1.4.0; note "It loads the next time you type /reload or start the game." (from the release's “Before you update” notes); Activity line "Add-on updated to 1.4.0" | — |
+| addon-rolled-back | Install failed (by hand or automatic) | "The add-on update didn't install, so 1.3.2 is still in place. Your reserves file was kept." | Try again |
 | tray | Tray icon and menu | Icon in the three statuses, light and dark menu bars; menu: status line (greyed) "Ready · 14 awards sent", "Staging site" when on, Open Bureaucracy Forever Helper, Check for updates, Quit | — |
-| notification | System notification preview | "Bureaucracy Forever Helper" / "Reserves for Molten Core are ready. Type /reload in game." | Clicking opens the window |
+| notification | System notification preview | "Bureaucracy Forever Helper" / "Reserves for Molten Core are ready. Type /reload in game."; also "Add-on updated to 1.4.0" / "Loads on your next /reload or game start." and "The add-on update didn't install" / "Add-on 1.3.2 is still in place." | Clicking opens the window |
 
 Not applicable: **themes** (dark only); **roles** (only officers have keys; a non-officer's
 key is the revoked state); **no permission** (same); **phone/desktop widths** (fixed window).
