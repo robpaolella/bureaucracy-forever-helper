@@ -65,6 +65,16 @@ impl SecretStore for FakeStore {
 
 /// A site on this machine that answers every request the same way.
 fn site(status: &'static str, headers: &'static str, body: &'static str) -> String {
+    slow_site(status, headers, body, Duration::ZERO)
+}
+
+/// The same, taking `delay` to answer.
+fn slow_site(
+    status: &'static str,
+    headers: &'static str,
+    body: &'static str,
+    delay: Duration,
+) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("http://{}", listener.local_addr().unwrap());
     std::thread::spawn(move || {
@@ -72,6 +82,7 @@ fn site(status: &'static str, headers: &'static str, body: &'static str) -> Stri
             let mut stream = stream.unwrap();
             let mut buf = [0u8; 4096];
             let _ = stream.read(&mut buf);
+            std::thread::sleep(delay);
             let response = format!(
                 "HTTP/1.1 {status}\r\n{headers}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
                 body.len()
@@ -188,10 +199,9 @@ fn a_staging_site_behind_a_login_page_is_not_open() {
 #[test]
 fn a_site_that_cannot_be_reached_is_unreachable_and_keeps_the_stored_key() {
     let engine = production("http://127.0.0.1:1", FakeStore::with_key());
-    let outcome = check_stored(&engine);
-    assert_eq!(kind(&outcome), "unreachable");
-    // Nothing was removed.
-    assert_eq!(remove_key(&engine), ChangeOutcome::Done);
+    assert_eq!(kind(&check_stored(&engine)), "unreachable");
+    // The key is still stored: a second check still finds it rather than saying no key.
+    assert_eq!(kind(&check_stored(&engine)), "unreachable");
 }
 
 #[test]
@@ -275,4 +285,25 @@ fn results_never_hold_the_key() {
     let engine = production(&json_site("200 OK", ME), FakeStore::failing());
     let text = serde_json::to_string(&connect(&engine, KEY)).unwrap();
     assert!(!text.contains(KEY));
+}
+
+#[test]
+fn a_removal_is_not_undone_by_a_slower_earlier_connect() {
+    let address = slow_site(
+        "200 OK",
+        "Content-Type: application/json\r\n",
+        ME,
+        Duration::from_millis(400),
+    );
+    let engine = production(&address, FakeStore::default());
+    let connecting = {
+        let engine = engine.clone();
+        std::thread::spawn(move || connect(&engine, KEY))
+    };
+    // Let the connect reach the site, then remove while it waits.
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(remove_key(&engine), ChangeOutcome::Done);
+    assert_eq!(kind(&connecting.join().unwrap()), "accepted");
+    // The removal came last, so no key is left.
+    assert_eq!(check_stored(&engine), KeyOutcome::NoKey);
 }

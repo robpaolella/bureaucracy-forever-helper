@@ -13,8 +13,10 @@ use crate::key::{
 use serde::Serialize;
 use std::sync::{Arc, RwLock};
 
-/// The engine, held as app state. Checks only read it, so a slow check never holds up
-/// removing a key; switching the site waits for checks to finish.
+/// The engine, held as app state. Anything that changes the stored key or the site (connect,
+/// remove, switch) takes the write lock, so they happen one at a time in the order they were
+/// asked: a slow connect can't save its key after a removal that came later has returned.
+/// Checking the stored key only reads, so checks run side by side.
 pub struct Engine<S: SecretStore = SystemStore>(Arc<RwLock<KeyEngine<S>>>);
 
 impl<S: SecretStore> Clone for Engine<S> {
@@ -133,7 +135,7 @@ impl From<ConnectError> for KeyOutcome {
 }
 
 pub fn connect<S: SecretStore>(engine: &Engine<S>, pasted: &str) -> KeyOutcome {
-    engine.read().connect(pasted).into()
+    engine.write().connect(pasted).into()
 }
 
 pub fn check_stored<S: SecretStore>(engine: &Engine<S>) -> KeyOutcome {
@@ -141,7 +143,7 @@ pub fn check_stored<S: SecretStore>(engine: &Engine<S>) -> KeyOutcome {
 }
 
 pub fn remove_key<S: SecretStore>(engine: &Engine<S>) -> ChangeOutcome {
-    match engine.read().remove_key() {
+    match engine.write().remove_key() {
         Ok(()) => ChangeOutcome::Done,
         Err(e) => ChangeOutcome::StoreFailed {
             message: e.to_string(),
