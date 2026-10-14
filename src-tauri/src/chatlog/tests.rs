@@ -463,6 +463,9 @@ fn decodes_escapes() {
     assert_eq!(decode("%+1"), None);
     assert_eq!(decode("%C3"), None);
     assert_eq!(decode("%FF%FE"), None);
+    for raw in ["Zoé|Brûlé", "Zoé<Brûlé", "Zoé>", "Zoé\tBrûlé", "Zoé\u{7f}"] {
+        assert_eq!(decode(raw), None, "{raw:?}");
+    }
 }
 
 #[test]
@@ -476,6 +479,10 @@ fn escaped_winner_in_a_line() {
     let line = award_line("<BF1;A;SA0001;aw-9d2f6h1j;16805;ifron;HR;91;Zo%C3>");
     assert_eq!(malformed(&line), Malformed::Escape);
     let line = award_line("<BF1;A;SA0001;aw-9d2f6h1j;16805;ifron;HR;91;50% off>");
+    assert_eq!(malformed(&line), Malformed::Escape);
+    let line = award_line("<BF1;A;SA0001;aw-9d2f6h1j;16805;ifron;HR;91;Zoé|Brûlé>");
+    assert_eq!(malformed(&line), Malformed::Escape);
+    let line = award_line("<BF1;A;SA0001;aw-9d2f6h1j;16805;ifron;HR;91;Zoé<Brûlé>");
     assert_eq!(malformed(&line), Malformed::Escape);
 }
 

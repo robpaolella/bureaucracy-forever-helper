@@ -338,7 +338,8 @@ impl Line<'_> {
     }
 }
 
-/// Decodes `%XX` escapes (ADDON-SPEC 9.3); `None` for any other `%` or invalid UTF-8.
+/// Decodes `%XX` escapes (ADDON-SPEC 9.3); `None` for any other `%`, a character that
+/// should have been escaped, or invalid UTF-8.
 fn decode(field: &str) -> Option<String> {
     let bytes = field.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -351,6 +352,8 @@ fn decode(field: &str) -> Option<String> {
             }
             out.push(u8::from_str_radix(std::str::from_utf8(hex).ok()?, 16).ok()?);
             i += 3;
+        } else if matches!(bytes[i], b'<' | b'>' | b'|' | 0..=0x1F | 0x7F) {
+            return None;
         } else {
             out.push(bytes[i]);
             i += 1;
