@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mountApp, type AppState } from "./app";
 import { ROW_ORDER, firstBroken, type ChainRow, type ChainState } from "./chain";
 
@@ -106,5 +106,34 @@ describe("settings", () => {
     expect(root.querySelectorAll(".divider")).toHaveLength(1);
     (root.querySelector(".back") as HTMLElement).click();
     expect(root.querySelector("h1")?.textContent).toBe("Ready for tonight");
+  });
+});
+
+describe("activity time hover", () => {
+  const original = process.env.TZ;
+  afterEach(() => {
+    process.env.TZ = original;
+  });
+
+  const timeFor = (at: number) => {
+    const root = document.createElement("div");
+    mountApp(root, { getState: () => state({ activity: [{ at, tone: "ok", kind: "Sent" }] }) });
+    return root.querySelector<HTMLElement>(".acts time")!;
+  };
+
+  it.each([
+    ["summer", Date.UTC(2026, 6, 14, 2, 0), "9:00 PM CDT"],
+    ["winter", Date.UTC(2026, 11, 14, 3, 0), "9:00 PM CST"],
+  ])("shows guild time on hover and focus in %s, for an officer in another zone", (_, at, local) => {
+    process.env.TZ = "America/Chicago";
+    const time = timeFor(at);
+    expect(time.title).toBe("7:00 PM guild time");
+    expect(time.tabIndex).toBe(0);
+    expect(time.getAttribute("aria-label")).toBe(`${local}, 7:00 PM guild time`);
+  });
+
+  it("keeps the visible time as the officer's own", () => {
+    process.env.TZ = "America/Chicago";
+    expect(timeFor(Date.UTC(2026, 6, 14, 2, 0)).textContent).toBe("9:00 PM");
   });
 });

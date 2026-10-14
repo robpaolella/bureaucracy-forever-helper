@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   ACTIVITY_KEEP,
   createActivityLog,
+  guildTime,
   showSeeAll,
   visibleActivity,
   type ActivityEvent,
 } from "./activity";
+import { GUILD_TIMEZONE } from "../guild";
 
 const NOW = new Date(2026, 9, 14, 20, 0).getTime();
 const MIN = 60_000;
@@ -53,5 +55,16 @@ describe("createActivityLog", () => {
 describe("showSeeAll", () => {
   it("shows only above three events", () => {
     expect([0, 3, 4].map(showSeeAll)).toEqual([false, false, true]);
+  });
+});
+
+describe("guildTime", () => {
+  it("is Pacific time in summer and winter, whatever the officer's zone", () => {
+    expect(guildTime(Date.UTC(2026, 6, 14, 2, 0))).toBe("7:00 PM");
+    expect(guildTime(Date.UTC(2026, 11, 14, 3, 0))).toBe("7:00 PM");
+  });
+
+  it("uses the one guild zone constant", () => {
+    expect(GUILD_TIMEZONE).toBe("America/Los_Angeles");
   });
 });
