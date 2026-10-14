@@ -25,6 +25,17 @@ npm run tauri dev       # opens the app; the front-end is served on http://local
 ```
 Without a display, run it as `dbus-run-session xvfb-run -a npm run tauri dev`. Without a D-Bus session the app starts but shows no window.
 
+## Previews
+Previews: keep until merge
+
+Robert tests from his PC, connected remotely to the VM the agents run on, so he can't open `localhost` or the native app window. Serve every PR's preview on the VM's LAN address `192.168.50.10` (never `0.0.0.0`) and put the link in the PR's How to verify as `http://192.168.50.10:<port>/`.
+- **App front-end:** `npm run dev -- --host 192.168.50.10 --port <port>`. Pick a port no other worktree holds (check `ss -ltn`); `strictPort` makes Vite exit if it's taken, so pick another and say which.
+- **Design prototype:** `python3 -m http.server <port> --bind 192.168.50.10 --directory design/2-helper-window`, linked as `http://192.168.50.10:<port>/`.
+- Check it: `curl -s -o /dev/null -w '%{http_code}' http://192.168.50.10:<port>/` returns 200, and `ss -ltn` shows the listener on `192.168.50.10:<port>`.
+- The browser preview is the front-end only: Tauri-only calls fail in a browser. Show anything that needs the Rust side, and native window or tray behaviour, with screenshots taken under xvfb and attached to the PR. The PR says the real check on his Mac or Windows PC comes with a release build.
+- If the preview dies, say so in the report; it doesn't block the PR.
+- If the VM's address changes (it is DHCP), use the new one from `ip -4 addr` and update this section.
+
 ## Layout
 - `src/` front-end (`main.ts` entry), with tests beside the code (`*.test.ts`).
 - `src-tauri/src/lib.rs` app setup, tray and window behaviour; `main.rs` is the entry point.
