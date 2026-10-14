@@ -14,8 +14,10 @@
       {
         "label": "main",
         "title": "Bureaucracy Forever Helper",
-        "width": 480,
-        "height": 360
+        "width": 420,
+        "height": 640,
+        "resizable": false,
+        "maximizable": false
       }
     ],
     "security": { "csp": null }
