@@ -124,8 +124,9 @@ the key field; errors are announced (`role="alert"`) and tied to their field.
 shows placeholder text) and the guild site has no page it lives in. So there is no running
 page to snapshot. The versions are built directly from the site's components and tokens
 (listed above), with the site's fonts and brand images inlined as `data:` URIs, so each file
-works with no server and no network. `host.html` holds the shared window shell, fonts and
-component styles that each version starts from.
+works with no server and no network. `host.html` held the shared window shell, fonts and
+component styles that each version started from; it was removed at approval (commit f7d8bf7
+keeps it), once `index.html` passed its own offline check.
 
 ## Confirmed decisions
 Robert's answers, 2026-10-13, recorded on #2 (https://github.com/robpaolella/bureaucracy-forever-helper/issues/2#issuecomment-6156569134 and https://github.com/robpaolella/bureaucracy-forever-helper/issues/2#issuecomment-6156645882):

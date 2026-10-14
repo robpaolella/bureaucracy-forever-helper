@@ -18,11 +18,27 @@ own numbered question:
 | 3 | Where activity lives | A: on the main screen; B: last three plus "See all"; C: its own tab | B: enough to confirm things flow without crowding the status |
 | 4 | Where updates appear | A: card at the top; B: inside the Add-on link (helper update under the chain); C: strip at the bottom | B: the update sits beside what it changes |
 
+Approved file: `index.html` (version B, with the two additions below). Evidence:
+`screenshots/approved/` (390 and 1440) and `screenshots/approved/real-size/` (420×640), every
+state, default theme, captured offline (`network.txt` shows only `file:` and `data:`).
+
 Design PR: use the linked PR on the design issue once created. Only Robert merging that PR
 approves it for building.
 
 ## Alternatives
-Pending Robert's choice.
+A and C were left out. Their final files are in commit f7d8bf7 (`versions/a.html`,
+`versions/c.html`); screenshots of every state are in `screenshots/all/` (390 and 1440) and
+`screenshots/all/real-size/` (420×640), named `a-*` and `c-*`.
+
+What only A or C had, and what happened to it (asked as points 5 to 8, 2026-10-13; Robert:
+"Yes to the recommendation."):
+- Raid start times (A, C): **kept**, folded into B as a line per raid under the Reserves row.
+- "Change it on the add-on's Sync tab" (A): **kept**, under the Awards row whenever awards
+  have a raid.
+- Tonight's sent/waiting/refused counts on the main screen (A, C): **dropped**. B flags
+  waiting and refused in the Awards row; the sent count shows on the Activity screen.
+- A's large headline and full activity list, C's tabs, count tiles and bottom update strip:
+  **dropped**, as the options Robert chose against.
 
 ## Independent critique
 Route: `node /git/maestro/routing/route.ts role checker --maker claude-bridge/claude-opus-5-5`
@@ -37,11 +53,18 @@ gave GPT-5.6 Terra (`--model openai/gpt-5.6-terra --thinking medium`).
 ## Comments and changes
 No Open Design comments (checked 2026-10-13 before approval).
 
+Changes after the critique, both from Robert's points 5 and 6 (content A already had, so no
+new critique): B's Reserves row now reads "Next 12 hours" with each raid and its start time
+beneath, and the Awards row adds "Picked in game. Change it on the add-on's Sync tab." The
+chain list was set not to shrink, so the longer rows never clip the Awards row. Prototype
+fix: real-size (`bare=1`) captures no longer apply the narrow-screen scaling, which had
+shifted the window 12px.
+
 ## Experiment
 None.
 
 ## Open items
-None affecting the scope. Answer 5 (no raid choice in the helper) changes other repos'
+None affecting the approved scope. Answer 5 (no raid choice in the helper) changes other repos'
 issues; the helper conductor was asked to carry it (#2 comment 6156569134).
 
 ## Build handoff
