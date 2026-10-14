@@ -29,7 +29,7 @@ Without a display, run it as `dbus-run-session xvfb-run -a npm run tauri dev`. W
 - `src/` front-end (`main.ts` entry), with tests beside the code (`*.test.ts`).
 - `src-tauri/src/lib.rs` app setup, tray and window behaviour; `main.rs` is the entry point.
 - `src-tauri/tauri.conf.json` app, window and bundle config; `src-tauri/capabilities/` what the front-end may call.
-- `design/` holds designs. The helper's look comes from the design made in #2; this file names the design file once that design exists.
+- `design/` holds designs. The helper's look is `design/2-helper-window/index.html` (approved in #2): its window, tray menu, icons and every state, with screenshots in `screenshots/approved/real-size/`.
 - `work/` multi-session work folders; `backlog.md` follow-up ideas.
 
 ## Deploy
@@ -56,7 +56,7 @@ src-tauri/capabilities/**
 ## Watch out for
 - The window only appears under xvfb inside `dbus-run-session xvfb-run …`.
 - Closing the window hides it; only the tray's Quit exits.
-- The tray icon is a placeholder blue square until the design in #2.
+- The tray icon is still a placeholder blue square; the approved design (#2) replaces it with the guild's column mark and a status dot.
 
 ## Reference material
 `ADDON-SPEC.md` in the site repo (robpaolella/bureaucracy-forever; tracked in its #271) is the contract for the data the add-on, helper and site exchange. Change the format there, not here.

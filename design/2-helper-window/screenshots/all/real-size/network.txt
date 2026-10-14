@@ -1,0 +1,14 @@
+network:
+Emulating network conditions: Offline
+Default navigation timeout set to 10000 ms
+## Network requests
+Showing 1-6 of 6 (Page 1 of 1).
+reqid=521 GET file:///git/bureaucracy-forever-helper/design/2-helper-window/versions/c.html?state=notification&theme=default&bare=1 [200]
+reqid=522 GET data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAA+gAAADJCAYAAACwuxjqAABYrElEQVR42u3deZhdWV0u/vdd+5xTQ+YaMnY3NGCLdJikBa5MHQUaGgccUgJ2N4MIeNUrV4V74XpNoohcf+IIKCIqKgoVGWUGSUBEhgYUuh1AoGk6qaqkpgw1nb33en9/7H2S6nSdU5WkkqpTeT/Ps5/0kBrO2mv6rpG4hCSRpEbG6i+PEd/HgFOKS... <truncated> [200]
+reqid=523 GET data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAEAAElEQVR42uz9y6ut27YnCP1a6/0bc659zsmMDJJ8GGmioBZErSikhVDQgpAoWFSwblW0pqT/gWBBEFMrZs2CoCgiacGwIviCEEwxA4kIDFLiIRnmvfecveYYX++tWWiP3vo3xtp7zR2RN25c9wpunHP2XnPMMb7RH6392u9B/+x/47+rUAVUQYr1R... <truncated> [200]
+reqid=524 GET data:font/woff2;base64,d09GMgABAAAAADt8AA8AAAAAhNgAADsbAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGoFiG8VSHHIGYD9TVEFUHACEbBEICoGkRIGEMwuDSgABNgIkA4cOBCAFhB4HhQMb8XEF49gEOA8IifM9pzKKUsE6kKOQjFBis/+PyQ2RCS1Qp3+FmG2mrIQOZ0WBIQ3Ziky4cqunboGHuKGF+30Vz2Mcvjq1+rjEO2w2rGaj... <truncated> [200]
+reqid=525 GET data:font/woff2;base64,d09GMgABAAAAAgMIABMAAAADhBwAAgKTAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGoHGDxuD0ngcgig/SFZBUpQzBmA/U1RBVIFiJzQAhBYvgRoRCAqBmXyBgFkLhA4AMIeUCAE2AiQDiBgEIAWKFAeIClsgdHOGJiLt6FKZj5K3U6KS+7SlBqD7rDfEMSJTD57pFGrI0B6B5AHUum59gXbZdzJM3VVdjm3nh0f2... <truncated> [200]
+reqid=526 GET data:font/woff2;base64,d09GMgABAAAAAIh8ABMAAAABXggAAIgKAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGoNYG+d0HIsGP0hWQVKFEgZgP1NUQVSBTicuAIUuL34RCAqB0UCBoT4LhF4AMIK8OgE2AiQDiTgEIAWKPAeMfVtWQlEhJxtduhPyRo26TaWTbZPbbYNYt2vo2pwZtVmjVTWi/09JOmRs8NyAc59mBUI0AmWpYCCMgsiavebs... <truncated> [200]
+help[2]:
+  Run `chrome-devtools-axi network-get <id>` to see request details
+  Run `chrome-devtools-axi network --type fetch` to filter by type

@@ -1,0 +1,83 @@
+# Design decisions: the helper's window
+
+- Design issue: #2; covered build issues: #3, #4, #6, #7, #8, #12, #13, #14, #24
+- Revision: 1; replaces: none
+- Maker: claude-bridge/claude-opus-5-5 (Opus 5.5), thinking medium
+
+## Choice and approval
+Robert chose **B (Chain)** for all four decisions. His confirmation, 2026-10-13: "I agree,
+I like option B across the board. Let's go with it. Approved."
+
+The versions differ on four independent decisions (brief.md, Versions), each asked as its
+own numbered question:
+
+| # | Decision | Options (version) | Robert's pick and why |
+| --- | --- | --- | --- |
+| 1 | Main layout | A: status headline over reserves and activity; B: chain of five links, broken link opened; C: tabs with counts first | B: shows at a glance which link broke, the main reason to open the helper |
+| 2 | Setup flow | A: one step at a time; B: the chain fills in; C: one page with both parts | B: setup and everyday use look the same |
+| 3 | Where activity lives | A: on the main screen; B: last three plus "See all"; C: its own tab | B: enough to confirm things flow without crowding the status |
+| 4 | Where updates appear | A: card at the top; B: inside the Add-on link (helper update under the chain); C: strip at the bottom | B: the update sits beside what it changes |
+
+Approved file: `index.html` (version B, with the two additions below). Evidence:
+`screenshots/approved/` (390 and 1440) and `screenshots/approved/real-size/` (420×640), every
+state, default theme, captured offline (`network.txt` shows only `file:` and `data:`).
+
+Design PR: use the linked PR on the design issue once created. Only Robert merging that PR
+approves it for building.
+
+## Alternatives
+A and C were left out. Their final files are in commit f7d8bf7 (`versions/a.html`,
+`versions/c.html`); screenshots of every state are in `screenshots/all/` (390 and 1440) and
+`screenshots/all/real-size/` (420×640), named `a-*` and `c-*`.
+
+What only A or C had, and what happened to it (asked as points 5 to 8, 2026-10-13; Robert:
+"Yes to the recommendation."):
+- Raid start times (A, C): **kept**, folded into B as a line per raid under the Reserves row.
+- "Change it on the add-on's Sync tab" (A): **kept**, under the Awards row whenever awards
+  have a raid.
+- Tonight's sent/waiting/refused counts on the main screen (A, C): **dropped**. B flags
+  waiting and refused in the Awards row; the sent count shows on the Activity screen.
+- A's large headline and full activity list, C's tabs, count tiles and bottom update strip:
+  **dropped**, as the options Robert chose against.
+
+## Independent critique
+Route: `node /git/maestro/routing/route.ts role checker --maker claude-bridge/claude-opus-5-5`
+gave GPT-5.6 Terra (`--model openai/gpt-5.6-terra --thinking medium`).
+
+- Command: `node /git/maestro/scripts/read-only-run.ts "$PWD" review /git/maestro/skills/design-feature/reviewer-prompt.md "Design: …/design/2-helper-window. Images and manifest: /tmp/design-review-m82241/versions (also real-size 420x640 captures in …/real-size). Maker: claude-bridge/claude-opus-5-5." -- --model openai/gpt-5.6-terra --thinking medium`
+- Verdict (2026-10-13): **PASS**, no fixes. All 204 reference-width and 102 real-size
+  (420×640) images opened; 34 states × 3 versions × default covered; workspace unchanged.
+- PR review (2026-10-13), `node /git/maestro/routing/route.ts role risky-review` gave GPT-6
+  Astra (`--model openai/gpt-6-astra --thinking low`): two Blocking items (caption contrast
+  under 4.5:1; three links under 44px), fixed as recorded under Comments and changes.
+- Stated limits: read-only image and HTML review; keyboard use, screen readers, real
+  tray behaviour, file picker and updates are proven only in the builds.
+
+## Comments and changes
+No Open Design comments (checked 2026-10-13 before approval).
+
+Changes after the critique, both from Robert's points 5 and 6 (content A already had, so no
+new critique): B's Reserves row now reads "Next 12 hours" with each raid and its start time
+beneath, and the Awards row adds "Picked in game. Change it on the add-on's Sync tab." The
+chain list was set not to shrink, so the longer rows never clip the Awards row. Prototype
+fix: real-size (`bare=1`) captures no longer apply the narrow-screen scaling, which had
+shifted the window 12px.
+
+Fixes from the PR review (GPT-6 Astra, low; see Independent critique), applied to `index.html`
+only: caption, hint, placeholder, label and time text moved from `fg-3` to the site's existing
+`fg-muted` (#8D97A8; 5.4:1 or better on every helper surface, where `fg-3` fell to 3.77:1;
+the site's tokens.css limits `fg-3` to the darkest ground). "Open the officer area", "What's
+new", "See all" and "Other reasons it can fail" now have 44px-tall click areas, measured in
+the browser (147×44, 81×44, 80×44, 354×44). Approved screenshots retaken.
+
+## Experiment
+None.
+
+## Open items
+None affecting the approved scope. Answer 5 (no raid choice in the helper) changes other repos'
+issues; the helper conductor was asked to carry it (#2 comment 6156569134).
+
+## Build handoff
+Merged folder/revision is the feature authority; DESIGN.md/live site govern site-wide
+look. Reconcile issues and paused branches in prep before marking ready. Without a
+conductor, the design session owns that follow-up. Later revisions use new issues/PRs.
