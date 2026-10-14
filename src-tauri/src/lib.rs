@@ -1,4 +1,5 @@
 pub mod chatlog;
+pub mod inbox;
 
 use tauri::{
     menu::{Menu, MenuItem},
