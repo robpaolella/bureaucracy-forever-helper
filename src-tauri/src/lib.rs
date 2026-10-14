@@ -1,3 +1,5 @@
+pub mod inbox;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
