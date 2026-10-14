@@ -1,9 +1,9 @@
 // The shared pieces every screen reuses. Class names and markup follow the approved
 // design (design/2-helper-window/index.html); styles live in components.css.
 
-type Child = Node | string;
+export type Child = Node | string;
 
-function el<K extends keyof HTMLElementTagNameMap>(
+export function el<K extends keyof HTMLElementTagNameMap>(
   tag: K,
   className?: string,
   children: Child[] = [],
