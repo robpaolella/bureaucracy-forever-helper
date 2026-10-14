@@ -94,7 +94,7 @@ fn removing_an_acknowledged_entry_removes_only_that_entry() {
     let mut queue = queue_with(&path, &["aw-1111aaaa", "aw-2222aaaa", "aw-3333aaaa"]);
 
     assert!(queue
-        .remove_acknowledged("aw-2222aaaa", &Ack::Recorded)
+        .remove_acknowledged(&award("aw-2222aaaa"), &Ack::Recorded)
         .unwrap());
     assert_eq!(ids(&queue), ["aw-1111aaaa", "aw-3333aaaa"]);
     assert_eq!(ids(&Queue::open(&path)), ["aw-1111aaaa", "aw-3333aaaa"]);
@@ -102,16 +102,18 @@ fn removing_an_acknowledged_entry_removes_only_that_entry() {
     // An id that isn't waiting changes nothing, and the file isn't rewritten.
     let before = fs::metadata(&path).unwrap().modified().unwrap();
     assert!(!queue
-        .remove_acknowledged("aw-9999aaaa", &Ack::Replayed)
+        .remove_acknowledged(&award("aw-9999aaaa"), &Ack::Replayed)
         .unwrap());
     assert_eq!(fs::metadata(&path).unwrap().modified().unwrap(), before);
 
     let rejected = Ack::Rejected {
         code: "item-not-in-table".to_string(),
     };
-    assert!(queue.remove_acknowledged("aw-3333aaaa", &rejected).unwrap());
     assert!(queue
-        .remove_acknowledged("aw-1111aaaa", &Ack::Voided)
+        .remove_acknowledged(&award("aw-3333aaaa"), &rejected)
+        .unwrap());
+    assert!(queue
+        .remove_acknowledged(&award("aw-1111aaaa"), &Ack::Voided)
         .unwrap());
     assert!(queue.operations().unwrap().is_empty());
     assert!(Queue::open(&path).operations().unwrap().is_empty());
@@ -123,7 +125,7 @@ fn an_entry_never_acknowledged_stays() {
     let path = dir.join(FILE_NAME);
     let mut queue = queue_with(&path, &["aw-1111aaaa", "aw-2222aaaa"]);
     queue
-        .remove_acknowledged("aw-1111aaaa", &Ack::Recorded)
+        .remove_acknowledged(&award("aw-1111aaaa"), &Ack::Recorded)
         .unwrap();
     queue.reload();
     assert_eq!(ids(&queue), ["aw-2222aaaa"]);
@@ -177,16 +179,20 @@ fn a_reused_id_with_other_contents_is_kept_for_the_site_to_judge() {
     assert_eq!(reopened.damage(), None);
     assert_eq!(reopened.operations().unwrap(), all);
 
-    // Answers come back oldest first: the first removes Ana's, the second Bo's.
-    assert!(reopened
-        .remove_acknowledged("aw-1111aaaa", &Ack::Recorded)
-        .unwrap());
-    assert_eq!(reopened.operations().unwrap(), [award("aw-2222aaaa"), bo]);
+    // The first is still pending at the site (not an acknowledgement); the second is
+    // rejected. Only the rejected one goes.
+    assert_eq!(Ack::from_result("pending", None), None);
     let conflict = Ack::Rejected {
         code: "key-conflict".to_string(),
     };
+    assert!(reopened.remove_acknowledged(&bo, &conflict).unwrap());
+    assert_eq!(
+        reopened.operations().unwrap(),
+        [award("aw-1111aaaa"), award("aw-2222aaaa")]
+    );
+    assert!(!reopened.remove_acknowledged(&bo, &conflict).unwrap());
     assert!(reopened
-        .remove_acknowledged("aw-1111aaaa", &conflict)
+        .remove_acknowledged(&award("aw-1111aaaa"), &Ack::Recorded)
         .unwrap());
     assert_eq!(ids(&Queue::open(&path)), ["aw-2222aaaa"]);
 }
@@ -294,7 +300,7 @@ fn a_crash_at_any_step_of_a_write_leaves_the_old_or_the_new_list() {
         let path = dir.join(FILE_NAME);
         drop(queue_with(&path, &old));
         crash_at(&path, step, |queue, at| {
-            let _ = queue.remove_with("aw-1111aaaa", at);
+            let _ = queue.remove_with(&award("aw-1111aaaa"), at);
         });
         let after = Queue::open(&path);
         assert_eq!(after.damage(), None, "remove, {step:?}");
@@ -326,6 +332,7 @@ fn a_failed_write_changes_nothing_and_leaves_no_temp_file() {
     let mut queue = Queue {
         path: path.clone(),
         state: Ok(vec![award("aw-1111aaaa")]),
+        unconfirmed: false,
     };
     let err = queue.add(award("aw-2222aaaa")).unwrap_err();
     assert!(matches!(err, QueueError::Io(_)), "{err:?}");
@@ -334,7 +341,7 @@ fn a_failed_write_changes_nothing_and_leaves_no_temp_file() {
         .starts_with("The waiting list couldn't be saved"));
     assert_eq!(ids(&queue), ["aw-1111aaaa"]);
     assert!(queue
-        .remove_acknowledged("aw-1111aaaa", &Ack::Recorded)
+        .remove_acknowledged(&award("aw-1111aaaa"), &Ack::Recorded)
         .is_err());
     assert_eq!(ids(&queue), ["aw-1111aaaa"]);
     assert_eq!(files_in(&dir), ["blocked"]);
@@ -370,6 +377,42 @@ fn a_failure_before_the_swap_changes_nothing_and_after_it_keeps_the_new_list() {
         assert_eq!(ids(&Queue::open(&path)), expected, "{step:?}: on disk");
         assert_eq!(files_in(&dir), [FILE_NAME], "{step:?}");
     }
+}
+
+#[test]
+fn adding_again_after_an_unconfirmed_swap_confirms_it_first() {
+    let dir = scratch_dir();
+    let path = dir.join(FILE_NAME);
+    let mut queue = queue_with(&path, &["aw-1111aaaa"]);
+    let mut at = |s: Step| match s {
+        Step::Swapped => Err(io::Error::other("flush failed")),
+        _ => Ok(()),
+    };
+    assert!(queue.add_with(award("aw-2222aaaa"), &mut at).is_err());
+    assert!(queue.unconfirmed);
+
+    // The retry flushes the rename before saying it is already waiting.
+    assert_eq!(
+        queue.add(award("aw-2222aaaa")).unwrap(),
+        Added::AlreadyWaiting
+    );
+    assert!(!queue.unconfirmed);
+
+    // While the flush keeps failing, the retry fails too. Here the folder is gone.
+    assert!(queue.add_with(award("aw-3333aaaa"), &mut at).is_err());
+    fs::remove_dir_all(&dir).unwrap();
+    let err = queue.add(award("aw-3333aaaa")).unwrap_err();
+    assert!(matches!(err, QueueError::Io(_)), "{err:?}");
+    assert!(queue.unconfirmed);
+
+    // A later full write confirms everything before it.
+    fs::create_dir_all(&dir).unwrap();
+    assert_eq!(queue.add(award("aw-4444aaaa")).unwrap(), Added::Queued);
+    assert!(!queue.unconfirmed);
+    assert_eq!(
+        ids(&Queue::open(&path)),
+        ["aw-1111aaaa", "aw-2222aaaa", "aw-3333aaaa", "aw-4444aaaa"]
+    );
 }
 
 #[test]
@@ -422,7 +465,7 @@ fn a_damaged_file_is_reported_left_as_it_is_and_refuses_changes() {
         assert!(matches!(add, QueueError::Damaged { .. }), "{name}: {add:?}");
         assert!(add.to_string().ends_with("Nothing was deleted."), "{name}");
         let remove = queue
-            .remove_acknowledged("aw-1111aaaa", &Ack::Recorded)
+            .remove_acknowledged(&award("aw-1111aaaa"), &Ack::Recorded)
             .unwrap_err();
         assert!(matches!(remove, QueueError::Damaged { .. }), "{name}");
         queue.reload();

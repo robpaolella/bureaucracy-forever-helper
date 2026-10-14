@@ -114,6 +114,8 @@ enum Step {
 pub struct Queue {
     path: PathBuf,
     state: Result<Vec<Value>, String>,
+    /// The last new file was swapped in but its rename couldn't be flushed to disk.
+    unconfirmed: bool,
 }
 
 impl Queue {
@@ -122,7 +124,11 @@ impl Queue {
     pub fn open(path: impl Into<PathBuf>) -> Queue {
         let path = path.into();
         let state = load(&path);
-        Queue { path, state }
+        Queue {
+            path,
+            state,
+            unconfirmed: false,
+        }
     }
 
     /// Reads the file again, so a fixed or removed file clears the damage.
@@ -150,18 +156,22 @@ impl Queue {
         self.add_with(op, &mut |_| Ok(()))
     }
 
-    /// Removes the oldest waiting operation `id` because the site acknowledged it as
+    /// Removes `op`, exactly as it was read and sent, because the site acknowledged it as
     /// `_ack`; asking for the acknowledgement means nothing else can remove an entry.
-    /// The site answers in the order operations were sent, oldest first, so each answer
-    /// removes the entry it was for. Returns whether one was waiting.
-    pub fn remove_acknowledged(&mut self, id: &str, _ack: &Ack) -> Result<bool, QueueError> {
-        self.remove_with(id, &mut |_| Ok(()))
+    /// Matching the whole operation, not just its `id`, keeps a reused id's other entry.
+    /// Returns whether it was waiting.
+    pub fn remove_acknowledged(&mut self, op: &Value, _ack: &Ack) -> Result<bool, QueueError> {
+        self.remove_with(op, &mut |_| Ok(()))
     }
 
     fn add_with(&mut self, op: Value, at: &mut AtStep) -> Result<Added, QueueError> {
         let ops = self.operations()?;
         op_id(&op).map_err(|problem| QueueError::BadOperation { problem })?;
         if ops.contains(&op) {
+            if self.unconfirmed {
+                sync_rename(&self.path)?;
+                self.unconfirmed = false;
+            }
             return Ok(Added::AlreadyWaiting);
         }
         let mut next = ops.to_vec();
@@ -170,9 +180,9 @@ impl Queue {
         Ok(Added::Queued)
     }
 
-    fn remove_with(&mut self, id: &str, at: &mut AtStep) -> Result<bool, QueueError> {
+    fn remove_with(&mut self, op: &Value, at: &mut AtStep) -> Result<bool, QueueError> {
         let ops = self.operations()?;
-        let Some(index) = ops.iter().position(|o| op_id(o).as_deref() == Ok(id)) else {
+        let Some(index) = ops.iter().position(|o| o == op) else {
             return Ok(false);
         };
         let mut next = ops.to_vec();
@@ -189,11 +199,13 @@ impl Queue {
         match result {
             Ok(()) => {
                 self.state = Ok(next);
+                self.unconfirmed = false;
                 Ok(())
             }
             Err(e) => {
                 if e.swapped {
                     self.state = Ok(next);
+                    self.unconfirmed = true;
                 }
                 Err(QueueError::Io(e.error))
             }
