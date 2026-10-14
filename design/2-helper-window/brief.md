@@ -70,7 +70,7 @@ window at its real size on a plain backdrop with the state bar beside it; at 390
 down to fit.
 
 ## States, themes and content
-One theme (`default`, dark). Sample data only, invented: officer helper "Rob's PC"; raids
+One theme (`default`, dark). Sample data only, invented: officer Discord name "Aldric" (the Guild site row reads "Connected as <Discord name>"); raids
 "Molten Core, Tue 7:00 PM PDT" and "Blackwing Lair, Tue 9:30 PM PDT"; characters in the
 game's "First Last" form (Aldric Vane, Thessaly Ward, Corvin Ashby, Mirela Stone, …); real
 Classic item names; Mac and Windows paths (`/Applications/World of Warcraft`,

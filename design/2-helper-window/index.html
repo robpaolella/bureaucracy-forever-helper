@@ -430,7 +430,7 @@ function boot(versionName, versionNote, render) {
 
 /* Version B, "Chain": the five links from site to awards, each with its state; the broken link opens to say what's wrong. Setup fills the chain in. Activity is a short list with "See all". */
 const LINKS = {
-  site: { name: 'Guild site', ok: ['ok', 'Connected', 'Key “Rob’s PC”'], offline: ['stop', 'Offline', 'Can’t reach the guild site'], revoked: ['stop', 'Key refused', 'The site refused this key'], off: ['stop', 'Switched off', 'The site isn’t accepting the helper'] },
+  site: { name: 'Guild site', ok: ['ok', 'Connected', 'Connected as Aldric'], offline: ['stop', 'Offline', 'Can’t reach the guild site'], revoked: ['stop', 'Key refused', 'The site refused this key'], off: ['stop', 'Switched off', 'The site isn’t accepting the helper'] },
   folder: { name: 'Game folder', ok: ['ok', 'Found', '…/World of Warcraft/_classic_'] },
   addon: { name: 'Add-on', ok: ['ok', 'Installed', 'Version 1.3.2'], update: ['warn', 'Update ready', 'Version 1.4.0 is ready'], installing: ['closed', 'Installing', 'Installing 1.4.0'], 'rolled-back': ['warn', 'Not updated', 'Still on 1.3.2'] },
   reserves: { name: 'Reserves', ok: ['ok', 'In the game', 'Next 12 hours'], reload: ['warn', '/reload needed', 'Molten Core changed'], none: ['closed', 'No raids soon', 'None in the next 12 hours'] },

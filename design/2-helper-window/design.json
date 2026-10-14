@@ -1,5 +1,5 @@
 {
-  "design_issue": 2,
+  "design_issue": 33,
   "covers": [
     3,
     4,
@@ -9,9 +9,15 @@
     12,
     13,
     14,
-    24
+    24,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
   ],
-  "revision": 1,
+  "revision": 2,
   "versions": {
     "approved": "index.html"
   },

@@ -1,7 +1,7 @@
 # Design decisions: the helper's window
 
-- Design issue: #2; covered build issues: #3, #4, #6, #7, #8, #12, #13, #14, #24
-- Revision: 1; replaces: none
+- Design issue: #33 (revision 2; revision 1 was #2); covered build issues: #3, #4, #6, #7, #8, #12, #13, #14, #24, #26, #27, #28, #29, #30, #31
+- Revision: 2; replaces: revision 1 (#2)
 - Maker: claude-bridge/claude-opus-5-5 (Opus 5.5), thinking medium
 
 ## Choice and approval
@@ -24,6 +24,26 @@ state, default theme, captured offline (`network.txt` shows only `file:` and `da
 
 Design PR: use the linked PR on the design issue once created. Only Robert merging that PR
 approves it for building.
+
+## Revision 2 (2026-10-14, issue #33)
+#26–#31 were filed after revision 1 merged, so the design gate could not clear for them.
+Robert, 2026-10-14, in the conductor chat: "Agreed to all. Proceed." His answers, recorded
+on [#28](https://github.com/robpaolella/bureaucracy-forever-helper/issues/28#issuecomment-6161620997)
+and [#13](https://github.com/robpaolella/bureaucracy-forever-helper/issues/13#issuecomment-6161621986):
+- Design gate (Q14): "design revision 2 adds #26–#31 to the covered list." `design.json` now
+  covers them and names #33 as its `design_issue`, so the gate checks this revision's PR.
+- Key name (Q15): "show "Connected as <Discord name>" instead of the design's `Key "Rob's PC"`;
+  revision 2 records the wording." The Guild site row in the connected state now reads
+  "Connected as Aldric" (sample name); the site answers the key owner's Discord name, not a
+  key label. The only change to `index.html`, so only states showing that row had screenshots
+  retaken (both sets, 390, 1440 and real-size 420×640, and the `b-*` copies in `all/`).
+- Remove key (Q16): "no confirmation. It returns to the key step and keeps awards waiting
+  to send."
+- Install button (Q20): "ship without the "Install the add-on" button; #8 adds it. Until #8
+  lands the `folder-no-addon` state differs from the design only by that button." Builds of
+  #13 follow this; it is not a design change.
+No other design change. Screenshots were retaken with a newer browser, so unchanged pixels
+inside retaken images may differ slightly from revision 1.
 
 ## Alternatives
 A and C were left out. Their final files are in commit f7d8bf7 (`versions/a.html`,
