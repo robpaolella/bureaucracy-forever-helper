@@ -107,6 +107,14 @@ Activity) is part 2 of #26, and #40 (sync states) is split from #31. They show t
 screens as #26 and #31 did, so no screen changes and no new decision. `design.json` now also
 lists 39 and 40 in `covers`; the revision stays 2.
 
+## Covers #49, #52, #53 and #56
+After revision 3 merged, the conductor split four issues for size: #49 (add-on update
+screens) is part 2 of #8; #53 (game folder step and Settings section) is part 2 of #13; and
+#28 was split twice: #56 (first-run key step) is part 2 of #28 and #52 (Settings key section
+and staging) is part 3, while #28 itself now only wires the window. They show the same
+screens as #8, #13 and #28 did, so no screen changes and no new decision. `design.json` now
+also lists 49, 52, 53 and 56 in `covers`; the revision stays 3.
+
 ## Experiment
 None.
 
