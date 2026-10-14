@@ -59,29 +59,35 @@ impl SiteClient {
             Err(e) => return Err(unreachable(no_answer(&e))),
         };
         let status = response.status().as_u16();
-        // A body that can't be read is treated as no body: only the status then counts.
-        let body = response
+        let html = response
+            .headers()
+            .get("content-type")
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.trim().to_ascii_lowercase().starts_with("text/html"));
+        let text = response
             .body_mut()
             .with_config()
             .limit(MAX_BODY)
             .read_to_string()
-            .ok()
-            .and_then(|text| serde_json::from_str::<Value>(&text).ok());
-        sort(site, status, body.as_ref())
+            .map_err(|e| unreachable(format!("its answer couldn't be read: {}", no_answer(&e))))?;
+        let body = serde_json::from_str::<Value>(&text).ok();
+        sort(site, status, html, body.as_ref())
     }
 }
 
-/// Sorts an answer by its status and, when it is JSON, its body.
-fn sort(site: Site, status: u16, body: Option<&Value>) -> Result<Connection, SiteError> {
-    // The site's own errors are `{ "error", "code" }` (ADDON-SPEC 7); Vercel's login page
-    // and other servers' pages aren't.
+/// Sorts an answer by its status, whether it is a web page, and, when it is JSON, its body.
+fn sort(
+    site: Site,
+    status: u16,
+    html: bool,
+    body: Option<&Value>,
+) -> Result<Connection, SiteError> {
+    // The site's own errors are `{ "error", "code" }` (ADDON-SPEC 7). Vercel's login page
+    // is a redirect or a 401 web page; the helper API never redirects.
     let code = body
         .filter(|b| b["error"].is_string())
         .and_then(|b| b["code"].as_str());
-    let login_page = || match site {
-        Site::Staging => SiteError::StagingNotOpen,
-        Site::Production => unreachable(format!("it answered {status} without the site's error")),
-    };
+    let login_page = (300..=399).contains(&status) || (status == 401 && html);
     match (status, code) {
         (200, _) => body.and_then(connection).ok_or_else(|| {
             unreachable("it answered 200 with an answer the helper can't read".into())
@@ -89,7 +95,7 @@ fn sort(site: Site, status: u16, body: Option<&Value>) -> Result<Connection, Sit
         (401, Some(_)) => Err(SiteError::KeyRefused(Refusal::BadKey)),
         (403, Some(_)) => Err(SiteError::KeyRefused(Refusal::NotOfficer)),
         (503, Some("helper-off")) => Err(SiteError::HelperOff),
-        (401 | 300..=399, None) => Err(login_page()),
+        _ if login_page && site == Site::Staging => Err(SiteError::StagingNotOpen),
         // Only the status: what the site sent back never goes into a message.
         (status, _) => Err(unreachable(format!("it answered {status}"))),
     }

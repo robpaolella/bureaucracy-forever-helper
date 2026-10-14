@@ -37,6 +37,8 @@ enum Answer {
     EchoRequest,
     /// Takes the connection and never answers.
     Silent,
+    /// Sends a status line and headers promising a body, then never sends it.
+    Stall(&'static str, &'static str),
 }
 
 fn json(status: &'static str, body: &'static str) -> Answer {
@@ -66,6 +68,13 @@ impl FakeSite {
                     Answer::With(s, h, b) => (*s, *h, b.to_string()),
                     Answer::EchoRequest => ("500 Internal Server Error", "", head),
                     Answer::Silent => {
+                        held.push(stream);
+                        continue;
+                    }
+                    Answer::Stall(status, headers) => {
+                        let head =
+                            format!("HTTP/1.1 {status}\r\n{headers}Content-Length: 100\r\n\r\n");
+                        let _ = stream.write_all(head.as_bytes());
                         held.push(stream);
                         continue;
                     }
@@ -351,6 +360,10 @@ fn anything_else_is_an_unreachable_site() {
         json("200 OK", "not json"),
         json("204 No Content", ""),
         Answer::Silent,
+        // The production site's own answer before it has the helper API.
+        json("401 Unauthorized", r#"{"error":"Unauthorised."}"#),
+        Answer::Stall("401 Unauthorized", "Content-Type: text/html\r\n"),
+        Answer::Stall("200 OK", "Content-Type: application/json\r\n"),
     ] {
         for site in [Site::Production, Site::Staging] {
             assert!(unreachable(ask(site, answer.clone())));
