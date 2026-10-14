@@ -1,6 +1,8 @@
 // Test-only demo page: each shared piece in its states, to compare with the approved
 // design. main.ts loads this only in a dev build (see demoEnabled), so a release build
-// carries none of it. Part 2 adds its own states here.
+// carries none of it. `?demo` shows the shared pieces; `?demo=<state>` shows a window screen.
+import { mountApp } from "./app";
+import { demoStates } from "./demoStates";
 import { button, card, choice, field, link, pill, switchControl, tag } from "./components";
 
 function section(title: string, ...children: Node[]): HTMLElement {
@@ -28,7 +30,13 @@ function text(className: string, value: string): HTMLElement {
   return p;
 }
 
-export function renderDemo(root: HTMLElement): void {
+export function renderDemo(root: HTMLElement, name = ""): void {
+  const state = demoStates[name];
+  if (state) {
+    mountApp(root, { getState: () => state.app, view: state.view, settingsSections: () => [] });
+    return;
+  }
+  root.className = "win-body";
   const title = document.createElement("h1");
   title.className = "title";
   title.textContent = "Shared pieces";

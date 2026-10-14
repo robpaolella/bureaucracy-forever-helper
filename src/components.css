@@ -1,4 +1,4 @@
-/* Shared pieces, copied from the approved design. Part 2 adds the rest. */
+/* Shared pieces, copied from the approved design. The window screens are in window.css. */
 /* Button */
 .btn { display:inline-flex; align-items:center; justify-content:center; gap:10px; height:44px; padding:0 22px; border-radius:var(--r-control); font-weight:600; font-size:14px; border:0; cursor:pointer; transition:filter 120ms; white-space:nowrap; text-decoration:none; }
 .btn:hover { filter:brightness(1.1); }
