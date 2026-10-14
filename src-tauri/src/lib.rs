@@ -1,3 +1,5 @@
+pub mod chatlog;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
