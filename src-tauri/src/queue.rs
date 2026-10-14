@@ -55,7 +55,7 @@ impl Ack {
 pub enum Added {
     /// The operation is now on disk, at the end of the list.
     Queued,
-    /// An operation with the same `id` is already waiting, so nothing changed.
+    /// The very same operation is already waiting, so nothing changed.
     AlreadyWaiting,
 }
 
@@ -65,7 +65,8 @@ pub enum QueueError {
     Damaged { problem: String },
     /// The operation has no valid `id` (ADDON-SPEC 4).
     BadOperation { problem: String },
-    /// Writing the file failed. The list on disk and in memory is unchanged.
+    /// Writing the file failed. The list in memory matches the file: unchanged if the
+    /// new file wasn't swapped in, the new list if it was but couldn't be confirmed on disk.
     Io(io::Error),
 }
 
@@ -97,7 +98,11 @@ impl From<io::Error> for QueueError {
     }
 }
 
-/// The steps of a write, where a crash can stop it.
+/// Called after each step of a write. Tests use it to fail the write there, or to stop
+/// it there as a crash would.
+type AtStep = dyn FnMut(Step) -> io::Result<()>;
+
+/// The steps of a write.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Step {
     TempCreated,
@@ -138,22 +143,25 @@ impl Queue {
         }
     }
 
-    /// Adds `op` at the end of the list; it is on disk before this returns.
+    /// Adds `op` at the end of the list; it is on disk before this returns. An operation
+    /// that reuses a waiting one's `id` with other contents is kept too, so the site can
+    /// report the conflict (ADDON-SPEC 4.2).
     pub fn add(&mut self, op: Value) -> Result<Added, QueueError> {
-        self.add_with(op, &mut |_| {})
+        self.add_with(op, &mut |_| Ok(()))
     }
 
-    /// Removes the operation `id` because the site acknowledged it as `_ack`; asking for
-    /// the acknowledgement means nothing else can remove an entry. Returns whether it
-    /// was waiting.
+    /// Removes the oldest waiting operation `id` because the site acknowledged it as
+    /// `_ack`; asking for the acknowledgement means nothing else can remove an entry.
+    /// The site answers in the order operations were sent, oldest first, so each answer
+    /// removes the entry it was for. Returns whether one was waiting.
     pub fn remove_acknowledged(&mut self, id: &str, _ack: &Ack) -> Result<bool, QueueError> {
-        self.remove_with(id, &mut |_| {})
+        self.remove_with(id, &mut |_| Ok(()))
     }
 
-    fn add_with(&mut self, op: Value, at: &mut dyn FnMut(Step)) -> Result<Added, QueueError> {
+    fn add_with(&mut self, op: Value, at: &mut AtStep) -> Result<Added, QueueError> {
         let ops = self.operations()?;
-        let id = op_id(&op).map_err(|problem| QueueError::BadOperation { problem })?;
-        if ops.iter().any(|o| op_id(o).as_deref() == Ok(id.as_str())) {
+        op_id(&op).map_err(|problem| QueueError::BadOperation { problem })?;
+        if ops.contains(&op) {
             return Ok(Added::AlreadyWaiting);
         }
         let mut next = ops.to_vec();
@@ -162,27 +170,34 @@ impl Queue {
         Ok(Added::Queued)
     }
 
-    fn remove_with(&mut self, id: &str, at: &mut dyn FnMut(Step)) -> Result<bool, QueueError> {
+    fn remove_with(&mut self, id: &str, at: &mut AtStep) -> Result<bool, QueueError> {
         let ops = self.operations()?;
-        let next: Vec<Value> = ops
-            .iter()
-            .filter(|o| op_id(o).as_deref() != Ok(id))
-            .cloned()
-            .collect();
-        if next.len() == ops.len() {
+        let Some(index) = ops.iter().position(|o| op_id(o).as_deref() == Ok(id)) else {
             return Ok(false);
-        }
+        };
+        let mut next = ops.to_vec();
+        next.remove(index);
         self.save(next, at)?;
         Ok(true)
     }
 
-    /// Writes `next` and, only once it is in place, keeps it in memory.
-    fn save(&mut self, next: Vec<Value>, at: &mut dyn FnMut(Step)) -> Result<(), QueueError> {
+    /// Writes `next` and, once it is in place, keeps it in memory.
+    fn save(&mut self, next: Vec<Value>, at: &mut AtStep) -> Result<(), QueueError> {
         let file = json!({ "formatVersion": FORMAT_VERSION, "operations": next });
         let bytes = serde_json::to_vec(&file).expect("JSON values always serialize");
-        replace_file(&self.path, &bytes, at)?;
-        self.state = Ok(next);
-        Ok(())
+        let result = replace_file(&self.path, &bytes, at);
+        match result {
+            Ok(()) => {
+                self.state = Ok(next);
+                Ok(())
+            }
+            Err(e) => {
+                if e.swapped {
+                    self.state = Ok(next);
+                }
+                Err(QueueError::Io(e.error))
+            }
+        }
     }
 }
 
@@ -220,12 +235,8 @@ fn parse_list(file: &Value) -> Result<Vec<Value>, String> {
         .get("operations")
         .and_then(Value::as_array)
         .ok_or("it has no operations")?;
-    let mut seen = std::collections::HashSet::new();
     for (i, op) in ops.iter().enumerate() {
-        let id = op_id(op).map_err(|p| format!("entry {} {p}", i + 1))?;
-        if !seen.insert(id) {
-            return Err(format!("entry {} repeats an id", i + 1));
-        }
+        op_id(op).map_err(|p| format!("entry {} {p}", i + 1))?;
     }
     Ok(ops.clone())
 }
@@ -245,49 +256,61 @@ fn op_id(op: &Value) -> Result<String, String> {
     }
 }
 
+/// A failed write, and whether the new file had already replaced the old one.
+struct WriteError {
+    error: io::Error,
+    swapped: bool,
+}
+
 /// Writes `bytes` to a new temporary file beside `target`, flushes it to disk and renames
-/// it over `target`, so `target` is always either the old file or the new one. On a
-/// failure the temporary file is removed. `at` is called after each step; tests use it
-/// to stop the write there, as a crash would.
-fn replace_file(target: &Path, bytes: &[u8], at: &mut dyn FnMut(Step)) -> io::Result<()> {
+/// it over `target`, so `target` is always either the old file or the new one, then
+/// flushes the rename itself. Before the swap, a failure removes the temporary file.
+fn replace_file(target: &Path, bytes: &[u8], at: &mut AtStep) -> Result<(), WriteError> {
     static NEXT: AtomicU64 = AtomicU64::new(0);
-    let (temp, mut file) = create_temp(target, NEXT.fetch_add(1, Ordering::Relaxed))?;
-    at(Step::TempCreated);
-    let half = bytes.len() / 2;
+    let before = |error| WriteError {
+        error,
+        swapped: false,
+    };
+    let (temp, mut file) =
+        create_temp(target, NEXT.fetch_add(1, Ordering::Relaxed)).map_err(before)?;
     let result = (|| {
+        at(Step::TempCreated)?;
+        let half = bytes.len() / 2;
         file.write_all(&bytes[..half])?;
-        at(Step::HalfWritten);
+        at(Step::HalfWritten)?;
         file.write_all(&bytes[half..])?;
         file.sync_all()?;
         drop(file);
-        at(Step::Written);
+        at(Step::Written)?;
         fs::rename(&temp, target)
     })();
-    if result.is_err() {
+    if let Err(error) = result {
         let _ = fs::remove_file(&temp);
-        return result;
+        return Err(before(error));
     }
-    at(Step::Swapped);
-    sync_folder(target);
-    Ok(())
+    at(Step::Swapped)
+        .and_then(|()| sync_rename(target))
+        .map_err(|error| WriteError {
+            error,
+            swapped: true,
+        })
 }
 
-/// Flushes the rename itself to disk where the system allows it. The new file is
-/// already in place, so a failure here is not an error.
-fn sync_folder(target: &Path) {
+/// Flushes the rename to disk: on Unix through the folder, which holds the name; on
+/// Windows, where std can't open a folder for that, through the renamed file.
+fn sync_rename(target: &Path) -> io::Result<()> {
     #[cfg(unix)]
-    if let Some(folder) = target.parent() {
-        let folder = if folder.as_os_str().is_empty() {
-            Path::new(".")
-        } else {
-            folder
+    {
+        let folder = match target.parent() {
+            Some(folder) if !folder.as_os_str().is_empty() => folder,
+            _ => Path::new("."),
         };
-        if let Ok(dir) = File::open(folder) {
-            let _ = dir.sync_all();
-        }
+        File::open(folder)?.sync_all()
     }
     #[cfg(not(unix))]
-    let _ = target;
+    {
+        OpenOptions::new().write(true).open(target)?.sync_all()
+    }
 }
 
 /// Creates a new temporary file beside `target`, never opening one that already exists

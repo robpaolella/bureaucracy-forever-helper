@@ -149,18 +149,46 @@ fn only_the_acknowledging_results_count() {
 }
 
 #[test]
-fn an_id_already_waiting_is_not_added_again() {
+fn the_same_operation_is_not_added_twice() {
     let dir = scratch_dir();
     let path = dir.join(FILE_NAME);
     let mut queue = queue_with(&path, &["aw-1111aaaa"]);
-    let mut changed = award("aw-1111aaaa");
-    changed["char"] = json!("Bo Marsh");
-    assert_eq!(queue.add(changed).unwrap(), Added::AlreadyWaiting);
-    assert_eq!(queue.operations().unwrap(), [award("aw-1111aaaa")]);
+    assert_eq!(
+        queue.add(award("aw-1111aaaa")).unwrap(),
+        Added::AlreadyWaiting
+    );
     assert_eq!(
         Queue::open(&path).operations().unwrap(),
         [award("aw-1111aaaa")]
     );
+}
+
+#[test]
+fn a_reused_id_with_other_contents_is_kept_for_the_site_to_judge() {
+    let dir = scratch_dir();
+    let path = dir.join(FILE_NAME);
+    let mut queue = queue_with(&path, &["aw-1111aaaa", "aw-2222aaaa"]);
+    let mut bo = award("aw-1111aaaa");
+    bo["char"] = json!("Bo Marsh");
+    assert_eq!(queue.add(bo.clone()).unwrap(), Added::Queued);
+    let all = [award("aw-1111aaaa"), award("aw-2222aaaa"), bo.clone()];
+    assert_eq!(queue.operations().unwrap(), all);
+    let mut reopened = Queue::open(&path);
+    assert_eq!(reopened.damage(), None);
+    assert_eq!(reopened.operations().unwrap(), all);
+
+    // Answers come back oldest first: the first removes Ana's, the second Bo's.
+    assert!(reopened
+        .remove_acknowledged("aw-1111aaaa", &Ack::Recorded)
+        .unwrap());
+    assert_eq!(reopened.operations().unwrap(), [award("aw-2222aaaa"), bo]);
+    let conflict = Ack::Rejected {
+        code: "key-conflict".to_string(),
+    };
+    assert!(reopened
+        .remove_acknowledged("aw-1111aaaa", &conflict)
+        .unwrap());
+    assert_eq!(ids(&Queue::open(&path)), ["aw-2222aaaa"]);
 }
 
 #[test]
@@ -216,13 +244,14 @@ fn an_empty_or_missing_file_is_an_empty_queue() {
 
 /// Runs `change` on a queue at `path`, stopping it at `step` the way a crash would:
 /// nothing after the step runs, not even cleanup.
-fn crash_at(path: &Path, step: Step, change: impl FnOnce(&mut Queue, &mut dyn FnMut(Step))) {
+fn crash_at(path: &Path, step: Step, change: impl FnOnce(&mut Queue, &mut AtStep)) {
     struct Crashed;
     let mut queue = Queue::open(path);
-    let mut at = |s: Step| {
+    let mut at = move |s: Step| {
         if s == step {
             panic::resume_unwind(Box::new(Crashed));
         }
+        Ok(())
     };
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| change(&mut queue, &mut at)));
     assert!(
@@ -313,6 +342,37 @@ fn a_failed_write_changes_nothing_and_leaves_no_temp_file() {
 }
 
 #[test]
+fn a_failure_before_the_swap_changes_nothing_and_after_it_keeps_the_new_list() {
+    let steps = [
+        (Step::TempCreated, false),
+        (Step::HalfWritten, false),
+        (Step::Written, false),
+        (Step::Swapped, true),
+    ];
+    for (step, swapped) in steps {
+        let dir = scratch_dir();
+        let path = dir.join(FILE_NAME);
+        let mut queue = queue_with(&path, &["aw-1111aaaa"]);
+        let mut at = move |s: Step| {
+            if s == step {
+                return Err(io::Error::other("disk trouble"));
+            }
+            Ok(())
+        };
+        let err = queue.add_with(award("aw-2222aaaa"), &mut at).unwrap_err();
+        assert!(matches!(err, QueueError::Io(_)), "{step:?}: {err:?}");
+        let expected: &[&str] = if swapped {
+            &["aw-1111aaaa", "aw-2222aaaa"]
+        } else {
+            &["aw-1111aaaa"]
+        };
+        assert_eq!(ids(&queue), expected, "{step:?}: in memory");
+        assert_eq!(ids(&Queue::open(&path)), expected, "{step:?}: on disk");
+        assert_eq!(files_in(&dir), [FILE_NAME], "{step:?}");
+    }
+}
+
+#[test]
 fn a_damaged_file_is_reported_left_as_it_is_and_refuses_changes() {
     let good = serde_json::to_vec(&json!({
         "formatVersion": 1, "operations": [award("aw-1111aaaa")] }))
@@ -345,11 +405,6 @@ fn a_damaged_file_is_reported_left_as_it_is_and_refuses_changes() {
         (
             "bad id",
             br#"{"formatVersion":1,"operations":[{"id":"x"}]}"#.to_vec(),
-        ),
-        (
-            "repeated id",
-            br#"{"formatVersion":1,"operations":[{"id":"aw-1111aaaa"},{"id":"aw-1111aaaa"}]}"#
-                .to_vec(),
         ),
     ];
     for (name, bytes) in cases {
