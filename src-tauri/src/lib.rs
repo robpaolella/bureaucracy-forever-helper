@@ -1,5 +1,6 @@
 pub mod chatlog;
 pub mod inbox;
+pub mod key;
 pub mod queue;
 
 use tauri::{
