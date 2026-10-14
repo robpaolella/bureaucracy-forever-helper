@@ -76,9 +76,9 @@ html.bare .proto, html.bare .titlebar, html.bare .desk-caption { display:none; }
 .title-sm { font-family:var(--font-display); font-weight:500; font-size:20px; line-height:1.3; margin:0; }
 .body { font-size:14px; line-height:1.55; color:var(--fg-2); }
 .small { font-size:13px; line-height:1.55; color:var(--fg-2); }
-.caption { font-size:12px; line-height:1.45; color:var(--fg-3); }
+.caption { font-size:12px; line-height:1.45; color:var(--fg-muted); }
 .label-field { font-size:12px; font-weight:600; line-height:16px; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-2); }
-.th { font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-3); }
+.th { font-size:11px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--fg-muted); }
 .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; word-break:break-all; color:var(--fg-2); }
 
 /* Button.tsx */
@@ -105,20 +105,22 @@ html.bare .proto, html.bare .titlebar, html.bare .desk-caption { display:none; }
 /* TextLink.tsx */
 .link { color:var(--teal); text-decoration:none; border-bottom:1px solid var(--teal-line); padding-bottom:2px; background:none; border-top:0; border-left:0; border-right:0; cursor:pointer; font-size:inherit; }
 .link-row { display:inline-flex; align-items:center; min-height:44px; }
+/* A link with a 44px hit area; underline drawn on the text, not the box edge. */
+.link.link-row { border-bottom:0; padding-bottom:0; text-decoration:underline; text-decoration-color:var(--teal-line); text-underline-offset:4px; }
 
 /* Field.tsx */
 .field { display:flex; flex-direction:column; gap:8px; }
 .input { width:100%; height:46px; padding:0 14px; border-radius:var(--r-control); border:1px solid var(--line-strong); background:var(--ink-700); font-size:15px; color:var(--fg); }
-.input::placeholder { color:var(--fg-3); }
+.input::placeholder { color:var(--fg-muted); }
 .input[aria-invalid="true"] { border-color:var(--stop); background:var(--stop-wash); }
-.note { font-size:12px; color:var(--fg-3); }
+.note { font-size:12px; color:var(--fg-muted); }
 .note.err { color:var(--stop); }
 
 /* Choice.tsx card */
 .choice { display:flex; align-items:center; gap:12px; min-height:46px; padding:8px 14px; border-radius:var(--r-control); border:1px solid var(--line-strong); background:var(--ink-700); font-size:15px; cursor:pointer; }
 .choice:has(:checked) { border-color:var(--teal-dim); background:var(--teal-wash); }
 .choice input { width:16px; height:16px; accent-color:var(--teal); flex:none; }
-.choice .sub { display:block; font-size:12px; color:var(--fg-3); margin-top:2px; word-break:break-all; }
+.choice .sub { display:block; font-size:12px; color:var(--fg-muted); margin-top:2px; word-break:break-all; }
 
 /* Badges.tsx StatusPill / Tag */
 .pill { display:inline-flex; align-items:center; gap:7px; border-radius:999px; border:1px solid; padding:5px 11px; font-size:12px; font-weight:600; white-space:nowrap; }
@@ -159,12 +161,12 @@ html.bare .proto, html.bare .titlebar, html.bare .desk-caption { display:none; }
 .acts { list-style:none; margin:0; padding:0; }
 .acts li { display:grid; grid-template-columns:72px 1fr; gap:10px; padding:9px 0; border-top:1px solid var(--line-faint); font-size:13px; line-height:1.45; }
 .acts li:first-child { border-top:0; }
-.acts time { color:var(--fg-3); font-size:12px; padding-top:1px; }
+.acts time { color:var(--fg-muted); font-size:12px; padding-top:1px; }
 .acts .what { color:var(--fg-2); min-width:0; overflow-wrap:anywhere; }
 .acts .what b { color:var(--fg); font-weight:600; }
 .acts .what .k { font-weight:600; }
 .acts .k-ok { color:var(--ok); } .acts .k-warn { color:var(--warn); } .acts .k-stop { color:var(--stop); }
-.acts .meta { color:var(--fg-3); }
+.acts .meta { color:var(--fg-muted); }
 
 /* Section headings inside the window */
 .sec-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; }
@@ -177,7 +179,7 @@ html.bare .proto, html.bare .titlebar, html.bare .desk-caption { display:none; }
 
 /* ── System previews (tray, notification): drawn as the OS draws them ── */
 .sys { padding:16px; display:flex; flex-direction:column; gap:14px; overflow-y:auto; flex:1; }
-.sys-note { font-size:12px; color:var(--fg-3); }
+.sys-note { font-size:12px; color:var(--fg-muted); }
 .menubar { display:flex; align-items:center; justify-content:flex-end; gap:14px; height:26px; padding:0 10px; border-radius:6px; font:13px system-ui,sans-serif; }
 .menubar.dark { background:#1E1E1E; color:#EEE; }
 .menubar.light { background:#E9E9EB; color:#222; }
@@ -310,8 +312,8 @@ const updateCard = (u, cls = '') => {
   return `<section class="card tone-${c.tone} stack ${cls}" aria-live="polite">
     <p style="font-weight:600;font-size:15px">${c.title}</p><p class="small">${c.body}</p>
     ${c.progress ? `<div class="track-bar" role="progressbar" aria-valuenow="${c.progress}" aria-valuemin="0" aria-valuemax="100" aria-label="Progress"><span style="width:${c.progress}%"></span></div><p class="caption tabular">${c.progress}%</p>` : ''}
-    ${c.actions ? `<div class="row">${c.actions.map(([l, k]) => `<button class="btn btn-${k} btn-sm" type="button">${l}</button>`).join('')}${c.link ? `<span class="spacer"></span><a class="link small" href="#" onclick="return false">${c.link}</a>` : ''}</div>` : ''}
-    ${c.reasons ? `<details class="caption"><summary style="min-height:28px;cursor:pointer">Other reasons it can fail</summary><ul style="margin:6px 0 0;padding-left:18px">${c.reasons.map(r => `<li>${r}</li>`).join('')}</ul></details>` : ''}
+    ${c.actions ? `<div class="row">${c.actions.map(([l, k]) => `<button class="btn btn-${k} btn-sm" type="button">${l}</button>`).join('')}${c.link ? `<span class="spacer"></span><a class="link link-row small" href="#" onclick="return false">${c.link}</a>` : ''}</div>` : ''}
+    ${c.reasons ? `<details class="caption"><summary style="line-height:44px;cursor:pointer">Other reasons it can fail</summary><ul style="margin:6px 0 0;padding-left:18px">${c.reasons.map(r => `<li>${r}</li>`).join('')}</ul></details>` : ''}
   </section>`;
 };
 
@@ -326,7 +328,7 @@ function keyField(k) {
 }
 const keyButtons = k => `<div class="row">
   <button class="btn btn-primary ${k.checking ? 'loading' : ''}" type="button" ${k.checking ? 'disabled aria-busy="true"' : ''}>${k.checking ? '<span class="spin" aria-hidden="true"></span>Checking…' : (k.action || 'Connect')}</button>
-  <span class="spacer"></span><a class="link small" href="#" onclick="return false">Open the officer area</a></div>`;
+  <span class="spacer"></span><a class="link link-row small" href="#" onclick="return false">Open the officer area</a></div>`;
 
 function folderBody(f) {
   const p = f.path ? `<p class="mono">${esc(f.path)}</p>` : '';
@@ -484,7 +486,7 @@ function render(s, slug) {
     ${s.chain.reserves === 'none' ? '' : ''}
     ${chainList(rows).replace('border-top:1px solid var(--line);', '')}
     ${helperUpd}
-    <section class="stack" style="gap:2px"><div class="sec-head"><h2 class="th" style="margin:0">Recent activity</h2><span class="caption">CDT</span><span class="spacer"></span>${s.list.length > 3 ? `<button class="link small" type="button" style="min-height:44px">See all ${s.list.length}</button>` : ''}</div>${actList(recent)}</section>
+    <section class="stack" style="gap:2px"><div class="sec-head"><h2 class="th" style="margin:0">Recent activity</h2><span class="caption">CDT</span><span class="spacer"></span>${s.list.length > 3 ? `<button class="link link-row small" type="button">See all ${s.list.length}</button>` : ''}</div>${actList(recent)}</section>
   </main>`;
 }
 boot('B', 'the chain from site to awards, with the broken link opened; setup fills the chain in; activity behind "See all".', render);
