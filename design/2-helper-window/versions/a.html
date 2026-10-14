@@ -419,7 +419,7 @@ function boot(versionName, versionNote, render) {
     <div class="desk"><div class="titlebar" aria-hidden="true">Bureaucracy Forever Helper</div><div class="scaler"><div class="win" id="win"></div></div><p class="desk-caption">Window: 420×640, fixed</p></div>
   </div>`;
   document.getElementById('win').innerHTML = render(STATES[state], state);
-  const fit = () => { const s = document.querySelector('.scaler'); const k = Math.min(1, (innerWidth - 24) / 420); s.style.transform = k < 1 && !document.documentElement.classList.contains('bare') ? `scale(${k})` : ''; s.style.height = k < 1 ? `${640 * k}px` : ''; s.style.width = k < 1 ? `${420 * k}px` : ''; };
+  const fit = () => { const s = document.querySelector('.scaler'); const k = document.documentElement.classList.contains('bare') ? 1 : Math.min(1, (innerWidth - 24) / 420); s.style.transform = k < 1 && !document.documentElement.classList.contains('bare') ? `scale(${k})` : ''; s.style.height = k < 1 ? `${640 * k}px` : ''; s.style.width = k < 1 ? `${420 * k}px` : ''; };
   fit(); addEventListener('resize', fit);
   document.getElementById('pick-state').addEventListener('change', e => { q.set('state', e.target.value); q.set('theme', theme); location.search = q.toString(); });
   document.documentElement.dataset.state = state;

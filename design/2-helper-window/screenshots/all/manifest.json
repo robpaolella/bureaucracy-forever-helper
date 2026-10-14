@@ -1,0 +1,2044 @@
+{
+  "images": [
+    {
+      "image": "a-key-empty-default-390.png",
+      "version": "a",
+      "state": "key-empty",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-key-empty-default-1440.png",
+      "version": "a",
+      "state": "key-empty",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-key-checking-default-390.png",
+      "version": "a",
+      "state": "key-checking",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-key-checking-default-1440.png",
+      "version": "a",
+      "state": "key-checking",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-key-malformed-default-390.png",
+      "version": "a",
+      "state": "key-malformed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-key-malformed-default-1440.png",
+      "version": "a",
+      "state": "key-malformed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-key-revoked-default-390.png",
+      "version": "a",
+      "state": "key-revoked",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-key-revoked-default-1440.png",
+      "version": "a",
+      "state": "key-revoked",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-key-site-off-default-390.png",
+      "version": "a",
+      "state": "key-site-off",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-key-site-off-default-1440.png",
+      "version": "a",
+      "state": "key-site-off",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-key-unreachable-default-390.png",
+      "version": "a",
+      "state": "key-unreachable",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-key-unreachable-default-1440.png",
+      "version": "a",
+      "state": "key-unreachable",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-key-store-failed-default-390.png",
+      "version": "a",
+      "state": "key-store-failed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-key-store-failed-default-1440.png",
+      "version": "a",
+      "state": "key-store-failed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-folder-searching-default-390.png",
+      "version": "a",
+      "state": "folder-searching",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-folder-searching-default-1440.png",
+      "version": "a",
+      "state": "folder-searching",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-folder-found-default-390.png",
+      "version": "a",
+      "state": "folder-found",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-folder-found-default-1440.png",
+      "version": "a",
+      "state": "folder-found",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-folder-several-default-390.png",
+      "version": "a",
+      "state": "folder-several",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-folder-several-default-1440.png",
+      "version": "a",
+      "state": "folder-several",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-folder-not-found-default-390.png",
+      "version": "a",
+      "state": "folder-not-found",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-folder-not-found-default-1440.png",
+      "version": "a",
+      "state": "folder-not-found",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-folder-not-game-default-390.png",
+      "version": "a",
+      "state": "folder-not-game",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-folder-not-game-default-1440.png",
+      "version": "a",
+      "state": "folder-not-game",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-folder-no-addon-default-390.png",
+      "version": "a",
+      "state": "folder-no-addon",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-folder-no-addon-default-1440.png",
+      "version": "a",
+      "state": "folder-no-addon",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-folder-gone-default-390.png",
+      "version": "a",
+      "state": "folder-gone",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-folder-gone-default-1440.png",
+      "version": "a",
+      "state": "folder-gone",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-ready-default-390.png",
+      "version": "a",
+      "state": "ready",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-ready-default-1440.png",
+      "version": "a",
+      "state": "ready",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-reload-default-390.png",
+      "version": "a",
+      "state": "reload",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-reload-default-1440.png",
+      "version": "a",
+      "state": "reload",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-live-default-390.png",
+      "version": "a",
+      "state": "live",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-live-default-1440.png",
+      "version": "a",
+      "state": "live",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-live-full-default-390.png",
+      "version": "a",
+      "state": "live-full",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-live-full-default-1440.png",
+      "version": "a",
+      "state": "live-full",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-no-raids-default-390.png",
+      "version": "a",
+      "state": "no-raids",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-no-raids-default-1440.png",
+      "version": "a",
+      "state": "no-raids",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-offline-default-390.png",
+      "version": "a",
+      "state": "offline",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-offline-default-1440.png",
+      "version": "a",
+      "state": "offline",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-refused-default-390.png",
+      "version": "a",
+      "state": "refused",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-refused-default-1440.png",
+      "version": "a",
+      "state": "refused",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-revoked-default-390.png",
+      "version": "a",
+      "state": "revoked",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-revoked-default-1440.png",
+      "version": "a",
+      "state": "revoked",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-site-off-default-390.png",
+      "version": "a",
+      "state": "site-off",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-site-off-default-1440.png",
+      "version": "a",
+      "state": "site-off",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-queue-damaged-default-390.png",
+      "version": "a",
+      "state": "queue-damaged",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-queue-damaged-default-1440.png",
+      "version": "a",
+      "state": "queue-damaged",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-staging-default-390.png",
+      "version": "a",
+      "state": "staging",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-staging-default-1440.png",
+      "version": "a",
+      "state": "staging",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-settings-default-390.png",
+      "version": "a",
+      "state": "settings",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-settings-default-1440.png",
+      "version": "a",
+      "state": "settings",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-helper-update-default-390.png",
+      "version": "a",
+      "state": "helper-update",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-helper-update-default-1440.png",
+      "version": "a",
+      "state": "helper-update",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-helper-installing-default-390.png",
+      "version": "a",
+      "state": "helper-installing",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-helper-installing-default-1440.png",
+      "version": "a",
+      "state": "helper-installing",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-helper-update-failed-default-390.png",
+      "version": "a",
+      "state": "helper-update-failed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-helper-update-failed-default-1440.png",
+      "version": "a",
+      "state": "helper-update-failed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-addon-update-default-390.png",
+      "version": "a",
+      "state": "addon-update",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-addon-update-default-1440.png",
+      "version": "a",
+      "state": "addon-update",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-addon-installing-default-390.png",
+      "version": "a",
+      "state": "addon-installing",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-addon-installing-default-1440.png",
+      "version": "a",
+      "state": "addon-installing",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-addon-rolled-back-default-390.png",
+      "version": "a",
+      "state": "addon-rolled-back",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-addon-rolled-back-default-1440.png",
+      "version": "a",
+      "state": "addon-rolled-back",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-tray-default-390.png",
+      "version": "a",
+      "state": "tray",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-tray-default-1440.png",
+      "version": "a",
+      "state": "tray",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "a-notification-default-390.png",
+      "version": "a",
+      "state": "notification",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "a-notification-default-1440.png",
+      "version": "a",
+      "state": "notification",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-key-empty-default-390.png",
+      "version": "b",
+      "state": "key-empty",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-key-empty-default-1440.png",
+      "version": "b",
+      "state": "key-empty",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-key-checking-default-390.png",
+      "version": "b",
+      "state": "key-checking",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-key-checking-default-1440.png",
+      "version": "b",
+      "state": "key-checking",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-key-malformed-default-390.png",
+      "version": "b",
+      "state": "key-malformed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-key-malformed-default-1440.png",
+      "version": "b",
+      "state": "key-malformed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-key-revoked-default-390.png",
+      "version": "b",
+      "state": "key-revoked",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-key-revoked-default-1440.png",
+      "version": "b",
+      "state": "key-revoked",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-key-site-off-default-390.png",
+      "version": "b",
+      "state": "key-site-off",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-key-site-off-default-1440.png",
+      "version": "b",
+      "state": "key-site-off",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-key-unreachable-default-390.png",
+      "version": "b",
+      "state": "key-unreachable",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-key-unreachable-default-1440.png",
+      "version": "b",
+      "state": "key-unreachable",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-key-store-failed-default-390.png",
+      "version": "b",
+      "state": "key-store-failed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-key-store-failed-default-1440.png",
+      "version": "b",
+      "state": "key-store-failed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-folder-searching-default-390.png",
+      "version": "b",
+      "state": "folder-searching",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-folder-searching-default-1440.png",
+      "version": "b",
+      "state": "folder-searching",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-folder-found-default-390.png",
+      "version": "b",
+      "state": "folder-found",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-folder-found-default-1440.png",
+      "version": "b",
+      "state": "folder-found",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-folder-several-default-390.png",
+      "version": "b",
+      "state": "folder-several",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-folder-several-default-1440.png",
+      "version": "b",
+      "state": "folder-several",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-folder-not-found-default-390.png",
+      "version": "b",
+      "state": "folder-not-found",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-folder-not-found-default-1440.png",
+      "version": "b",
+      "state": "folder-not-found",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-folder-not-game-default-390.png",
+      "version": "b",
+      "state": "folder-not-game",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-folder-not-game-default-1440.png",
+      "version": "b",
+      "state": "folder-not-game",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-folder-no-addon-default-390.png",
+      "version": "b",
+      "state": "folder-no-addon",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-folder-no-addon-default-1440.png",
+      "version": "b",
+      "state": "folder-no-addon",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-folder-gone-default-390.png",
+      "version": "b",
+      "state": "folder-gone",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-folder-gone-default-1440.png",
+      "version": "b",
+      "state": "folder-gone",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-ready-default-390.png",
+      "version": "b",
+      "state": "ready",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-ready-default-1440.png",
+      "version": "b",
+      "state": "ready",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-reload-default-390.png",
+      "version": "b",
+      "state": "reload",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-reload-default-1440.png",
+      "version": "b",
+      "state": "reload",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-live-default-390.png",
+      "version": "b",
+      "state": "live",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-live-default-1440.png",
+      "version": "b",
+      "state": "live",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-live-full-default-390.png",
+      "version": "b",
+      "state": "live-full",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-live-full-default-1440.png",
+      "version": "b",
+      "state": "live-full",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-no-raids-default-390.png",
+      "version": "b",
+      "state": "no-raids",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-no-raids-default-1440.png",
+      "version": "b",
+      "state": "no-raids",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-offline-default-390.png",
+      "version": "b",
+      "state": "offline",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-offline-default-1440.png",
+      "version": "b",
+      "state": "offline",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-refused-default-390.png",
+      "version": "b",
+      "state": "refused",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-refused-default-1440.png",
+      "version": "b",
+      "state": "refused",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-revoked-default-390.png",
+      "version": "b",
+      "state": "revoked",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-revoked-default-1440.png",
+      "version": "b",
+      "state": "revoked",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-site-off-default-390.png",
+      "version": "b",
+      "state": "site-off",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-site-off-default-1440.png",
+      "version": "b",
+      "state": "site-off",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-queue-damaged-default-390.png",
+      "version": "b",
+      "state": "queue-damaged",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-queue-damaged-default-1440.png",
+      "version": "b",
+      "state": "queue-damaged",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-staging-default-390.png",
+      "version": "b",
+      "state": "staging",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-staging-default-1440.png",
+      "version": "b",
+      "state": "staging",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-settings-default-390.png",
+      "version": "b",
+      "state": "settings",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-settings-default-1440.png",
+      "version": "b",
+      "state": "settings",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-helper-update-default-390.png",
+      "version": "b",
+      "state": "helper-update",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-helper-update-default-1440.png",
+      "version": "b",
+      "state": "helper-update",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-helper-installing-default-390.png",
+      "version": "b",
+      "state": "helper-installing",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-helper-installing-default-1440.png",
+      "version": "b",
+      "state": "helper-installing",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-helper-update-failed-default-390.png",
+      "version": "b",
+      "state": "helper-update-failed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-helper-update-failed-default-1440.png",
+      "version": "b",
+      "state": "helper-update-failed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-addon-update-default-390.png",
+      "version": "b",
+      "state": "addon-update",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-addon-update-default-1440.png",
+      "version": "b",
+      "state": "addon-update",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-addon-installing-default-390.png",
+      "version": "b",
+      "state": "addon-installing",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-addon-installing-default-1440.png",
+      "version": "b",
+      "state": "addon-installing",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-addon-rolled-back-default-390.png",
+      "version": "b",
+      "state": "addon-rolled-back",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-addon-rolled-back-default-1440.png",
+      "version": "b",
+      "state": "addon-rolled-back",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-tray-default-390.png",
+      "version": "b",
+      "state": "tray",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-tray-default-1440.png",
+      "version": "b",
+      "state": "tray",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "b-notification-default-390.png",
+      "version": "b",
+      "state": "notification",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "b-notification-default-1440.png",
+      "version": "b",
+      "state": "notification",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-key-empty-default-390.png",
+      "version": "c",
+      "state": "key-empty",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-key-empty-default-1440.png",
+      "version": "c",
+      "state": "key-empty",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-key-checking-default-390.png",
+      "version": "c",
+      "state": "key-checking",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-key-checking-default-1440.png",
+      "version": "c",
+      "state": "key-checking",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-key-malformed-default-390.png",
+      "version": "c",
+      "state": "key-malformed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-key-malformed-default-1440.png",
+      "version": "c",
+      "state": "key-malformed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-key-revoked-default-390.png",
+      "version": "c",
+      "state": "key-revoked",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-key-revoked-default-1440.png",
+      "version": "c",
+      "state": "key-revoked",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-key-site-off-default-390.png",
+      "version": "c",
+      "state": "key-site-off",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-key-site-off-default-1440.png",
+      "version": "c",
+      "state": "key-site-off",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-key-unreachable-default-390.png",
+      "version": "c",
+      "state": "key-unreachable",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-key-unreachable-default-1440.png",
+      "version": "c",
+      "state": "key-unreachable",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-key-store-failed-default-390.png",
+      "version": "c",
+      "state": "key-store-failed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-key-store-failed-default-1440.png",
+      "version": "c",
+      "state": "key-store-failed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-folder-searching-default-390.png",
+      "version": "c",
+      "state": "folder-searching",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-folder-searching-default-1440.png",
+      "version": "c",
+      "state": "folder-searching",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-folder-found-default-390.png",
+      "version": "c",
+      "state": "folder-found",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-folder-found-default-1440.png",
+      "version": "c",
+      "state": "folder-found",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-folder-several-default-390.png",
+      "version": "c",
+      "state": "folder-several",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-folder-several-default-1440.png",
+      "version": "c",
+      "state": "folder-several",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-folder-not-found-default-390.png",
+      "version": "c",
+      "state": "folder-not-found",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-folder-not-found-default-1440.png",
+      "version": "c",
+      "state": "folder-not-found",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-folder-not-game-default-390.png",
+      "version": "c",
+      "state": "folder-not-game",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-folder-not-game-default-1440.png",
+      "version": "c",
+      "state": "folder-not-game",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-folder-no-addon-default-390.png",
+      "version": "c",
+      "state": "folder-no-addon",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-folder-no-addon-default-1440.png",
+      "version": "c",
+      "state": "folder-no-addon",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-folder-gone-default-390.png",
+      "version": "c",
+      "state": "folder-gone",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-folder-gone-default-1440.png",
+      "version": "c",
+      "state": "folder-gone",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-ready-default-390.png",
+      "version": "c",
+      "state": "ready",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-ready-default-1440.png",
+      "version": "c",
+      "state": "ready",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-reload-default-390.png",
+      "version": "c",
+      "state": "reload",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-reload-default-1440.png",
+      "version": "c",
+      "state": "reload",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-live-default-390.png",
+      "version": "c",
+      "state": "live",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-live-default-1440.png",
+      "version": "c",
+      "state": "live",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-live-full-default-390.png",
+      "version": "c",
+      "state": "live-full",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-live-full-default-1440.png",
+      "version": "c",
+      "state": "live-full",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-no-raids-default-390.png",
+      "version": "c",
+      "state": "no-raids",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-no-raids-default-1440.png",
+      "version": "c",
+      "state": "no-raids",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-offline-default-390.png",
+      "version": "c",
+      "state": "offline",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-offline-default-1440.png",
+      "version": "c",
+      "state": "offline",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-refused-default-390.png",
+      "version": "c",
+      "state": "refused",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-refused-default-1440.png",
+      "version": "c",
+      "state": "refused",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-revoked-default-390.png",
+      "version": "c",
+      "state": "revoked",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-revoked-default-1440.png",
+      "version": "c",
+      "state": "revoked",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-site-off-default-390.png",
+      "version": "c",
+      "state": "site-off",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-site-off-default-1440.png",
+      "version": "c",
+      "state": "site-off",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-queue-damaged-default-390.png",
+      "version": "c",
+      "state": "queue-damaged",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-queue-damaged-default-1440.png",
+      "version": "c",
+      "state": "queue-damaged",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-staging-default-390.png",
+      "version": "c",
+      "state": "staging",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-staging-default-1440.png",
+      "version": "c",
+      "state": "staging",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-settings-default-390.png",
+      "version": "c",
+      "state": "settings",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-settings-default-1440.png",
+      "version": "c",
+      "state": "settings",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-helper-update-default-390.png",
+      "version": "c",
+      "state": "helper-update",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-helper-update-default-1440.png",
+      "version": "c",
+      "state": "helper-update",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-helper-installing-default-390.png",
+      "version": "c",
+      "state": "helper-installing",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-helper-installing-default-1440.png",
+      "version": "c",
+      "state": "helper-installing",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-helper-update-failed-default-390.png",
+      "version": "c",
+      "state": "helper-update-failed",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-helper-update-failed-default-1440.png",
+      "version": "c",
+      "state": "helper-update-failed",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-addon-update-default-390.png",
+      "version": "c",
+      "state": "addon-update",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-addon-update-default-1440.png",
+      "version": "c",
+      "state": "addon-update",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-addon-installing-default-390.png",
+      "version": "c",
+      "state": "addon-installing",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-addon-installing-default-1440.png",
+      "version": "c",
+      "state": "addon-installing",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-addon-rolled-back-default-390.png",
+      "version": "c",
+      "state": "addon-rolled-back",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-addon-rolled-back-default-1440.png",
+      "version": "c",
+      "state": "addon-rolled-back",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-tray-default-390.png",
+      "version": "c",
+      "state": "tray",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-tray-default-1440.png",
+      "version": "c",
+      "state": "tray",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "c-notification-default-390.png",
+      "version": "c",
+      "state": "notification",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 967
+    },
+    {
+      "image": "c-notification-default-1440.png",
+      "version": "c",
+      "state": "notification",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    }
+  ]
+}

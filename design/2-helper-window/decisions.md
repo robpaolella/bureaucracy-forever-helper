@@ -5,15 +5,18 @@
 - Maker: claude-bridge/claude-opus-5-5 (Opus 5.5), thinking medium
 
 ## Choice and approval
-Pending: Robert hasn't seen the versions yet. The versions differ on four independent
-decisions (brief.md, Versions), each to be asked as its own numbered question:
+Robert chose **B (Chain)** for all four decisions. His confirmation, 2026-10-13: "I agree,
+I like option B across the board. Let's go with it. Approved."
+
+The versions differ on four independent decisions (brief.md, Versions), each asked as its
+own numbered question:
 
 | # | Decision | Options (version) | Robert's pick and why |
 | --- | --- | --- | --- |
-| 1 | Main layout | A: status headline over reserves and activity; B: chain of five links, broken link opened; C: tabs with counts first | pending |
-| 2 | Setup flow | A: one step at a time; B: the chain fills in; C: one page with both parts | pending |
-| 3 | Where activity lives | A: on the main screen; B: last three plus "See all"; C: its own tab | pending |
-| 4 | Where updates appear | A: card at the top; B: inside the Add-on link (helper update under the chain); C: strip at the bottom | pending |
+| 1 | Main layout | A: status headline over reserves and activity; B: chain of five links, broken link opened; C: tabs with counts first | B: shows at a glance which link broke, the main reason to open the helper |
+| 2 | Setup flow | A: one step at a time; B: the chain fills in; C: one page with both parts | B: setup and everyday use look the same |
+| 3 | Where activity lives | A: on the main screen; B: last three plus "See all"; C: its own tab | B: enough to confirm things flow without crowding the status |
+| 4 | Where updates appear | A: card at the top; B: inside the Add-on link (helper update under the chain); C: strip at the bottom | B: the update sits beside what it changes |
 
 Design PR: use the linked PR on the design issue once created. Only Robert merging that PR
 approves it for building.
@@ -32,7 +35,7 @@ gave GPT-5.6 Terra (`--model openai/gpt-5.6-terra --thinking medium`).
   tray behaviour, file picker and updates are proven only in the builds.
 
 ## Comments and changes
-None yet.
+No Open Design comments (checked 2026-10-13 before approval).
 
 ## Experiment
 None.
