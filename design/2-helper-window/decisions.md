@@ -90,6 +90,12 @@ the site's tokens.css limits `fg-3` to the darkest ground). "Open the officer ar
 new", "See all" and "Other reasons it can fail" now have 44px-tall click areas, measured in
 the browser (147×44, 81×44, 80×44, 354×44). Approved screenshots retaken.
 
+## Covers #39 and #40
+After revision 2 merged, the conductor split two issues for size: #39 (chain list, Settings,
+Activity) is part 2 of #26, and #40 (sync states) is split from #31. They show the same
+screens as #26 and #31 did, so no screen changes and no new decision. `design.json` now also
+lists 39 and 40 in `covers`; the revision stays 2.
+
 ## Experiment
 None.
 
