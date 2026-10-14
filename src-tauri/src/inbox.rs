@@ -8,9 +8,10 @@
 
 use serde_json::Value;
 use std::fmt;
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 const GLOBAL_NAME: &str = "BureaucracyLootInbox";
 const FORMAT_VERSION: i64 = 1;
@@ -112,6 +113,12 @@ impl fmt::Display for InboxError {
 
 impl std::error::Error for InboxError {}
 
+impl From<io::Error> for InboxError {
+    fn from(e: io::Error) -> Self {
+        InboxError::Io(e)
+    }
+}
+
 fn group(n: usize) -> String {
     let digits = n.to_string();
     let mut out = String::new();
@@ -141,17 +148,22 @@ enum Lua {
 /// Writes the inbox for `raids`, in the given order, to `target`, replacing any old file
 /// whole. `written` is the Unix time stored in the file.
 pub fn write_inbox(target: &Path, raids: &[RaidData], written: i64) -> Result<(), InboxError> {
-    let bytes = render_inbox(raids, written)?;
+    let (inbox, bytes) = render(raids, written)?;
     replace_file(
         target,
         |file| file.write_all(&bytes),
+        |back| parse_inbox(back).as_ref() == Ok(&inbox),
         |from, to| fs::rename(from, to),
     )
-    .map_err(InboxError::Io)
 }
 
 /// The exact bytes `write_inbox` would write: the same input gives the same bytes.
 pub fn render_inbox(raids: &[RaidData], written: i64) -> Result<Vec<u8>, InboxError> {
+    render(raids, written).map(|(_, bytes)| bytes)
+}
+
+/// The inbox as a data tree and as the bytes of the file.
+fn render(raids: &[RaidData], written: i64) -> Result<(Lua, Vec<u8>), InboxError> {
     let mut entries = Vec::with_capacity(raids.len());
     for (i, raid) in raids.iter().enumerate() {
         let label = raid_label(raid, i);
@@ -203,7 +215,7 @@ pub fn render_inbox(raids: &[RaidData], written: i64) -> Result<Vec<u8>, InboxEr
     if parse_inbox(&out).as_ref() != Ok(&inbox) {
         return Err(InboxError::ReadBackMismatch);
     }
-    Ok(out)
+    Ok((inbox, out))
 }
 
 /// Names a raid for an error: its name and code from the snapshot, or its place in the list.
@@ -505,21 +517,26 @@ impl Parser<'_> {
     }
 }
 
-/// Writes the new contents to a temporary file beside `target`, then renames it over `target`, so
-/// the game never reads a half-written file. On any failure the old file is untouched
-/// and the temporary file is removed.
+/// Writes the new contents to a temporary file of its own beside `target`, reads it back
+/// and checks it, then renames it over `target`, so the game never reads a half-written
+/// file. On any failure the old file is untouched and the temporary file is removed.
 fn replace_file(
     target: &Path,
     write: impl FnOnce(&mut File) -> io::Result<()>,
+    check: impl FnOnce(&[u8]) -> bool,
     rename: impl FnOnce(&Path, &Path) -> io::Result<()>,
-) -> io::Result<()> {
-    let temp = temp_path(target)?;
+) -> Result<(), InboxError> {
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let (temp, mut file) = create_temp(target, NEXT.fetch_add(1, Ordering::Relaxed))?;
     let result = (|| {
-        let mut file = File::create(&temp)?;
         write(&mut file)?;
         file.sync_all()?;
         drop(file);
-        rename(&temp, target)
+        if !check(&fs::read(&temp)?) {
+            return Err(InboxError::ReadBackMismatch);
+        }
+        rename(&temp, target)?;
+        Ok(())
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temp);
@@ -527,16 +544,29 @@ fn replace_file(
     result
 }
 
-fn temp_path(target: &Path) -> io::Result<PathBuf> {
+/// Creates a new temporary file beside `target`, never opening one that already exists
+/// (or a link), so no other write and no stray file can be written through.
+fn create_temp(target: &Path, start: u64) -> io::Result<(PathBuf, File)> {
     let name = target.file_name().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "the inbox path has no file name",
         )
     })?;
-    let mut temp_name = name.to_os_string();
-    temp_name.push(format!(".{}.tmp", std::process::id()));
-    Ok(target.with_file_name(temp_name))
+    for n in start..start + 100 {
+        let mut temp_name = name.to_os_string();
+        temp_name.push(format!(".{}-{n}.tmp", std::process::id()));
+        let temp = target.with_file_name(temp_name);
+        match OpenOptions::new().write(true).create_new(true).open(&temp) {
+            Ok(file) => return Ok((temp, file)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(io::Error::new(
+        io::ErrorKind::AlreadyExists,
+        "no free name for a temporary file",
+    ))
 }
 
 #[cfg(test)]

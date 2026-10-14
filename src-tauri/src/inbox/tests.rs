@@ -261,9 +261,14 @@ fn string_over_200_bytes_is_refused_naming_the_raid() {
     assert!(render_one(s.clone()).is_ok());
 
     s["awards"][0]["char"] = json!(format!("{}x", "é".repeat(100)));
-    let err = render_one(s).unwrap_err().to_string();
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    fs::write(&target, "old").unwrap();
+    let err = write_inbox(&target, &[raid(s)], 1).unwrap_err().to_string();
     assert!(err.contains("Molten Core - sample (SA0001)"), "{err}");
     assert!(err.contains("201 bytes"), "{err}");
+    assert_eq!(fs::read_to_string(&target).unwrap(), "old");
+    assert_eq!(files_in(&dir), ["Inbox.lua"]);
 }
 
 /// A snapshot whose entry is about `bytes` long.
@@ -412,6 +417,7 @@ fn a_failed_write_keeps_the_old_file_and_removes_the_temp() {
             file.write_all(b"BureaucracyLootInbox = {")?;
             Err(io::Error::other("disk full"))
         },
+        |_| true,
         |from, to| fs::rename(from, to),
     );
     assert!(result.is_err());
@@ -427,6 +433,7 @@ fn a_failed_swap_keeps_the_old_file_and_removes_the_temp() {
     let result = replace_file(
         &target,
         |file| file.write_all(b"new"),
+        |_| true,
         |_, _| Err(io::Error::other("locked")),
     );
     assert!(result.is_err());
@@ -444,6 +451,74 @@ fn a_failed_swap_keeps_the_old_file_and_removes_the_temp() {
         .starts_with("The reserves couldn't be saved"));
     assert_eq!(files_in(&blocked), ["keep"]);
     assert_eq!(files_in(&dir), ["Blocked.lua", "Inbox.lua"]);
+}
+
+#[test]
+fn a_temp_file_that_reads_back_differently_is_not_swapped_in() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    fs::write(&target, "old").unwrap();
+    let (expected, _) = render(&[], 1).unwrap();
+    let other = render_inbox(&[], 2).unwrap();
+    let result = replace_file(
+        &target,
+        |file| file.write_all(&other),
+        |back| parse_inbox(back).as_ref() == Ok(&expected),
+        |from, to| fs::rename(from, to),
+    );
+    assert!(
+        matches!(result, Err(InboxError::ReadBackMismatch)),
+        "{result:?}"
+    );
+    assert_eq!(fs::read_to_string(&target).unwrap(), "old");
+    assert_eq!(files_in(&dir), ["Inbox.lua"]);
+}
+
+#[test]
+fn existing_files_and_links_are_never_used_as_the_temp_file() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    fs::write(&target, "old").unwrap();
+    let name = |n: u64| dir.join(format!("Inbox.lua.{}-{n}.tmp", std::process::id()));
+    fs::write(name(0), "stray").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&target, name(1)).unwrap();
+    #[cfg(not(unix))]
+    fs::write(name(1), "stray").unwrap();
+
+    let (temp, mut file) = create_temp(&target, 0).unwrap();
+    assert_eq!(temp, name(2));
+    file.write_all(b"new").unwrap();
+    assert_eq!(fs::read_to_string(&target).unwrap(), "old");
+    assert_eq!(fs::read_to_string(name(0)).unwrap(), "stray");
+}
+
+#[test]
+fn overlapping_writes_each_swap_in_a_whole_file() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    let renders: Vec<Vec<u8>> = (0..4)
+        .map(|i| render_inbox(&[raid(big_snapshot("Raid", 20_000 * (i + 1)))], 1).unwrap())
+        .collect();
+    std::thread::scope(|scope| {
+        for i in 0..4 {
+            let target = &target;
+            scope.spawn(move || {
+                for _ in 0..25 {
+                    write_inbox(target, &[raid(big_snapshot("Raid", 20_000 * (i + 1)))], 1)
+                        .unwrap();
+                }
+            });
+        }
+        // While they run, every read sees one whole file.
+        for _ in 0..200 {
+            if let Ok(now) = fs::read(&target) {
+                assert!(renders.contains(&now), "read a mixed file");
+            }
+        }
+    });
+    assert!(renders.contains(&fs::read(&target).unwrap()));
+    assert_eq!(files_in(&dir), ["Inbox.lua"]);
 }
 
 #[test]
