@@ -11,6 +11,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 const KEY: &str = "bfh_q7Xk2mP9vR4tW8yZ1aB3cD5eF6gH0iJ-kL_nO2pQ4sA";
 const STAGING_KEY: &str = "bfh_AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
 
+const TWO_FIRST: &str =
+    r#"{"id":"r","code":"c","name":"N","startsAt":1,"durationMin":60,"hasLootTable":true}"#;
 const TWO: &str = r#"[
   {"id":"r2","code":"mc-2","name":"Molten Core","startsAt":1792000000,"durationMin":180,"instance":409,"hasLootTable":true},
   {"id":"r1","code":"custom","name":"Mystery","startsAt":1792100000,"durationMin":90,"hasLootTable":false}]"#;
@@ -136,7 +138,7 @@ fn client(site: &FakeSite) -> SiteClient {
     SiteClient::with_addresses(&site.address, &site.address, Duration::from_secs(2))
 }
 
-fn fetch(site: &FakeSite) -> Result<Vec<Raid>, SiteError> {
+fn fetch(site: &FakeSite) -> Result<Vec<Raid>, RaidsFailure> {
     client(site).raids(Site::Production, &HelperKey::parse(KEY).unwrap())
 }
 
@@ -146,6 +148,7 @@ fn quick() -> Timing {
         tick: Duration::from_millis(40),
         slow: Duration::from_millis(40),
         stopped: Duration::from_secs(3600),
+        max_retry_after: Duration::from_secs(3600),
     }
 }
 
@@ -216,7 +219,8 @@ fn the_list_may_come_inside_a_raids_field() {
 #[test]
 fn an_unreadable_answer_is_a_failure() {
     let missing = |field: &str| {
-        let mut entry = json!({"id":"r","name":"N","startsAt":1792000000});
+        let mut entry = json!({"id":"r","code":"c","name":"N","startsAt":1792000000,
+            "durationMin":60,"hasLootTable":true});
         entry.as_object_mut().unwrap().remove(field);
         json!([entry]).to_string()
     };
@@ -226,13 +230,16 @@ fn an_unreadable_answer_is_a_failure() {
         missing("id"),
         missing("name"),
         missing("startsAt"),
-        r#"[{"id":"r","name":"N","startsAt":"soon"}]"#.to_string(),
+        missing("code"),
+        missing("durationMin"),
+        missing("hasLootTable"),
+        r#"[{"id":"r","code":"c","name":"N","startsAt":"soon","durationMin":60,"hasLootTable":true}]"#.to_string(),
         // One bad entry spoils the whole answer.
-        r#"[{"id":"r","name":"N","startsAt":1},{"name":"N","startsAt":1}]"#.to_string(),
+        format!(r#"[{TWO_FIRST},{{"name":"N","startsAt":1}}]"#),
     ] {
         let site = FakeSite::start("200 OK", &body);
         assert!(
-            matches!(fetch(&site), Err(SiteError::Unreachable { .. })),
+            matches!(fetch(&site), Err(RaidsFailure { error: SiteError::Unreachable { .. }, .. })),
             "{body}"
         );
     }
@@ -267,9 +274,18 @@ fn failures_are_sorted_as_the_key_check_sorts_them() {
     for (status, body, want) in cases {
         let site = FakeSite::start(status, body);
         let got = match fetch(&site) {
-            Err(SiteError::KeyRefused(_)) => "refused",
-            Err(SiteError::HelperOff) => "off",
-            Err(SiteError::Unreachable { .. }) => "unreachable",
+            Err(RaidsFailure {
+                error: SiteError::KeyRefused(_),
+                ..
+            }) => "refused",
+            Err(RaidsFailure {
+                error: SiteError::HelperOff,
+                ..
+            }) => "off",
+            Err(RaidsFailure {
+                error: SiteError::Unreachable { .. },
+                ..
+            }) => "unreachable",
             other => panic!("{status}: {other:?}"),
         };
         assert_eq!(got, want, "{status}");
@@ -284,8 +300,31 @@ fn failures_are_sorted_as_the_key_check_sorts_them() {
     drop(dead);
     assert!(matches!(
         gone.raids(Site::Production, &HelperKey::parse(KEY).unwrap()),
-        Err(SiteError::Unreachable { .. })
+        Err(RaidsFailure {
+            error: SiteError::Unreachable { .. },
+            ..
+        })
     ));
+}
+
+#[test]
+fn a_rate_limit_is_waited_out_as_the_site_asks() {
+    let site = FakeSite::start(
+        "429 Too Many Requests\r\nRetry-After: 300",
+        r#"{"error":"x","code":"rate-limited"}"#,
+    );
+    let failure = fetch(&site).unwrap_err();
+    assert_eq!(failure.retry_after, Some(300));
+    assert!(matches!(failure.error, SiteError::Unreachable { .. }));
+
+    // With a one-second request and a 40 ms tick, the site is left alone for the second.
+    site.say("429 Too Many Requests\r\nRetry-After: 1", "{}");
+    let (poller, _) = start(&site, &site, with_keys());
+    wait_state(&poller, RaidsState::Unreachable);
+    std::thread::sleep(Duration::from_millis(300));
+    assert_eq!(site.requests().len(), 1 + 1);
+    poller.stop();
+    poller.join();
 }
 
 #[test]
@@ -397,7 +436,7 @@ fn switching_site_drops_the_list_and_starts_a_fresh_one() {
     let production = FakeSite::start("200 OK", TWO);
     let staging = FakeSite::start(
         "200 OK",
-        r#"[{"id":"s1","name":"Test","startsAt":1792000000}]"#,
+        r#"[{"id":"s1","code":"t","name":"Test","startsAt":1792000000,"durationMin":60,"hasLootTable":true}]"#,
     );
     let engine = engine(&production, &staging, with_keys());
     // The poller's own client addresses the same two sites.

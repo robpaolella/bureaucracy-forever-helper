@@ -37,7 +37,7 @@ pub struct Raid {
 
 impl Raid {
     /// Reads the site's answer: a list of raids, or `{ "raids": [ ... ] }`. `None` if it is
-    /// neither, or an entry lacks its `id`, `name` or `startsAt`; one bad entry spoils the
+    /// neither, or an entry lacks any field but `instance` (7.5); one bad entry spoils the
     /// whole answer, so the helper never shows a list the site didn't send.
     pub fn parse_list(body: &Value) -> Option<Vec<Raid>> {
         let list = body.as_array().or_else(|| body["raids"].as_array())?;
@@ -48,12 +48,13 @@ impl Raid {
         let text = |field: &str| entry[field].as_str().map(str::to_string);
         Some(Raid {
             id: text("id").filter(|s| !s.is_empty())?,
-            code: text("code").unwrap_or_default(),
+            code: text("code")?,
             name: text("name")?,
             starts_at: entry["startsAt"].as_i64()?,
-            duration_min: entry["durationMin"].as_i64().unwrap_or(0),
+            duration_min: entry["durationMin"].as_i64()?,
+            // The one field a raid may lack (7.5).
             instance: entry["instance"].as_i64(),
-            has_loot_table: entry["hasLootTable"].as_bool().unwrap_or(false),
+            has_loot_table: entry["hasLootTable"].as_bool()?,
         })
     }
 }
@@ -127,13 +128,30 @@ impl RaidsView {
     }
 }
 
+/// A fetch that gave no list: why, and how long the site asked to be left alone
+/// (`Retry-After`, in seconds).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RaidsFailure {
+    pub error: SiteError,
+    pub retry_after: Option<u64>,
+}
+
+impl From<SiteError> for RaidsFailure {
+    fn from(error: SiteError) -> Self {
+        RaidsFailure {
+            error,
+            retry_after: None,
+        }
+    }
+}
+
 /// Where raids come from: the site client, or a fake one in tests.
 pub trait RaidsSource {
-    fn raids(&self, site: Site, key: &crate::key::HelperKey) -> Result<Vec<Raid>, SiteError>;
+    fn raids(&self, site: Site, key: &crate::key::HelperKey) -> Result<Vec<Raid>, RaidsFailure>;
 }
 
 impl RaidsSource for SiteClient {
-    fn raids(&self, site: Site, key: &crate::key::HelperKey) -> Result<Vec<Raid>, SiteError> {
+    fn raids(&self, site: Site, key: &crate::key::HelperKey) -> Result<Vec<Raid>, RaidsFailure> {
         SiteClient::raids(self, site, key)
     }
 }
@@ -149,6 +167,8 @@ pub struct Timing {
     pub slow: Duration,
     /// After a refused key: until the key or site changes.
     pub stopped: Duration,
+    /// The longest wait taken on the site's `Retry-After`.
+    pub max_retry_after: Duration,
 }
 
 impl Default for Timing {
@@ -157,6 +177,7 @@ impl Default for Timing {
             tick: Duration::from_secs(60),
             slow: Duration::from_secs(300),
             stopped: Duration::from_secs(24 * 3600),
+            max_retry_after: Duration::from_secs(3600),
         }
     }
 }
@@ -323,11 +344,19 @@ fn run<S: SecretStore>(
             (site, Ok(Some(key))) => {
                 let result = source.raids(site, &key);
                 let wait = match &result {
-                    Err(SiteError::KeyRefused(_)) => timing.stopped,
-                    Err(SiteError::HelperOff | SiteError::StagingNotOpen) => timing.slow,
-                    _ => timing.tick,
+                    Err(RaidsFailure { error, retry_after }) => match error {
+                        SiteError::KeyRefused(_) => timing.stopped,
+                        SiteError::HelperOff | SiteError::StagingNotOpen => timing.slow,
+                        // Back off as the site asked, but never faster than the tick.
+                        SiteError::Unreachable { .. } => retry_after
+                            .map_or(timing.tick, |s| {
+                                Duration::from_secs(s).min(timing.max_retry_after)
+                            })
+                            .max(timing.tick),
+                    },
+                    Ok(_) => timing.tick,
                 };
-                let next = shared.view().clone().after(result);
+                let next = shared.view().clone().after(result.map_err(|f| f.error));
                 publish(next);
                 wait
             }

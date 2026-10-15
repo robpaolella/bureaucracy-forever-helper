@@ -4,7 +4,7 @@
 //! to sort.
 
 use super::{Connection, HelperKey, Refusal, Site, SiteError};
-use crate::raids::Raid;
+use crate::raids::{Raid, RaidsFailure};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -47,31 +47,34 @@ impl SiteClient {
 
     /// Asks `site` whether it accepts `key`.
     pub fn check(&self, site: Site, key: &HelperKey) -> Result<Connection, SiteError> {
-        let (status, html, body) = self.get(site, key, "/api/helper/me")?;
+        let (status, html, body, _) = self.get(site, key, "/api/helper/me")?;
         sort(site, status, html, body.as_ref())
     }
 
     /// Asks `site` for its upcoming raids (ADDON-SPEC 7.5), in the order it gives them.
     /// Its failures are sorted as `check` sorts them.
-    pub fn raids(&self, site: Site, key: &HelperKey) -> Result<Vec<Raid>, SiteError> {
-        let (status, html, body) = self.get(site, key, "/api/helper/raids")?;
-        match (status, body.as_ref().and_then(Raid::parse_list)) {
-            (200, Some(raids)) => Ok(raids),
-            (200, None) => Err(unreachable(
-                "it answered 200 with an answer the helper can't read".into(),
-            )),
-            _ => Err(failure(site, status, html, body.as_ref())),
-        }
+    pub fn raids(&self, site: Site, key: &HelperKey) -> Result<Vec<Raid>, RaidsFailure> {
+        let (status, html, body, retry_after) = self
+            .get(site, key, "/api/helper/raids")
+            .map_err(RaidsFailure::from)?;
+        let error = match (status, body.as_ref().and_then(Raid::parse_list)) {
+            (200, Some(raids)) => return Ok(raids),
+            (200, None) => {
+                unreachable("it answered 200 with an answer the helper can't read".into())
+            }
+            _ => failure(site, status, html, body.as_ref()),
+        };
+        Err(RaidsFailure { error, retry_after })
     }
 
-    /// A `GET` of `path` with the key: the status, whether the answer is a web page, and
-    /// its body when that is JSON.
+    /// A `GET` of `path` with the key: the status, whether the answer is a web page, its
+    /// body when that is JSON, and its `Retry-After` in seconds when given as a number.
     fn get(
         &self,
         site: Site,
         key: &HelperKey,
         path: &str,
-    ) -> Result<(u16, bool, Option<Value>), SiteError> {
+    ) -> Result<(u16, bool, Option<Value>, Option<u64>), SiteError> {
         let response = self
             .agent
             .get(format!("{}{path}", self.base(site)))
@@ -88,13 +91,19 @@ impl SiteClient {
             .get("content-type")
             .and_then(|v| v.to_str().ok())
             .is_some_and(|v| v.trim().to_ascii_lowercase().starts_with("text/html"));
+        let retry_after = retry_after(&response);
         let text = response
             .body_mut()
             .with_config()
             .limit(MAX_BODY)
             .read_to_string()
             .map_err(|e| unreachable(format!("its answer couldn't be read: {}", no_answer(&e))))?;
-        Ok((status, html, serde_json::from_str::<Value>(&text).ok()))
+        Ok((
+            status,
+            html,
+            serde_json::from_str::<Value>(&text).ok(),
+            retry_after,
+        ))
     }
 }
 
@@ -125,11 +134,7 @@ impl SiteClient {
             .send(body);
         let mut response = response.map_err(|e| no_answer(&e))?;
         let status = response.status().as_u16();
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse().ok());
+        let retry_after = retry_after(&response);
         let text = response
             .body_mut()
             .with_config()
@@ -149,6 +154,15 @@ impl SiteClient {
             Site::Staging => &self.staging,
         }
     }
+}
+
+/// The answer's `Retry-After` in seconds, when given as a number.
+fn retry_after<B>(response: &ureq::http::Response<B>) -> Option<u64> {
+    response
+        .headers()
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.trim().parse().ok())
 }
 
 /// Sorts an answer by its status, whether it is a web page, and, when it is JSON, its body.
