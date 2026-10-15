@@ -1,10 +1,11 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, KeyOutcome } from "../bridge";
+import type { Bridge, FolderOutcome, KeyOutcome } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
 import type { ChainRow } from "./chain";
+import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
 
 const waiting = (detail: string): ChainRow => ({ tone: "closed", word: "Not yet", detail });
 
@@ -35,6 +36,7 @@ const KEY_SHAPE = /^bfh_[A-Za-z0-9_-]{43}$/;
 const EMPTY_KEY_MESSAGE = "Paste your helper key.";
 const MALFORMED_KEY_MESSAGE = "That doesn’t look like a helper key. Copy it again from the officer area.";
 const FAILED_CHECK_MESSAGE = "The helper couldn’t check your key. Try again.";
+const FAILED_FOLDER_MESSAGE = "The helper couldn’t check that folder. Try again.";
 
 /** Why `key` can't be a helper key, or nothing if it can. */
 export function keyShapeError(key: string): string | undefined {
@@ -74,6 +76,18 @@ export function applyKeyOutcome(state: AppState, outcome: KeyOutcome, pasted = "
     status: initialState.status,
     chain: { ...state.chain, site: initialState.chain.site },
     setup: { key },
+    folder: undefined,
+  };
+}
+
+/** The folder step is done: the chain row is fine and setup is over. */
+export function applyFolderDone(state: AppState, versionFolder: string): AppState {
+  return {
+    ...state,
+    setup: undefined,
+    folder: undefined,
+    gamePath: versionFolder,
+    chain: { ...state.chain, folder: { tone: "ok", word: "Found", detail: shortPath(versionFolder) } },
   };
 }
 
@@ -93,7 +107,82 @@ export async function startWindow(
       outcome = { kind: "unreachable", message: FAILED_CHECK_MESSAGE };
     }
     store.set((s) => applyKeyOutcome(s, outcome, pasted, stored));
+    if (outcome.kind === "accepted") await startFolder();
   }
+
+  /** Runs a folder call; undefined if the Rust side failed outright. */
+  async function ask(run: () => Promise<FolderOutcome>): Promise<FolderOutcome | undefined> {
+    try {
+      return await run();
+    } catch {
+      return undefined;
+    }
+  }
+
+  const show = (step: FolderStep | undefined) => store.set((s) => ({ ...s, folder: step }));
+  const patch = (change: Partial<FolderStep>) =>
+    store.set((s) => (s.folder ? { ...s, folder: { ...s.folder, ...change } } : s));
+  const failed = () =>
+    store.set((s) => ({
+      ...s,
+      folder: s.folder
+        ? { ...s.folder, busy: false, error: FAILED_FOLDER_MESSAGE }
+        : { phase: "notFound", message: FAILED_FOLDER_MESSAGE },
+    }));
+
+  /** Saves the chosen version folder; on success the folder step is done. */
+  async function confirm(versionFolder: string): Promise<void> {
+    patch({ busy: true, error: undefined });
+    const outcome = await ask(() => bridge.rememberVersion(versionFolder));
+    if (!outcome) return failed();
+    if (outcome.kind === "found") return store.set((s) => applyFolderDone(s, outcome.versionFolder));
+    if (outcome.kind === "settingsFailed") return patch({ busy: false, error: outcome.message });
+    show(stepFor(outcome));
+  }
+
+  /** Shows what a check found. In Settings a single match is saved straight away. */
+  function settle(outcome: FolderOutcome | undefined, picked?: string): void {
+    if (!outcome) return failed();
+    if (outcome.kind === "found" && !store.get().setup) void confirm(outcome.versionFolder);
+    else show(stepFor(outcome, picked));
+  }
+
+  /** Step 2: the remembered folder first, never replaced by a search; a search only if none. */
+  async function startFolder(): Promise<void> {
+    show({ phase: "searching" });
+    const remembered = await ask(() => bridge.rememberedFolder());
+    if (remembered?.kind === "found") return store.set((s) => applyFolderDone(s, remembered.versionFolder));
+    if (remembered?.kind === "gone" || remembered?.kind === "noAddon") return show(stepFor(remembered));
+    const searched = await ask(() => bridge.searchFolder());
+    if (!searched) return show({ phase: "notFound", message: FAILED_FOLDER_MESSAGE });
+    show(stepFor(searched));
+  }
+
+  async function choose(): Promise<void> {
+    let picked: string | null;
+    try {
+      picked = await bridge.pickFolder();
+    } catch {
+      return failed();
+    }
+    if (picked === null) return;
+    patch({ busy: true, error: undefined });
+    settle(await ask(() => bridge.checkPickedFolder(picked)), picked);
+  }
+
+  const actions: FolderActions = {
+    use: () => {
+      const path = store.get().folder?.path;
+      if (path) void confirm(path);
+    },
+    continueWith: () => {
+      const { installs, selected } = store.get().folder ?? {};
+      const install = installs?.[selected ?? 0];
+      if (install) void confirm(install.versionFolder);
+    },
+    choose: () => void choose(),
+    select: (selected) => patch({ selected }),
+  };
 
   function connect(raw: string): void {
     const key = raw.trim();
@@ -116,11 +205,15 @@ export async function startWindow(
     void check(() => bridge.connect(key), key, stored);
   }
 
-  const app = mountApp(root, { getState: store.get, settingsSections: () => [], onConnect: connect });
+  const app = mountApp(root, { getState: store.get, settingsSections: () => [gameFolderSection(store.get().gamePath, store.get().folder, actions)],
+    onConnect: connect,
+    folderActions: actions,
+  });
   store.subscribe(app.refresh);
   try {
     const outcome = await bridge.checkStored();
     store.set((s) => applyKeyOutcome(s, outcome, "", outcome.kind !== "noKey"));
+    if (outcome.kind === "accepted") await startFolder();
   } catch {
     // The Rust side failed outright: the window stays as it is, never blank.
   }

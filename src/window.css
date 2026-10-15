@@ -48,3 +48,7 @@ html, body { width: 420px; height: 640px; overflow: hidden; }
 .acts .meta { color:var(--fg-muted); }
 .chain .under .row { min-height:20px; }
 .chain .under .row .caption:first-child { color:var(--fg-2); }
+.fg { color:var(--fg); }
+.found-title { font-weight:600; }
+.folder-choices { border:0; padding:0; margin:0; }
+.folder-choices legend { margin-bottom:10px; color:var(--fg); }
