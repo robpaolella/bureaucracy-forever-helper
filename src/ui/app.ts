@@ -4,7 +4,7 @@
 import wordmark from "../assets/wordmark.png";
 import { ACTIVITY_RECENT, formatTime, guildTime, showSeeAll, zoneName, type ActivityEvent } from "./activity";
 import { ROW_NAMES, ROW_ORDER, firstBroken, type ChainRow, type ChainState, type RowId } from "./chain";
-import { button, el, pill, type Child, type Tone } from "./components";
+import { button, el, field, pill, type Child, type Tone } from "./components";
 
 export interface AppState {
   /** The headline and its pill, such as "Everything’s working" and "Sending". */
@@ -14,6 +14,20 @@ export interface AppState {
   activity: ActivityEvent[];
   sentTonight: number;
   staging?: boolean;
+  /** Set while the first-run setup is showing in place of the main screen. */
+  setup?: { key: KeyStep };
+}
+
+/** The key field and its button on the setup screen's first step. */
+export interface KeyStep {
+  value: string;
+  checking: boolean;
+  /** The plain-words error, shown under the field. */
+  error?: string;
+  /** The button's label when it isn't "Connect". */
+  action?: string;
+  /** A key is already saved, so an empty field with "Try again" checks it again. */
+  stored?: boolean;
 }
 
 export interface AppOptions {
@@ -22,6 +36,8 @@ export interface AppOptions {
   settingsSections?: () => Node[];
   /** The screen to open on; the main screen by default. */
   view?: View;
+  /** Called with the pasted key when the setup screen's button (or Enter) is pressed. */
+  onConnect?: (value: string) => void;
 }
 
 export type View = "main" | "settings" | "activity";
@@ -70,6 +86,8 @@ function chainRow(id: RowId, row: ChainRow, open: boolean): HTMLElement {
     const a = row.message.action;
     if (a) body.push(el("div", "row", [button({ label: a.label, variant: a.variant, small: true, onClick: a.onClick })]));
     li.append(el("div", "stack open-body", body));
+  } else if (open && row.body) {
+    li.append(el("div", "stack open-body", row.body));
   }
   return li;
 }
@@ -139,6 +157,58 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
     return pieces;
   }
 
+  function connect(): void {
+    options.onConnect?.(root.querySelector<HTMLInputElement>("#key")?.value ?? "");
+  }
+
+  /** The Guild site row's open body: the key field and its button. */
+  function keyBody(key: KeyStep): Node[] {
+    const note = key.checking ? "Checking your key with the guild site…" : "Create a key in the officer area of the guild site, then paste it here.";
+    const input = field({
+      id: "key",
+      label: "Helper key",
+      value: key.value,
+      placeholder: "Paste your key",
+      mono: true,
+      readOnly: key.checking,
+      error: key.error,
+      note,
+    });
+    input.querySelector("input")?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !key.checking) connect();
+    });
+    const go = key.checking
+      ? button({ label: "Checking…", loading: true })
+      : button({ label: key.action ?? "Connect", onClick: connect });
+    return [input, el("div", "row", [go])];
+  }
+
+  /** The first-run chain, in the design's setup wording. */
+  function setupChain(s: AppState, key: KeyStep): ChainState {
+    const keyOpen = s.chain.site.tone !== "ok";
+    const next = (detail: string): ChainRow => ({ tone: "closed", word: "Next", detail });
+    return {
+      site: keyOpen
+        ? { tone: "closed", word: "Step 1", detail: "Paste your helper key", broken: true, body: keyBody(key) }
+        : s.chain.site,
+      folder: { tone: "closed", word: "Step 2", detail: keyOpen ? "Found after the key" : "Choose the game folder" },
+      addon: next("Checked with the folder"),
+      reserves: next("Ready once you’re connected"),
+      awards: next("Sent during the raid"),
+    };
+  }
+
+  function setupScreen(s: AppState, key: KeyStep): Node[] {
+    return [
+      header(el("span")),
+      el("main", "win-body", [
+        el("h1", "title-sm", ["Connect the helper"]),
+        el("p", "small lede", ["Two steps, once. After that the helper runs by itself."]),
+        chainList(setupChain(s, key)),
+      ]),
+    ];
+  }
+
   function activityScreen(s: AppState): Node[] {
     return [
       header(back("Status", () => go("main"))),
@@ -164,8 +234,16 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
 
   function render(): void {
     const s = options.getState();
-    const screen = view === "settings" ? settingsScreen() : view === "activity" ? activityScreen(s) : mainScreen(s);
+    const setup = s.setup;
+    const screen = setup
+      ? setupScreen(s, setup.key)
+      : view === "settings"
+        ? settingsScreen()
+        : view === "activity"
+          ? activityScreen(s)
+          : mainScreen(s);
     root.replaceChildren(...screen);
+    if (setup && s.chain.site.tone !== "ok" && !setup.key.checking) root.querySelector<HTMLInputElement>("#key")?.focus();
   }
 
   render();

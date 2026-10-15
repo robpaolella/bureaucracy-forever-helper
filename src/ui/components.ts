@@ -74,6 +74,8 @@ export interface FieldOptions {
   note?: string;
   /** The monospace look the design uses for keys. */
   mono?: boolean;
+  /** Shows the value but can't be edited, such as while a key is being checked. */
+  readOnly?: boolean;
   onInput?: (value: string) => void;
 }
 
@@ -86,6 +88,7 @@ export function field(o: FieldOptions): HTMLElement {
   input.placeholder = o.placeholder ?? "";
   input.autocomplete = "off";
   input.spellcheck = false;
+  input.readOnly = Boolean(o.readOnly);
   if (o.onInput) input.addEventListener("input", () => o.onInput?.(input.value));
   const wrap = el("div", "field", [label, input]);
   const text = o.error ?? o.note;

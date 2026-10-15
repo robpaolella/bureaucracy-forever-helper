@@ -27,6 +27,7 @@
 /* Field */
 .field { display:flex; flex-direction:column; gap:8px; }
 .input { width:100%; height:46px; padding:0 14px; border-radius:var(--r-control); border:1px solid var(--line-strong); background:var(--ink-700); font-size:15px; color:var(--fg); }
+.input.mono { font-size:14px; }
 .input::placeholder { color:var(--fg-muted); }
 .input[aria-invalid="true"] { border-color:var(--stop); background:var(--stop-wash); }
 .note { font-size:12px; color:var(--fg-muted); }
