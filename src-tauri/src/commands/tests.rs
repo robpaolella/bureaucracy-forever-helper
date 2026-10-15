@@ -372,6 +372,15 @@ mod game_folder_commands {
         let no_addon = check_game_folder(root.join("bare").to_str().unwrap());
         assert_eq!(value(&no_addon)["kind"], "noAddon");
 
+        let classic = root.join("World of Warcraft").join("_classic_");
+        fs::create_dir_all(classic.join("Interface/AddOns/BureaucracyForever")).unwrap();
+        let several = find_game_folder(&windows(&root));
+        assert_eq!(value(&several)["kind"], "several");
+        assert_eq!(value(&several)["installs"].as_array().unwrap().len(), 2);
+        let picked = check_game_folder(root.join("World of Warcraft").to_str().unwrap());
+        assert_eq!(value(&picked)["kind"], "several");
+        fs::remove_dir_all(&classic).unwrap();
+
         let store = GameFolderStore::new(root.join("settings.json"));
         remember_game_folder(&store, version.to_str().unwrap());
         fs::remove_dir_all(&version).unwrap();
