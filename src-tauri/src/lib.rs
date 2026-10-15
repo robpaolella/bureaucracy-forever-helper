@@ -23,6 +23,7 @@ const SHOW_ID: &str = "show";
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // A missing folder only means the staging setting can't be saved later, which
             // `set_staging_site` reports; the window still opens.

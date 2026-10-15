@@ -26,6 +26,11 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     staging: unused,
     setStaging: unused,
     syncStatus: unused,
+    searchFolder: unused,
+    checkPickedFolder: unused,
+    rememberVersion: unused,
+    rememberedFolder: unused,
+    pickFolder: unused,
     onSyncStatus: unused,
   };
 }

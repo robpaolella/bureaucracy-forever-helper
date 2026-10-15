@@ -6,6 +6,9 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 const listen = vi.fn();
 vi.mock("@tauri-apps/api/event", () => ({ listen }));
 
+const open = vi.fn();
+vi.mock("@tauri-apps/plugin-dialog", () => ({ open }));
+
 const { tauriBridge } = await import("./bridge");
 
 describe("tauriBridge", () => {
@@ -25,6 +28,22 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("set_staging_site", { on: true });
     await tauriBridge.syncStatus();
     expect(invoke).toHaveBeenLastCalledWith("get_sync_status");
+    await tauriBridge.searchFolder();
+    expect(invoke).toHaveBeenLastCalledWith("search_game_folder");
+    await tauriBridge.checkPickedFolder("/games");
+    expect(invoke).toHaveBeenLastCalledWith("check_picked_game_folder", { folder: "/games" });
+    await tauriBridge.rememberVersion("/games/_retail_");
+    expect(invoke).toHaveBeenLastCalledWith("remember_game_version", { folder: "/games/_retail_" });
+    await tauriBridge.rememberedFolder();
+    expect(invoke).toHaveBeenLastCalledWith("get_remembered_game_folder");
+  });
+
+  it("opens the native picker for one folder and gives back its path, or null when cancelled", async () => {
+    open.mockResolvedValueOnce("/games/World of Warcraft");
+    expect(await tauriBridge.pickFolder()).toBe("/games/World of Warcraft");
+    expect(open).toHaveBeenLastCalledWith({ directory: true, multiple: false });
+    open.mockResolvedValueOnce(null);
+    expect(await tauriBridge.pickFolder()).toBeNull();
   });
 
   it("passes on each sync status from the sync-status event until stopped", async () => {

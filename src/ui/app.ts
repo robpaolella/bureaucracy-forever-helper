@@ -5,6 +5,7 @@ import wordmark from "../assets/wordmark.png";
 import { ACTIVITY_RECENT, formatTime, guildTime, showSeeAll, zoneName, type ActivityEvent } from "./activity";
 import { ROW_NAMES, ROW_ORDER, firstBroken, type ChainRow, type ChainState, type RowId } from "./chain";
 import { button, el, field, pill, type Child, type Tone } from "./components";
+import { folderBody, type FolderActions, type FolderStep } from "./folder";
 
 export interface AppState {
   /** The headline and its pill, such as "Everything’s working" and "Sending". */
@@ -16,6 +17,12 @@ export interface AppState {
   staging?: boolean;
   /** Set while the first-run setup is showing in place of the main screen. */
   setup?: { key: KeyStep };
+  /** The game folder step: in the setup chain, or under Settings → Game folder. */
+  folder?: FolderStep;
+  /** The remembered game version folder, shown in Settings. */
+  gamePath?: string;
+  /** A folder is being checked or saved. */
+  folderBusy?: boolean;
 }
 
 /** The key field and its button on the setup screen's first step. */
@@ -38,6 +45,8 @@ export interface AppOptions {
   view?: View;
   /** Called with the pasted key when the setup screen's button (or Enter) is pressed. */
   onConnect?: (value: string) => void;
+  /** What the buttons on the game folder step do. */
+  folderActions?: FolderActions;
 }
 
 export type View = "main" | "settings" | "activity";
@@ -183,6 +192,15 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
     return [input, el("div", "row", [go])];
   }
 
+  /** Step 2: opens with the folder screens once the key is in. */
+  function folderRow(s: AppState, keyOpen: boolean): ChainRow {
+    if (keyOpen) return { tone: "closed", word: "Step 2", detail: "Found after the key" };
+    const searching = s.folder?.phase === "searching";
+    const row: ChainRow = { tone: "closed", word: "Step 2", detail: searching ? "Looking for the game" : "Choose the game folder" };
+    if (s.folder && options.folderActions) return { ...row, broken: true, body: folderBody(s.folder, options.folderActions) };
+    return row;
+  }
+
   /** The first-run chain, in the design's setup wording. */
   function setupChain(s: AppState, key: KeyStep): ChainState {
     const keyOpen = s.chain.site.tone !== "ok";
@@ -191,7 +209,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
       site: keyOpen
         ? { tone: "closed", word: "Step 1", detail: "Paste your helper key", broken: true, body: keyBody(key) }
         : s.chain.site,
-      folder: { tone: "closed", word: "Step 2", detail: keyOpen ? "Found after the key" : "Choose the game folder" },
+      folder: folderRow(s, keyOpen),
       addon: next("Checked with the folder"),
       reserves: next("Ready once you’re connected"),
       awards: next("Sent during the raid"),

@@ -3,11 +3,15 @@
 import type { ActivityEvent } from "./activity";
 import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
+import type { FolderStep } from "./folder";
 
 export interface DemoState {
   app: AppState;
   view?: View;
 }
+
+const MAC = "/Applications/World of Warcraft";
+const WIN = "D:\\Games\\World of Warcraft";
 
 const MIN = 60_000;
 const PEOPLE = ["Aldric Vane", "Thessaly Ward", "Corvin Ashby", "Mirela Stone", "Bram Hollow", "Isolde Fenn"];
@@ -95,6 +99,24 @@ const keyStep = (key: KeyStep): DemoState => ({
 const KEY = "bfh_3kZ9q2Lw8VtR4mXc7Pn1";
 const keyError = (error: string, action?: string) => keyStep({ value: KEY, checking: false, error, action });
 
+/** Step 2 with the key already in, as in the design's `folder-*` states. */
+const folderStep = (folder: FolderStep): DemoState => ({
+  app: {
+    status: { tone: "closed", word: "Not set up", title: "Not connected yet" },
+    chain: {
+      site: ok("Connected", "Connected as Aldric"),
+      folder: { tone: "closed", word: "Step 2", detail: "Choose the game folder" },
+      addon: ok("", ""),
+      reserves: ok("", ""),
+      awards: ok("", ""),
+    },
+    activity: [],
+    sentTonight: 0,
+    setup: { key: { value: "", checking: false } },
+    folder,
+  },
+});
+
 export const demoStates: Record<string, DemoState> = {
   live: {
     app: {
@@ -120,6 +142,7 @@ export const demoStates: Record<string, DemoState> = {
       chain: working,
       activity: [],
       sentTonight: 0,
+      gamePath: `${MAC}/_classic_`,
     },
   },
   offline: {
@@ -142,6 +165,37 @@ export const demoStates: Record<string, DemoState> = {
       sentTonight: 9,
     },
   },
+  "folder-searching": folderStep({ phase: "searching" }),
+  "folder-found": folderStep({ phase: "found", path: `${MAC}/_classic_` }),
+  "folder-several": folderStep({
+    phase: "several",
+    selected: 0,
+    installs: ["_classic_", "_classic_era_"].map((version) => ({
+      gameFolder: WIN,
+      version,
+      versionFolder: `${WIN}\\${version}`,
+      addonFolder: "",
+    })),
+  }),
+  "folder-not-found": folderStep({
+    phase: "notFound",
+    message: "Couldn’t find World of Warcraft. Choose the folder it’s installed in.",
+  }),
+  "folder-not-game": folderStep({
+    phase: "notGame",
+    message: "That folder isn’t a World of Warcraft folder. Choose the folder named World of Warcraft.",
+    path: "C:\\Users\\Élise Marchand\\Downloads",
+  }),
+  "folder-no-addon": folderStep({
+    phase: "noAddon",
+    message: "World of Warcraft is here, but the Bureaucracy Forever add-on isn’t installed.",
+    path: `${WIN}\\_classic_`,
+  }),
+  "folder-gone": folderStep({
+    phase: "gone",
+    message: "The game folder you chose before isn’t there any more. Choose it again.",
+    path: WIN,
+  }),
   "key-empty": keyStep({ value: "", checking: false }),
   "key-checking": keyStep({ value: KEY, checking: true }),
   "key-malformed": keyStep({
