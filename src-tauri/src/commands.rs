@@ -15,6 +15,7 @@ use crate::key::{
     ConnectError, Connection, HelperKey, KeyEngine, Refusal, SecretStore, ShapeError, Site,
     SiteError, StoreError, SystemStore,
 };
+use crate::raids::{Poller, RaidsView};
 use crate::upload::{Runner, SyncStatus};
 use serde::Serialize;
 use std::sync::{Arc, RwLock};
@@ -195,12 +196,13 @@ pub fn remembered_game_folder(store: &GameFolderStore) -> FolderOutcome {
     store.remembered()
 }
 
-/// Once the key or site has changed, the uploader starts again with the new ones. A failed
-/// change leaves them as they were, so the uploader carries on, keeping any wait the site
-/// asked for.
-fn restart_if(runner: &Runner, changed: bool) {
+/// Once the key or site has changed, the uploader and the raids list start again with the
+/// new ones. A failed change leaves them as they were, so both carry on, keeping any wait
+/// the site asked for.
+fn restart_if(runner: &Runner, raids: &Poller, changed: bool) {
     if changed {
         runner.restart();
+        raids.restart();
     }
 }
 
@@ -218,12 +220,21 @@ async fn off_thread<T: Send + 'static>(
 pub async fn connect_key(
     engine: tauri::State<'_, Engine>,
     runner: tauri::State<'_, Runner>,
+    raids: tauri::State<'_, Poller>,
     key: String,
 ) -> Result<KeyOutcome, String> {
-    let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
+    let (engine, runner, raids) = (
+        engine.inner().clone(),
+        runner.inner().clone(),
+        raids.inner().clone(),
+    );
     off_thread(move || {
         let outcome = connect(&engine, &key);
-        restart_if(&runner, matches!(outcome, KeyOutcome::Accepted { .. }));
+        restart_if(
+            &runner,
+            &raids,
+            matches!(outcome, KeyOutcome::Accepted { .. }),
+        );
         outcome
     })
     .await
@@ -239,11 +250,16 @@ pub async fn check_stored_key(engine: tauri::State<'_, Engine>) -> Result<KeyOut
 pub async fn remove_stored_key(
     engine: tauri::State<'_, Engine>,
     runner: tauri::State<'_, Runner>,
+    raids: tauri::State<'_, Poller>,
 ) -> Result<ChangeOutcome, String> {
-    let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
+    let (engine, runner, raids) = (
+        engine.inner().clone(),
+        runner.inner().clone(),
+        raids.inner().clone(),
+    );
     off_thread(move || {
         let outcome = remove_key(&engine);
-        restart_if(&runner, outcome == ChangeOutcome::Done);
+        restart_if(&runner, &raids, outcome == ChangeOutcome::Done);
         outcome
     })
     .await
@@ -258,12 +274,17 @@ pub fn get_staging(engine: tauri::State<'_, Engine>) -> bool {
 pub async fn set_staging_site(
     engine: tauri::State<'_, Engine>,
     runner: tauri::State<'_, Runner>,
+    raids: tauri::State<'_, Poller>,
     on: bool,
 ) -> Result<ChangeOutcome, String> {
-    let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
+    let (engine, runner, raids) = (
+        engine.inner().clone(),
+        runner.inner().clone(),
+        raids.inner().clone(),
+    );
     off_thread(move || {
         let outcome = set_staging(&engine, on);
-        restart_if(&runner, outcome == ChangeOutcome::Done);
+        restart_if(&runner, &raids, outcome == ChangeOutcome::Done);
         outcome
     })
     .await
@@ -273,6 +294,12 @@ pub async fn set_staging_site(
 #[tauri::command]
 pub fn get_sync_status(runner: tauri::State<'_, Runner>) -> SyncStatus {
     runner.status()
+}
+
+/// The upcoming raids and how the list stands now; each later change comes as a `raids` event.
+#[tauri::command]
+pub fn get_raids(raids: tauri::State<'_, Poller>) -> RaidsView {
+    raids.view()
 }
 
 #[tauri::command]

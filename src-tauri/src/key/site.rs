@@ -1,8 +1,10 @@
-//! The site client: `GET /api/helper/me` with the key (ADDON-SPEC 7.1, 7.2), its answer
-//! sorted into the engine's results, and `POST /api/helper/operations`, its answer handed
-//! back as it came for the upload client to sort.
+//! The site client: `GET /api/helper/me` with the key (ADDON-SPEC 7.1, 7.2) and
+//! `GET /api/helper/raids` (7.5), their answers sorted into the engine's results, and
+//! `POST /api/helper/operations`, its answer handed back as it came for the upload client
+//! to sort.
 
 use super::{Connection, HelperKey, Refusal, Site, SiteError};
+use crate::raids::{Raid, RaidsFailure};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -45,9 +47,37 @@ impl SiteClient {
 
     /// Asks `site` whether it accepts `key`.
     pub fn check(&self, site: Site, key: &HelperKey) -> Result<Connection, SiteError> {
+        let (status, html, body, _) = self.get(site, key, "/api/helper/me")?;
+        sort(site, status, html, body.as_ref())
+    }
+
+    /// Asks `site` for its upcoming raids (ADDON-SPEC 7.5), in the order it gives them.
+    /// Its failures are sorted as `check` sorts them.
+    pub fn raids(&self, site: Site, key: &HelperKey) -> Result<Vec<Raid>, RaidsFailure> {
+        let (status, html, body, retry_after) = self
+            .get(site, key, "/api/helper/raids")
+            .map_err(RaidsFailure::from)?;
+        let error = match (status, body.as_ref().and_then(Raid::parse_list)) {
+            (200, Some(raids)) => return Ok(raids),
+            (200, None) => {
+                unreachable("it answered 200 with an answer the helper can't read".into())
+            }
+            _ => failure(site, status, html, body.as_ref()),
+        };
+        Err(RaidsFailure { error, retry_after })
+    }
+
+    /// A `GET` of `path` with the key: the status, whether the answer is a web page, its
+    /// body when that is JSON, and its `Retry-After` in seconds when given as a number.
+    fn get(
+        &self,
+        site: Site,
+        key: &HelperKey,
+        path: &str,
+    ) -> Result<(u16, bool, Option<Value>, Option<u64>), SiteError> {
         let response = self
             .agent
-            .get(format!("{}/api/helper/me", self.base(site)))
+            .get(format!("{}{path}", self.base(site)))
             .header("Authorization", format!("Bearer {}", key.secret()))
             .header("Accept", "application/json")
             .call();
@@ -61,14 +91,19 @@ impl SiteClient {
             .get("content-type")
             .and_then(|v| v.to_str().ok())
             .is_some_and(|v| v.trim().to_ascii_lowercase().starts_with("text/html"));
+        let retry_after = retry_after(&response);
         let text = response
             .body_mut()
             .with_config()
             .limit(MAX_BODY)
             .read_to_string()
             .map_err(|e| unreachable(format!("its answer couldn't be read: {}", no_answer(&e))))?;
-        let body = serde_json::from_str::<Value>(&text).ok();
-        sort(site, status, html, body.as_ref())
+        Ok((
+            status,
+            html,
+            serde_json::from_str::<Value>(&text).ok(),
+            retry_after,
+        ))
     }
 }
 
@@ -99,11 +134,7 @@ impl SiteClient {
             .send(body);
         let mut response = response.map_err(|e| no_answer(&e))?;
         let status = response.status().as_u16();
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse().ok());
+        let retry_after = retry_after(&response);
         let text = response
             .body_mut()
             .with_config()
@@ -125,6 +156,15 @@ impl SiteClient {
     }
 }
 
+/// The answer's `Retry-After` in seconds, when given as a number.
+fn retry_after<B>(response: &ureq::http::Response<B>) -> Option<u64> {
+    response
+        .headers()
+        .get("retry-after")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.trim().parse().ok())
+}
+
 /// Sorts an answer by its status, whether it is a web page, and, when it is JSON, its body.
 fn sort(
     site: Site,
@@ -132,6 +172,16 @@ fn sort(
     html: bool,
     body: Option<&Value>,
 ) -> Result<Connection, SiteError> {
+    match status {
+        200 => body.and_then(connection).ok_or_else(|| {
+            unreachable("it answered 200 with an answer the helper can't read".into())
+        }),
+        _ => Err(failure(site, status, html, body)),
+    }
+}
+
+/// Sorts an answer that isn't a `200`.
+fn failure(site: Site, status: u16, html: bool, body: Option<&Value>) -> SiteError {
     // The site's own errors are `{ "error", "code" }` (ADDON-SPEC 7). Vercel's login page
     // is a redirect or a 401 web page; the helper API never redirects.
     let code = body
@@ -139,15 +189,12 @@ fn sort(
         .and_then(|b| b["code"].as_str());
     let login_page = (300..=399).contains(&status) || (status == 401 && html);
     match (status, code) {
-        (200, _) => body.and_then(connection).ok_or_else(|| {
-            unreachable("it answered 200 with an answer the helper can't read".into())
-        }),
-        (401, Some(_)) => Err(SiteError::KeyRefused(Refusal::BadKey)),
-        (403, Some(_)) => Err(SiteError::KeyRefused(Refusal::NotOfficer)),
-        (503, Some("helper-off")) => Err(SiteError::HelperOff),
-        _ if login_page && site == Site::Staging => Err(SiteError::StagingNotOpen),
+        (401, Some(_)) => SiteError::KeyRefused(Refusal::BadKey),
+        (403, Some(_)) => SiteError::KeyRefused(Refusal::NotOfficer),
+        (503, Some("helper-off")) => SiteError::HelperOff,
+        _ if login_page && site == Site::Staging => SiteError::StagingNotOpen,
         // Only the status: what the site sent back never goes into a message.
-        (status, _) => Err(unreachable(format!("it answered {status}"))),
+        (status, _) => unreachable(format!("it answered {status}")),
     }
 }
 

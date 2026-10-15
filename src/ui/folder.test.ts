@@ -41,6 +41,8 @@ function fake(folder: Folder = {}): Bridge {
     setStaging: unused,
     syncStatus: unused,
     onSyncStatus: unused,
+    raids: unused,
+    onRaids: unused,
     searchFolder: vi.fn(() => Promise.resolve(nothing)),
     checkPickedFolder: unused,
     rememberVersion: vi.fn((f: string) => Promise.resolve({ kind: "found", ...install(f.split("\\").pop()!) } as FolderOutcome)),

@@ -80,6 +80,42 @@ export type SyncStatus =
 /** The event that carries each new sync status (`SYNC_STATUS_EVENT` in upload/runner.rs). */
 const SYNC_STATUS_EVENT = "sync-status";
 
+/** One upcoming site raid (`Raid` in raids.rs). `startsAt` is Unix seconds. */
+export interface Raid {
+  id: string;
+  code: string;
+  name: string;
+  startsAt: number;
+  durationMin: number;
+  /** The game instance number; null when the raid's template has none. */
+  instance: number | null;
+  hasLootTable: boolean;
+}
+
+/** How the raids list stands. Raids are the last good list in every state but `loading`,
+ * `noKey` and `keyUnreadable`, which have none. */
+export type RaidsState =
+  | { kind: "loading" }
+  | { kind: "fresh" }
+  /** The site returned no raids, which is a good answer. */
+  | { kind: "empty" }
+  /** The last fetch failed; the last good list is kept and the next tick tries again. */
+  | { kind: "unreachable" }
+  | { kind: "noKey" }
+  /** The site refused the key; nothing is fetched until the key or site changes. */
+  | { kind: "keyRefused" }
+  | { kind: "siteOff" }
+  | { kind: "stagingNotOpen" }
+  | { kind: "keyUnreadable"; message: string };
+
+export interface RaidsView {
+  state: RaidsState;
+  raids: Raid[];
+}
+
+/** The event that carries each new raids view (`RAIDS_EVENT` in raids.rs). */
+const RAIDS_EVENT = "raids";
+
 /** Each call rejects only if the Rust side itself failed; every engine result is data. */
 export interface Bridge {
   connect(key: string): Promise<KeyOutcome>;
@@ -88,6 +124,8 @@ export interface Bridge {
   staging(): Promise<boolean>;
   setStaging(on: boolean): Promise<ChangeOutcome>;
   syncStatus(): Promise<SyncStatus>;
+  /** The upcoming raids and how the list stands now. */
+  raids(): Promise<RaidsView>;
   /** Looks in the usual places for the game. */
   searchFolder(): Promise<FolderOutcome>;
   /** Checks a folder the officer picked. */
@@ -99,6 +137,8 @@ export interface Bridge {
   pickFolder(): Promise<string | null>;
   /** Calls `listener` with every later sync status; resolves to a function that stops it. */
   onSyncStatus(listener: (status: SyncStatus) => void): Promise<() => void>;
+  /** Calls `listener` with every later raids view; resolves to a function that stops it. */
+  onRaids(listener: (view: RaidsView) => void): Promise<() => void>;
 }
 
 export const tauriBridge: Bridge = {
@@ -108,6 +148,7 @@ export const tauriBridge: Bridge = {
   staging: () => invoke("get_staging"),
   setStaging: (on) => invoke("set_staging_site", { on }),
   syncStatus: () => invoke("get_sync_status"),
+  raids: () => invoke("get_raids"),
   searchFolder: () => invoke("search_game_folder"),
   checkPickedFolder: (folder) => invoke("check_picked_game_folder", { folder }),
   rememberVersion: (versionFolder) => invoke("remember_game_version", { folder: versionFolder }),
@@ -117,4 +158,5 @@ export const tauriBridge: Bridge = {
     return typeof picked === "string" ? picked : null;
   },
   onSyncStatus: (listener) => listen<SyncStatus>(SYNC_STATUS_EVENT, (event) => listener(event.payload)),
+  onRaids: (listener) => listen<RaidsView>(RAIDS_EVENT, (event) => listener(event.payload)),
 };
