@@ -1,8 +1,10 @@
-//! The site client: `GET /api/helper/me` with the key (ADDON-SPEC 7.1, 7.2), its answer
-//! sorted into the engine's results, and `POST /api/helper/operations`, its answer handed
-//! back as it came for the upload client to sort.
+//! The site client: `GET /api/helper/me` with the key (ADDON-SPEC 7.1, 7.2) and
+//! `GET /api/helper/raids` (7.5), their answers sorted into the engine's results, and
+//! `POST /api/helper/operations`, its answer handed back as it came for the upload client
+//! to sort.
 
 use super::{Connection, HelperKey, Refusal, Site, SiteError};
+use crate::raids::Raid;
 use serde_json::Value;
 use std::time::Duration;
 
@@ -45,9 +47,34 @@ impl SiteClient {
 
     /// Asks `site` whether it accepts `key`.
     pub fn check(&self, site: Site, key: &HelperKey) -> Result<Connection, SiteError> {
+        let (status, html, body) = self.get(site, key, "/api/helper/me")?;
+        sort(site, status, html, body.as_ref())
+    }
+
+    /// Asks `site` for its upcoming raids (ADDON-SPEC 7.5), in the order it gives them.
+    /// Its failures are sorted as `check` sorts them.
+    pub fn raids(&self, site: Site, key: &HelperKey) -> Result<Vec<Raid>, SiteError> {
+        let (status, html, body) = self.get(site, key, "/api/helper/raids")?;
+        match (status, body.as_ref().and_then(Raid::parse_list)) {
+            (200, Some(raids)) => Ok(raids),
+            (200, None) => Err(unreachable(
+                "it answered 200 with an answer the helper can't read".into(),
+            )),
+            _ => Err(failure(site, status, html, body.as_ref())),
+        }
+    }
+
+    /// A `GET` of `path` with the key: the status, whether the answer is a web page, and
+    /// its body when that is JSON.
+    fn get(
+        &self,
+        site: Site,
+        key: &HelperKey,
+        path: &str,
+    ) -> Result<(u16, bool, Option<Value>), SiteError> {
         let response = self
             .agent
-            .get(format!("{}/api/helper/me", self.base(site)))
+            .get(format!("{}{path}", self.base(site)))
             .header("Authorization", format!("Bearer {}", key.secret()))
             .header("Accept", "application/json")
             .call();
@@ -67,8 +94,7 @@ impl SiteClient {
             .limit(MAX_BODY)
             .read_to_string()
             .map_err(|e| unreachable(format!("its answer couldn't be read: {}", no_answer(&e))))?;
-        let body = serde_json::from_str::<Value>(&text).ok();
-        sort(site, status, html, body.as_ref())
+        Ok((status, html, serde_json::from_str::<Value>(&text).ok()))
     }
 }
 
@@ -132,6 +158,16 @@ fn sort(
     html: bool,
     body: Option<&Value>,
 ) -> Result<Connection, SiteError> {
+    match status {
+        200 => body.and_then(connection).ok_or_else(|| {
+            unreachable("it answered 200 with an answer the helper can't read".into())
+        }),
+        _ => Err(failure(site, status, html, body)),
+    }
+}
+
+/// Sorts an answer that isn't a `200`.
+fn failure(site: Site, status: u16, html: bool, body: Option<&Value>) -> SiteError {
     // The site's own errors are `{ "error", "code" }` (ADDON-SPEC 7). Vercel's login page
     // is a redirect or a 401 web page; the helper API never redirects.
     let code = body
@@ -139,15 +175,12 @@ fn sort(
         .and_then(|b| b["code"].as_str());
     let login_page = (300..=399).contains(&status) || (status == 401 && html);
     match (status, code) {
-        (200, _) => body.and_then(connection).ok_or_else(|| {
-            unreachable("it answered 200 with an answer the helper can't read".into())
-        }),
-        (401, Some(_)) => Err(SiteError::KeyRefused(Refusal::BadKey)),
-        (403, Some(_)) => Err(SiteError::KeyRefused(Refusal::NotOfficer)),
-        (503, Some("helper-off")) => Err(SiteError::HelperOff),
-        _ if login_page && site == Site::Staging => Err(SiteError::StagingNotOpen),
+        (401, Some(_)) => SiteError::KeyRefused(Refusal::BadKey),
+        (403, Some(_)) => SiteError::KeyRefused(Refusal::NotOfficer),
+        (503, Some("helper-off")) => SiteError::HelperOff,
+        _ if login_page && site == Site::Staging => SiteError::StagingNotOpen,
         // Only the status: what the site sent back never goes into a message.
-        (status, _) => Err(unreachable(format!("it answered {status}"))),
+        (status, _) => unreachable(format!("it answered {status}")),
     }
 }
 

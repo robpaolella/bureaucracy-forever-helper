@@ -4,6 +4,7 @@ pub mod game_folder;
 pub mod inbox;
 pub mod key;
 pub mod queue;
+pub mod raids;
 pub mod savedvars;
 pub mod upload;
 
@@ -16,6 +17,7 @@ use tauri::{
 use commands::Engine;
 use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
 use queue::Queue;
+use raids::{Poller, Timing as RaidsTiming, RAIDS_EVENT};
 use savedvars::watcher::{Timing, Watcher};
 use std::sync::{Arc, Mutex};
 use upload::{Runner, SYNC_STATUS_EVENT};
@@ -52,6 +54,17 @@ pub fn run() {
                     let _ = handle.emit(SYNC_STATUS_EVENT, status);
                 },
             ));
+            // The upcoming raids, kept fresh while the window is hidden. #61 shows them;
+            // the inbox and chat log work read `Poller::view`.
+            let handle = app.handle().clone();
+            app.manage(Poller::start(
+                engine.clone(),
+                SiteClient::default(),
+                RaidsTiming::default(),
+                move |view| {
+                    let _ = handle.emit(RAIDS_EVENT, view);
+                },
+            ));
             // The add-on's saved file, read when the game saves it. The status and error
             // display come with the sync window; #60 reads `Watcher::latest`.
             app.manage(Watcher::start(
@@ -76,6 +89,7 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     QUIT_ID => {
                         app.state::<Runner>().stop();
+                        app.state::<Poller>().stop();
                         app.state::<Watcher>().stop();
                         app.exit(0);
                     }
@@ -104,6 +118,7 @@ pub fn run() {
             commands::remember_game_version,
             commands::get_remembered_game_folder,
             commands::get_sync_status,
+            commands::get_raids,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
