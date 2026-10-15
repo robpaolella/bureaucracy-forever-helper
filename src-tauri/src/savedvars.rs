@@ -1,5 +1,5 @@
 //! Reads the add-on's SavedVariables file, which the game writes at logout or `/reload`
-//! (ADDON-SPEC 4.4, 8.3), and hands its operations to the waiting list.
+//! (ADDON-SPEC 4.4, 8), and hands its operations to the waiting list.
 //!
 //! The file is read as data by a parser that never runs anything (`lua`); a file with
 //! code in it, a syntax error or the wrong shape is refused whole, with a reason in plain
