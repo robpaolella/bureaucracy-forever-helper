@@ -25,6 +25,8 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     removeKey: vi.fn(unused),
     staging: unused,
     setStaging: unused,
+    syncStatus: unused,
+    onSyncStatus: unused,
   };
 }
 

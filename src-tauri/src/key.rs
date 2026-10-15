@@ -240,6 +240,12 @@ impl<S: SecretStore> KeyEngine<S> {
             .map_err(ConnectError::Site)
     }
 
+    /// The current site's stored key, for the upload client. It is only ever sent to that
+    /// site, and `HelperKey` never prints or serialises it.
+    pub fn stored_key(&self) -> Result<Option<HelperKey>, StoreError> {
+        self.store.read(self.site)
+    }
+
     /// Removes the current site's key; the other site's key is kept.
     pub fn remove_key(&self) -> Result<(), StoreError> {
         self.store.delete(self.site)

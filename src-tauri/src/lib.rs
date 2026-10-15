@@ -9,11 +9,14 @@ pub mod upload;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, WindowEvent,
+    Emitter, Manager, WindowEvent,
 };
 
 use commands::Engine;
 use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
+use queue::Queue;
+use std::sync::{Arc, Mutex};
+use upload::{Runner, SYNC_STATUS_EVENT};
 
 const QUIT_ID: &str = "quit";
 const SHOW_ID: &str = "show";
@@ -28,11 +31,25 @@ pub fn run() {
             app.manage(std::sync::Arc::new(game_folder::GameFolderStore::new(
                 data_dir.join(SETTINGS_FILE),
             )));
-            app.manage(Engine::new(KeyEngine::open(
+            let engine = Engine::new(KeyEngine::open(
                 data_dir.join(SETTINGS_FILE),
                 SystemStore::default(),
                 SiteClient::default(),
-            )));
+            ));
+            // One waiting list for the whole app; the add-on reader and chat log follower
+            // will add to it through this same lock. A damaged file shows in the status.
+            let queue = Arc::new(Mutex::new(Queue::open(data_dir.join(queue::FILE_NAME))));
+            let handle = app.handle().clone();
+            app.manage(Runner::start(
+                engine.clone(),
+                Arc::clone(&queue),
+                SiteClient::default(),
+                move |status| {
+                    let _ = handle.emit(SYNC_STATUS_EVENT, status);
+                },
+            ));
+            app.manage(engine);
+            app.manage(queue);
             let show = MenuItem::with_id(app, SHOW_ID, "Show", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show, &quit])?;
@@ -40,7 +57,10 @@ pub fn run() {
                 .tooltip("Bureaucracy Forever Helper")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    QUIT_ID => app.exit(0),
+                    QUIT_ID => {
+                        app.state::<Runner>().stop();
+                        app.exit(0);
+                    }
                     SHOW_ID => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
@@ -65,6 +85,7 @@ pub fn run() {
             commands::check_picked_game_folder,
             commands::remember_game_version,
             commands::get_remembered_game_folder,
+            commands::get_sync_status,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
