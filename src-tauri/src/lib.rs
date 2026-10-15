@@ -1,5 +1,6 @@
 pub mod chatlog;
 pub mod commands;
+pub mod game_folder;
 pub mod inbox;
 pub mod key;
 pub mod queue;
@@ -24,6 +25,9 @@ pub fn run() {
             // `set_staging_site` reports; the window still opens.
             let data_dir = app.path().app_data_dir()?;
             let _ = std::fs::create_dir_all(&data_dir);
+            app.manage(std::sync::Arc::new(game_folder::GameFolderStore::new(
+                data_dir.join(SETTINGS_FILE),
+            )));
             app.manage(Engine::new(KeyEngine::open(
                 data_dir.join(SETTINGS_FILE),
                 SystemStore::default(),
@@ -57,6 +61,10 @@ pub fn run() {
             commands::remove_stored_key,
             commands::get_staging,
             commands::set_staging_site,
+            commands::search_game_folder,
+            commands::check_picked_game_folder,
+            commands::remember_game_version,
+            commands::get_remembered_game_folder,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
