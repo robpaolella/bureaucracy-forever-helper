@@ -96,20 +96,44 @@ pub enum SyncStatus {
     SiteOff,
     /// The waiting list can't be read or saved; nothing is sent and it is left as it is.
     QueueDamaged { problem: String },
+    /// No key is stored for the current site, so nothing is sent.
+    NoKey,
+    /// The secure store couldn't be read, so nothing is sent; `message` says why.
+    KeyUnreadable { message: String },
 }
 
-/// Reads the uploader's status from anywhere, also while a pass is sending.
+type Listener = Arc<dyn Fn(&SyncStatus) + Send + Sync>;
+
+/// Reads the uploader's status from anywhere, also while a pass is sending, and tells a
+/// listener each time it changes.
 #[derive(Clone, Default)]
-pub struct StatusWatch(Arc<Mutex<Option<SyncStatus>>>);
+pub struct StatusWatch(Arc<Mutex<(Option<SyncStatus>, Option<Listener>)>>);
 
 impl StatusWatch {
     pub fn get(&self) -> SyncStatus {
-        let status = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        status.clone().unwrap_or(SyncStatus::Idle { other_site: 0 })
+        let watch = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        watch
+            .0
+            .clone()
+            .unwrap_or(SyncStatus::Idle { other_site: 0 })
+    }
+
+    /// Calls `listener` with every new status from now on, replacing any earlier listener.
+    pub fn on_change(&self, listener: impl Fn(&SyncStatus) + Send + Sync + 'static) {
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).1 = Some(Arc::new(listener));
     }
 
     fn set(&self, status: SyncStatus) {
-        *self.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(status);
+        let mut watch = self.0.lock().unwrap_or_else(|e| e.into_inner());
+        if watch.0.as_ref() == Some(&status) {
+            return;
+        }
+        watch.0 = Some(status.clone());
+        let listener = watch.1.clone();
+        drop(watch);
+        if let Some(listener) = listener {
+            listener(&status);
+        }
     }
 }
 
@@ -149,6 +173,15 @@ impl Uploader {
     /// A reader of the status for the window and tray.
     pub fn watch(&self) -> StatusWatch {
         self.status.clone()
+    }
+
+    /// The key or the site changed: nothing waits on the old one's answers any more. The
+    /// refused records stay until the window has shown them.
+    pub fn changed(&mut self) {
+        self.not_before = None;
+        self.failures = 0;
+        self.pending.clear();
+        self.batch_limit = None;
     }
 
     /// Forgets the refused records once the window has shown them.
@@ -331,8 +364,12 @@ impl Uploader {
     }
 
     fn halt(&mut self, status: SyncStatus) -> Duration {
+        self.halt_for(status, IDLE)
+    }
+
+    fn halt_for(&mut self, status: SyncStatus, wait: Duration) -> Duration {
         self.status.set(status);
-        IDLE
+        wait
     }
 
     fn refuse(&mut self, op: &Value, code: &str) {
@@ -396,6 +433,9 @@ fn damaged(e: QueueError) -> SyncStatus {
     };
     SyncStatus::QueueDamaged { problem }
 }
+
+mod runner;
+pub use runner::{Runner, SYNC_STATUS_EVENT};
 
 #[cfg(test)]
 mod tests;

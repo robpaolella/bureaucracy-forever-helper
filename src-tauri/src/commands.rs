@@ -12,8 +12,10 @@
 
 use crate::game_folder::{self, Environment, FolderOutcome, GameFolderStore};
 use crate::key::{
-    ConnectError, Connection, KeyEngine, Refusal, SecretStore, ShapeError, SiteError, SystemStore,
+    ConnectError, Connection, HelperKey, KeyEngine, Refusal, SecretStore, ShapeError, Site,
+    SiteError, StoreError, SystemStore,
 };
+use crate::upload::{Runner, SyncStatus};
 use serde::Serialize;
 use std::sync::{Arc, RwLock};
 
@@ -40,6 +42,13 @@ impl<S: SecretStore> Engine<S> {
 
     fn write(&self) -> std::sync::RwLockWriteGuard<'_, KeyEngine<S>> {
         self.0.write().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The current site and its stored key, read together so the key always belongs to
+    /// the site it goes to.
+    pub fn upload_target(&self) -> (Site, Result<Option<HelperKey>, StoreError>) {
+        let engine = self.read();
+        (engine.site(), engine.stored_key())
     }
 }
 
@@ -156,7 +165,7 @@ pub fn remove_key<S: SecretStore>(engine: &Engine<S>) -> ChangeOutcome {
 }
 
 pub fn staging<S: SecretStore>(engine: &Engine<S>) -> bool {
-    engine.read().site() == crate::key::Site::Staging
+    engine.read().site() == Site::Staging
 }
 
 pub fn set_staging<S: SecretStore>(engine: &Engine<S>, on: bool) -> ChangeOutcome {
@@ -186,6 +195,13 @@ pub fn remembered_game_folder(store: &GameFolderStore) -> FolderOutcome {
     store.remembered()
 }
 
+/// After the key or site may have changed, the uploader starts again with the current ones,
+/// whatever the outcome: a failed change leaves them as they were, which is harmless.
+fn restarting<T>(runner: &Runner, outcome: T) -> T {
+    runner.restart();
+    outcome
+}
+
 /// Connecting and checking wait on the network, so they run off the thread that draws
 /// the window. A failure of the thread itself rejects the call.
 async fn off_thread<T: Send + 'static>(
@@ -199,10 +215,11 @@ async fn off_thread<T: Send + 'static>(
 #[tauri::command]
 pub async fn connect_key(
     engine: tauri::State<'_, Engine>,
+    runner: tauri::State<'_, Runner>,
     key: String,
 ) -> Result<KeyOutcome, String> {
-    let engine = engine.inner().clone();
-    off_thread(move || connect(&engine, &key)).await
+    let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
+    off_thread(move || restarting(&runner, connect(&engine, &key))).await
 }
 
 #[tauri::command]
@@ -212,9 +229,12 @@ pub async fn check_stored_key(engine: tauri::State<'_, Engine>) -> Result<KeyOut
 }
 
 #[tauri::command]
-pub async fn remove_stored_key(engine: tauri::State<'_, Engine>) -> Result<ChangeOutcome, String> {
-    let engine = engine.inner().clone();
-    off_thread(move || remove_key(&engine)).await
+pub async fn remove_stored_key(
+    engine: tauri::State<'_, Engine>,
+    runner: tauri::State<'_, Runner>,
+) -> Result<ChangeOutcome, String> {
+    let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
+    off_thread(move || restarting(&runner, remove_key(&engine))).await
 }
 
 #[tauri::command]
@@ -225,10 +245,17 @@ pub fn get_staging(engine: tauri::State<'_, Engine>) -> bool {
 #[tauri::command]
 pub async fn set_staging_site(
     engine: tauri::State<'_, Engine>,
+    runner: tauri::State<'_, Runner>,
     on: bool,
 ) -> Result<ChangeOutcome, String> {
-    let engine = engine.inner().clone();
-    off_thread(move || set_staging(&engine, on)).await
+    let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
+    off_thread(move || restarting(&runner, set_staging(&engine, on))).await
+}
+
+/// The upload's sync status now; each later change comes as a `sync-status` event.
+#[tauri::command]
+pub fn get_sync_status(runner: tauri::State<'_, Runner>) -> SyncStatus {
+    runner.status()
 }
 
 #[tauri::command]
