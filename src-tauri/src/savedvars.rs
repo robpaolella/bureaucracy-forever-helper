@@ -7,7 +7,8 @@
 //! order saved. The final-state lists (`awards[raidId]`, `noRaid`) are parsed and checked
 //! but not uploaded, and `noRaidOps` are read but not handed on: they carry no `raid` or
 //! `env` and are never uploaded until an officer attaches them to a raid (ADDON-SPEC 1),
-//! which moves them into `ops[raidId]`.
+//! which moves them into `ops[raidId]`. Pending `siteVoids` (ADDON-SPEC 4.4, 8.3) are
+//! read past and never uploaded or used by the helper.
 //!
 //! The reader keeps no record of what it handed over. Reading an unchanged file again adds
 //! nothing new, because the queue holds an identical operation once and the site settles
