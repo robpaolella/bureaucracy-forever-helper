@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RaidsView, SyncStatus } from "./bridge";
+import type { RaidsView, SyncStatus, UpdateProgress } from "./bridge";
 
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -38,6 +38,12 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("remember_game_version", { folder: "/games/_retail_" });
     await tauriBridge.rememberedFolder();
     expect(invoke).toHaveBeenLastCalledWith("get_remembered_game_folder");
+    await tauriBridge.checkForUpdate();
+    expect(invoke).toHaveBeenLastCalledWith("check_for_update");
+    await tauriBridge.installUpdate();
+    expect(invoke).toHaveBeenLastCalledWith("install_update");
+    await tauriBridge.restartAfterUpdate();
+    expect(invoke).toHaveBeenLastCalledWith("restart_after_update");
   });
 
   it("opens the native picker for one folder and gives back its path, or null when cancelled", async () => {
@@ -77,6 +83,26 @@ describe("tauriBridge", () => {
     expect(listen).toHaveBeenCalledWith("raids", expect.any(Function));
     emit({ payload: { state: { kind: "loading" }, raids: [] } });
     expect(heard).toEqual([{ state: { kind: "loading" }, raids: [] }]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("passes on download progress from the update-progress event until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard: UpdateProgress[] = [];
+    const unlisten = await tauriBridge.onUpdateProgress((progress) => heard.push(progress));
+    expect(listen).toHaveBeenCalledWith("update-progress", expect.any(Function));
+    emit({ payload: { downloaded: 10, total: 20 } });
+    emit({ payload: { downloaded: 20, total: null } });
+    expect(heard).toEqual([
+      { downloaded: 10, total: 20 },
+      { downloaded: 20, total: null },
+    ]);
     unlisten();
     expect(stop).toHaveBeenCalled();
   });

@@ -6,6 +6,7 @@ pub mod key;
 pub mod queue;
 pub mod raids;
 pub mod savedvars;
+pub mod updater;
 pub mod upload;
 
 use tauri::{
@@ -28,6 +29,8 @@ const SHOW_ID: &str = "show";
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updater::Updates::default())
         .setup(|app| {
             // A missing folder only means the staging setting can't be saved later, which
             // `set_staging_site` reports; the window still opens.
@@ -119,6 +122,9 @@ pub fn run() {
             commands::get_remembered_game_folder,
             commands::get_sync_status,
             commands::get_raids,
+            commands::check_for_update,
+            commands::install_update,
+            commands::restart_after_update,
         ])
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {

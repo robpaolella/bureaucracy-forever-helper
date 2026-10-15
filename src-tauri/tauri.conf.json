@@ -26,5 +26,14 @@
     "active": true,
     "targets": "all",
     "icon": ["icons/icon.png", "icons/icon.ico"]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEExMDNGQjNENTAyRjQ4RDQKUldUVVNDOVFQZnNEb2IxTGgzUWkyY3lkUGpoYXo0MUFKcWMwbFQ3Y1V3YmhtY0hOems4TVNudmgK",
+      "endpoints": [
+        "https://github.com/robpaolella/bureaucracy-forever-helper/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true
+    }
   }
 }

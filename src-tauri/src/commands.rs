@@ -4,6 +4,8 @@
 //! The game folder commands search for the folder, check a picked one, and remember or
 //! read the remembered one.
 //!
+//! The update commands check for a newer helper, install a found one, and restart into it.
+//!
 //! Every command returns its result as data the front-end can tell apart (`kind`), with
 //! the engine's own plain-words message where there is one. Nothing is swallowed, and
 //! neither the key nor anything the site sent back is in a result beyond what the
@@ -16,9 +18,12 @@ use crate::key::{
     SiteError, StoreError, SystemStore,
 };
 use crate::raids::{Poller, RaidsView};
+use crate::updater::{self, CheckOutcome, InstallOutcome, RestartOutcome, Updates};
 use crate::upload::{Runner, SyncStatus};
 use serde::Serialize;
 use std::sync::{Arc, RwLock};
+use tauri::{AppHandle, Emitter};
+use tauri_plugin_updater::{Updater, UpdaterExt};
 
 /// The engine, held as app state. Anything that changes the stored key or the site (connect,
 /// remove, switch) takes the write lock, so they happen one at a time in the order they were
@@ -327,6 +332,62 @@ pub async fn get_remembered_game_folder(
 ) -> Result<FolderOutcome, String> {
     let store = Arc::clone(store.inner());
     off_thread(move || remembered_game_folder(&store)).await
+}
+
+/// The updater, set up from the app's config. On Windows the updater runs its "before
+/// exit" step before it knows the installer started, so that step does nothing: if Windows
+/// refuses to start it, the helper carries on whole. Ending without it is safe, as the
+/// waiting list is only ever replaced whole and a record in flight is sent again.
+fn app_updater(app: &AppHandle) -> Result<Updater, tauri_plugin_updater::Error> {
+    updater::configure(app.updater_builder())
+        .on_before_exit(|| {})
+        .build()
+}
+
+#[tauri::command]
+pub async fn check_for_update(
+    app: AppHandle,
+    updates: tauri::State<'_, Updates>,
+) -> Result<CheckOutcome, String> {
+    Ok(updates.check(app_updater(&app)).await)
+}
+
+/// Installs the update the last check found, sending progress as `update-progress` events.
+/// The window calls it only once the officer confirms. On Windows the installer runs from
+/// `restart_after_update`, since it closes the helper.
+#[tauri::command]
+pub async fn install_update(
+    app: AppHandle,
+    updates: tauri::State<'_, Updates>,
+) -> Result<InstallOutcome, String> {
+    let outcome = updates
+        .install(
+            |progress| {
+                let _ = app.emit(updater::PROGRESS_EVENT, progress);
+            },
+            |update, bytes| {
+                if cfg!(windows) {
+                    Ok(())
+                } else {
+                    update.install(bytes)
+                }
+            },
+        )
+        .await;
+    Ok(outcome)
+}
+
+/// Relaunches into the update once `install_update` made it ready. On Windows this starts
+/// its installer, which closes the helper and opens the new version.
+#[tauri::command]
+pub fn restart_after_update(app: AppHandle, updates: tauri::State<'_, Updates>) -> RestartOutcome {
+    updates.restart(|update, bytes| {
+        if cfg!(windows) {
+            update.install(bytes)
+        } else {
+            app.restart()
+        }
+    })
 }
 
 #[cfg(test)]

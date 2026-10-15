@@ -34,6 +34,10 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     onSyncStatus: unused,
     raids: unused,
     onRaids: unused,
+    checkForUpdate: unused,
+    installUpdate: unused,
+    restartAfterUpdate: unused,
+    onUpdateProgress: unused,
   };
 }
 
