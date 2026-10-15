@@ -120,31 +120,39 @@ export async function startWindow(
   }
 
   const show = (step: FolderStep | undefined) => store.set((s) => ({ ...s, folder: step }));
+  /** Marks a save or check as running, so nothing overlaps it and its result can't arrive out of order. */
+  const working = (on: boolean) =>
+    store.set((s) => ({ ...s, folderBusy: on, folder: s.folder ? { ...s.folder, busy: on } : s.folder }));
   const patch = (change: Partial<FolderStep>) =>
     store.set((s) => (s.folder ? { ...s, folder: { ...s.folder, ...change } } : s));
-  const failed = () =>
+  /** Says a try failed, on the open step; with none open (Settings), on the folder that was to be saved. */
+  const failed = (error: string, path?: string) =>
     store.set((s) => ({
       ...s,
-      folder: s.folder
-        ? { ...s.folder, busy: false, error: FAILED_FOLDER_MESSAGE }
-        : { phase: "notFound", message: FAILED_FOLDER_MESSAGE },
+      folder: s.folder ? { ...s.folder, error } : { phase: "found", path, error },
     }));
 
   /** Saves the chosen version folder; on success the folder step is done. */
   async function confirm(versionFolder: string): Promise<void> {
-    patch({ busy: true, error: undefined });
-    const outcome = await ask(() => bridge.rememberVersion(versionFolder));
-    if (!outcome) return failed();
-    if (outcome.kind === "found") return store.set((s) => applyFolderDone(s, outcome.versionFolder));
-    if (outcome.kind === "settingsFailed") return patch({ busy: false, error: outcome.message });
-    show(stepFor(outcome));
+    if (store.get().folderBusy) return;
+    working(true);
+    patch({ error: undefined });
+    try {
+      const outcome = await ask(() => bridge.rememberVersion(versionFolder));
+      if (!outcome) return failed(FAILED_FOLDER_MESSAGE, versionFolder);
+      if (outcome.kind === "found") return store.set((s) => applyFolderDone(s, outcome.versionFolder));
+      if (outcome.kind === "settingsFailed") return failed(outcome.message, versionFolder);
+      show(stepFor(outcome));
+    } finally {
+      working(false);
+    }
   }
 
   /** Shows what a check found. In Settings a single match is saved straight away. */
-  function settle(outcome: FolderOutcome | undefined, picked?: string): void {
-    if (!outcome) return failed();
-    if (outcome.kind === "found" && !store.get().setup) void confirm(outcome.versionFolder);
-    else show(stepFor(outcome, picked));
+  async function settle(outcome: FolderOutcome | undefined, picked?: string): Promise<void> {
+    if (!outcome) return failed(FAILED_FOLDER_MESSAGE);
+    if (outcome.kind === "found" && !store.get().setup) return confirm(outcome.versionFolder);
+    show(stepFor(outcome, picked));
   }
 
   /** Step 2: the remembered folder first, never replaced by a search; a search only if none. */
@@ -159,15 +167,23 @@ export async function startWindow(
   }
 
   async function choose(): Promise<void> {
+    if (store.get().folderBusy) return;
     let picked: string | null;
     try {
       picked = await bridge.pickFolder();
     } catch {
-      return failed();
+      return failed(FAILED_FOLDER_MESSAGE);
     }
     if (picked === null) return;
-    patch({ busy: true, error: undefined });
-    settle(await ask(() => bridge.checkPickedFolder(picked)), picked);
+    working(true);
+    patch({ error: undefined });
+    let outcome: FolderOutcome | undefined;
+    try {
+      outcome = await ask(() => bridge.checkPickedFolder(picked));
+    } finally {
+      working(false);
+    }
+    await settle(outcome, picked);
   }
 
   const actions: FolderActions = {
@@ -205,7 +221,7 @@ export async function startWindow(
     void check(() => bridge.connect(key), key, stored);
   }
 
-  const app = mountApp(root, { getState: store.get, settingsSections: () => [gameFolderSection(store.get().gamePath, store.get().folder, actions)],
+  const app = mountApp(root, { getState: store.get, settingsSections: () => [gameFolderSection(store.get().gamePath, store.get().folder, actions, store.get().folderBusy)],
     onConnect: connect,
     folderActions: actions,
   });

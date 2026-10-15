@@ -214,6 +214,46 @@ describe("Settings → Game folder", () => {
   });
 });
 
+describe("Settings → Game folder, when things go wrong", () => {
+  const section = (root: HTMLElement) => root.querySelector("section.stack")!;
+  async function settings(folder: Folder) {
+    const opened = await open({ rememberedFolder: () => Promise.resolve(found("_retail_")), ...folder });
+    opened.root.querySelector<HTMLButtonElement>("[aria-label=Settings]")!.click();
+    return opened;
+  }
+
+  it("shows the engine's words when the new folder can't be saved, and keeps the old path", async () => {
+    const message = "The helper couldn’t save that folder. Try again.";
+    const { root } = await settings({
+      pickFolder: () => Promise.resolve(WOW),
+      checkPickedFolder: () => Promise.resolve(found("_classic_")),
+      rememberVersion: () => Promise.resolve({ kind: "settingsFailed", message }),
+    });
+    press(root, "Change folder");
+    await flush();
+    expect(section(root).textContent).toContain(message);
+    expect(section(root).querySelectorAll(".mono")[0]?.textContent).toBe(`${WOW}\\_retail_`);
+    expect(section(root).textContent).toContain("Use this folder");
+  });
+
+  it("ignores a second change while one is being checked, so the latest choice stays", async () => {
+    let answer!: (o: FolderOutcome) => void;
+    const check = vi.fn(() => new Promise<FolderOutcome>((r) => (answer = r)));
+    const { root, bridge } = await settings({ pickFolder: () => Promise.resolve(WOW), checkPickedFolder: check });
+    press(root, "Change folder");
+    await flush();
+    const again = [...root.querySelectorAll("button")].find((b) => b.textContent === "Change folder")!;
+    expect(again.disabled).toBe(true);
+    again.click();
+    await flush();
+    expect(check).toHaveBeenCalledTimes(1);
+    answer(found("_classic_"));
+    await flush();
+    expect(bridge.rememberVersion).toHaveBeenCalledTimes(1);
+    expect(section(root).querySelector(".mono")?.textContent).toBe(`${WOW}\\_classic_`);
+  });
+});
+
 describe("shortPath", () => {
   it.each([
     ["/Applications/World of Warcraft/_classic_", "…/World of Warcraft/_classic_"],

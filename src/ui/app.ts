@@ -21,6 +21,8 @@ export interface AppState {
   folder?: FolderStep;
   /** The remembered game version folder, shown in Settings. */
   gamePath?: string;
+  /** A folder is being checked or saved. */
+  folderBusy?: boolean;
 }
 
 /** The key field and its button on the setup screen's first step. */

@@ -129,8 +129,12 @@ export function folderBody(step: FolderStep, actions: FolderActions): Node[] {
 }
 
 /** Settings → Game folder: the path, "Change folder", and whatever the last change needs. */
-export function gameFolderSection(path: string | undefined, step: FolderStep | undefined, actions: FolderActions): HTMLElement {
-  const busy = Boolean(step?.busy);
+export function gameFolderSection(
+  path: string | undefined,
+  step: FolderStep | undefined,
+  actions: FolderActions,
+  busy = false,
+): HTMLElement {
   return el("section", "stack", [
     el("h3", "th", ["Game folder"]),
     ...mono(path),
