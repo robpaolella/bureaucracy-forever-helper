@@ -32,6 +32,8 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     rememberedFolder: unused,
     pickFolder: unused,
     onSyncStatus: unused,
+    raids: unused,
+    onRaids: unused,
   };
 }
 
