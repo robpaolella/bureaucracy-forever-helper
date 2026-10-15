@@ -1,7 +1,7 @@
 # Design decisions: the helper's window
 
-- Design issue: #44 (revision 3; revision 2 was #33, revision 1 was #2); covered build issues: #3, #4, #6, #7, #8, #12, #13, #14, #24, #26, #27, #28, #29, #30, #31
-- Revision: 3; replaces: revision 2 (#33)
+- Design issue: #62 (revision 4; revision 3 was #44, revision 2 was #33, revision 1 was #2); covered build issues: as in `design.json`, now including #60
+- Revision: 4; replaces: revision 3 (#44)
 - Maker: claude-bridge/claude-opus-5-5 (Opus 5.5), thinking medium
 
 ## Choice and approval
@@ -131,3 +131,10 @@ conductor, the design session owns that follow-up. Later revisions use new issue
 - Maker: claude-bridge/claude-opus-5-5 (Opus 5.5).
 - Robert's answers in this design tab, 2026-10-15 (questions in brief.md, Revision 4): 1 "Whatever you recommend." (the latest award decides the raid; the name only when the saved data names the same raid); 2 "Whatever you recommend." (show the read time; ignore saved data older than 12 hours); 3 "Agreed." (tray line without a name); 4 "Whatever you recommend." (wording table); 5 "Whatever you recommend." (amber on the Awards row only).
 - Independent critique: `node /git/maestro/routing/route.ts role checker --maker claude-bridge/claude-opus-5-5` gave GPT-5.6 Terra (`--model openai/gpt-5.6-terra --thinking medium`). Command: `node /git/maestro/scripts/read-only-run.ts "$PWD" review /git/maestro/skills/design-feature/reviewer-prompt.md "Design: …/design/2-helper-window (revision 4 …). Images and manifest: /tmp/design-review-NxOiH8/versions. Maker: claude-bridge/claude-opus-5-5." -- --model openai/gpt-5.6-terra --thinking medium`. Verdict (2026-10-15): one fix: (1) B's chosen-raid note used a 2px green left border, against the craft floor. Fixed: indent only, no border. Re-check of fix 1: **PASS**. All 246 images decoded; workspace unchanged both runs.
+- Decision 6 (where the line sits): Robert, 2026-10-15: "A is fine." (A, the Awards row; recommended).
+- Open Design comments: none (checked 2026-10-15).
+- Dropping B and C (point 7, asked 2026-10-15, what only each had: B, the "Awards go here" note under the chosen raid in the Reserves list; C, the headline naming the raid or the case). Robert: "Drop them." Their screenshots for every revision-4 state are in `screenshots/all/revision-4/` (`b-*`, `c-*`, 390 and 1440, with `manifest.json`); their files are in commit cf0354f (`versions/b.html`, `versions/c.html`, on branch `docs/62-design-raid-chosen`). Every other state in B and C is identical to revision 3, since all three were built from the approved `index.html`; so `revision-4/` keeps only the states that differ (the six new states and `tray`). Revision 1's `a-*`/`c-*` files in `all/` are untouched.
+- **Approval:** Robert, 2026-10-15: "Approved." (point 8). Chosen: version A, which `index.html` now is (its prototype note names the Awards row placement). Only Robert's merge of the design PR approves it for building.
+- **Screenshots:** new or changed states only (`chosen`, `chosen-live`, `chosen-no-name`, `not-loaded`, `not-chosen`, `not-guild-run`, `tray`'s caption) were copied into `approved/` (390, 1440) and `approved/real-size/` (420×640), with new manifests over every state. Other states keep their earlier screenshots: recaptured, their window content is identical, and only the newer browser's text rendering differs. `real-size/network.txt` is this revision's offline pass, listing only `file:` and `data:` requests.
+- **Rules for the build (#60):** the six states, the wording and the rules in brief.md, Revision 4: the latest award decides the raid, "Chosen by" only when the saved data names that raid; the read time; saved data older than 12 hours ignored; unknown or missing `activeBy` falls back to today's wording; the new Awards states never open the row and leave the header, tray dot and notifications alone.
+- Open items: none affecting the approved scope.

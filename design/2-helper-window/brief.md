@@ -1,8 +1,8 @@
 # Design: the helper's window
 
-- Design issue: #44 (revision 2 was #33, revision 1 was #2)
-- Revision: 3
-- Replaces: revision 2 (#33)
+- Design issue: #62 (revision 3 was #44, revision 2 was #33, revision 1 was #2)
+- Revision: 4
+- Replaces: revision 3 (#44, PR #46)
 - Source plan: robpaolella/bureaucracy-forever-addon#3 (plan v3, task 30); covered build issues below
 
 ## Job and audience
@@ -34,6 +34,7 @@ helper only shows which raids are ready and which raid awards are going to.
 | #7 | Helper update: available, downloading/installing, failed (no network, file missing, signature refused, interrupted), never without confirmation | Release workflow (#16), docs (#15) |
 | #8 | Add-on update: available (with the game-closed or `/reload` note), installing, installed, rolled back on failure; the Settings switch “Update the add-on automatically” (on by default): with it on, a release installs by itself, the add-on row shows `addon-updated`, and a notification says so; a failed automatic install shows `addon-rolled-back` with its own notification | — |
 | #24 | Settings switch “Start the helper when the computer starts”, on by default (Robert, answer 8) | Other settings |
+| #60 | How the raid was chosen: the Awards row's raid line and caption and the tray's second line (Revision 4 below) | Reading the file (#5); the live "Going to" (#30) |
 | #1 (done) | Tray / menu bar icon and menu: restyled words, order and status | — |
 
 ## Boundaries and visual authority
@@ -111,6 +112,7 @@ Classic item names; Mac and Windows paths (`/Applications/World of Warcraft`,
 | addon-installing | Installing | "Installing add-on 1.4.0…" | — |
 | addon-updated | Add-on installed by itself (switch on) | Add-on row green, “Updated”, Version 1.4.0; note "It loads the next time you type /reload or start the game." (from the release's “Before you update” notes); Activity line "Add-on updated to 1.4.0" | — |
 | addon-rolled-back | Install failed (by hand or automatic) | "The add-on update didn't install, so 1.3.2 is still in place. Your reserves file was kept." | Try again |
+| chosen, chosen-live, chosen-no-name, not-loaded, not-chosen, not-guild-run | How the raid was chosen (revision 4) | See Revision 4 below | — |
 | tray | Tray icon and menu | Icon in the three statuses, light and dark menu bars; menu: status line (greyed) "Ready · 14 awards sent", "Staging site" when on, Open Bureaucracy Forever Helper, Check for updates, Quit | — |
 | notification | System notification preview | "Bureaucracy Forever Helper" / "Reserves for Molten Core are ready. Type /reload in game."; also "Add-on updated to 1.4.0" / "Loads on your next /reload or game start." and "The add-on update didn't install" / "Add-on 1.3.2 is still in place." | Clicking opens the window |
 
@@ -207,5 +209,11 @@ Wording as built (small changes for reading order, same meaning): the time follo
 - **C, Headline:** the window's headline names the raid or the case ("Ready for Molten Core", "Raid not chosen yet", "Not a guild run"), with the chosen-by line under it; the Awards row keeps only its short words and pill.
 Independent decision: (6) where the line sits. Tray line: the same in every version.
 
+Chosen (Robert, 2026-10-15): **A**, the Awards row. B and C were dropped (decisions.md, Revision 4).
+
+### Captures
+- 390 and 1440: `node /git/maestro/scripts/design.ts shots <folder> --out <dir>`.
+- 420×640: `/tmp/d62-build/shoot.sh <folder> <out> <state>…` (kept outside the design folder): an isolated chrome-devtools-axi session opens `index.html?state=<s>&theme=default&bare=1`, resizes to 420×640, waits for the state marker and fonts, and screenshots; then an offline pass (network emulated Offline) writes `network.txt`, which lists only `file:` and `data:` requests.
+
 ### Open decisions
-6. Where the line sits: the versions differ on this, asked at review.
+None.

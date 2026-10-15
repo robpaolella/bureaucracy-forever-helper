@@ -26,9 +26,7 @@
   ],
   "revision": 4,
   "versions": {
-    "a": "versions/a.html",
-    "b": "versions/b.html",
-    "c": "versions/c.html"
+    "approved": "index.html"
   },
   "states": [
     "key-empty",

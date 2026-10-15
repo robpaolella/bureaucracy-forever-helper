@@ -289,11 +289,28 @@ const STATES = {
   'addon-installing': { kind: 'main', update: { who: 'addon', phase: 'installing' }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, addon: 'installing', reserves: 'ok', awards: 'idle' } },
   'addon-rolled-back': { kind: 'main', update: { who: 'addon', phase: 'rolled-back' }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids.' }, raids: RAIDS, sent: 0, waiting: 0, list: [{ tone: 'warn', k: 'Add-on update not installed', html: '1.3.2 is still in place.', time: ['8:26 PM', '6:26 PM'] }, ...ACTS_READY], chain: { ...ok, addon: 'rolled-back', reserves: 'ok', awards: 'idle' } },
   'addon-updated': { kind: 'main', update: { who: 'addon', phase: 'updated' }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids.' }, raids: RAIDS, sent: 0, waiting: 0, list: [{ tone: 'ok', k: 'Add-on updated', html: 'to 1.4.0.', time: ['8:26 PM', '6:26 PM'] }, ...ACTS_READY], chain: { ...ok, addon: 'updated', reserves: 'ok', awards: 'idle' } },
+  chosen: { kind: 'main', choice: { by: 'chosen', raid: RAIDS[0], name: 'Aldric', at: ['8:47 PM', '6:47 PM'] }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids. Awards will send as they’re handed out.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, reserves: 'ok', awards: 'chosen' } },
+  'chosen-live': { kind: 'main', choice: { by: 'chosen', raid: RAIDS[0], name: 'Aldric', at: ['8:47 PM', '6:47 PM'] }, status: { tone: 'ok', word: 'Sending', title: 'Sending awards', body: 'Awards are going to Molten Core.' }, going: RAIDS[0], raids: RAIDS, sent: 14, waiting: 0, list: acts(16), chain: { ...ok, reserves: 'ok', awards: 'ok' } },
+  'chosen-no-name': { kind: 'main', choice: { by: 'chosen', raid: RAIDS[0], name: '', at: ['8:47 PM', '6:47 PM'] }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids. Awards will send as they’re handed out.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, reserves: 'ok', awards: 'chosen' } },
+  'not-loaded': { kind: 'main', choice: { by: 'not-loaded', name: 'Aldric', at: ['8:47 PM', '6:47 PM'] }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids. Awards will send as they’re handed out.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, reserves: 'ok', awards: 'not-loaded' } },
+  'not-chosen': { kind: 'main', choice: { by: 'none', at: ['8:47 PM', '6:47 PM'] }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids. Awards will send as they’re handed out.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, reserves: 'ok', awards: 'not-chosen' } },
+  'not-guild-run': { kind: 'main', choice: { by: 'off', at: ['8:47 PM', '6:47 PM'] }, status: { tone: 'ok', word: 'Ready', title: 'Ready for tonight', body: 'Reserves are in the game for both raids. Awards will send as they’re handed out.' }, raids: RAIDS, sent: 0, waiting: 0, list: ACTS_READY, chain: { ...ok, reserves: 'ok', awards: 'off' } },
   tray: { kind: 'tray' },
   notification: { kind: 'notification' },
 };
 // Offline/refused/etc. lines without their own time get the newest time.
 for (const s of Object.values(STATES)) if (s.list) s.list.forEach((a, i) => { if (!a.time || !a.time.length) a.time = clock(0); });
+
+/* Revision 4 (#62): how the raid was chosen, from the add-on's saved data (read at /reload or logout). */
+const asOf = c => `as of your last /reload, ${t(...c.at)}`;
+const SYNC = 'Change it on the add-on’s Sync tab.';
+const CHOICE = {
+  chosen: c => `${c.name ? `Chosen by ${esc(c.name)}` : 'Picked in game'}, ${asOf(c)}. ${SYNC}`,
+  'not-loaded': c => `${c.name ? esc(c.name) : 'An officer'} chose a raid the add-on hasn’t loaded yet. Type /reload in game to load it. As of your last /reload, ${t(...c.at)}.`,
+  none: c => `Awards wait in the add-on until an officer chooses the raid on its Sync tab. As of your last /reload, ${t(...c.at)}.`,
+  off: c => `The add-on records nothing for this group. As of your last /reload, ${t(...c.at)}.`,
+};
+const choiceLine = c => CHOICE[c.by](c);
 
 /* Update copy, shared by every version. */
 const UPDATE = {
@@ -383,7 +400,7 @@ function trayPreview() {
     <div class="row" style="align-items:flex-start;gap:12px">
       <div class="osmenu" role="img" aria-label="Tray menu"><div class="dis">Sending · 14 awards sent</div><div class="dis">Awards going to Molten Core</div><hr><div class="sel">Open Bureaucracy Forever Helper</div><div>Check for updates</div><hr><div>Quit</div></div>
     </div>
-    <p class="caption">With staging on, the first line reads “Staging site · Ready”. Hover text: “Bureaucracy Forever Helper: Sending, 14 awards sent”. Errors read as in the window, e.g. “Offline · 4 awards waiting”.</p>
+    <p class="caption">The second line follows the Awards row: “Awards going to Molten Core”, “Raid not loaded in game”, “Raid not chosen yet” or “Not a guild run”; no officer’s name. With staging on, the first line reads “Staging site · Ready”. Hover text: “Bureaucracy Forever Helper: Sending, 14 awards sent”. Errors read as in the window, e.g. “Offline · 4 awards waiting”.</p>
     <p class="th" style="margin-top:6px">App icon</p>
     <div class="row"><img src="${ICON.tile}" alt="App icon: the guild tile" width="64" height="64" style="border-radius:14px"><img src="${ICON.tile}" alt="" width="32" height="32" style="border-radius:7px"><span class="caption">The site’s tile, for the Dock, taskbar and installer.</span></div>
   </div>`;
@@ -439,7 +456,7 @@ const LINKS = {
   folder: { name: 'Game folder', ok: ['ok', 'Found', '…/World of Warcraft/_classic_'] },
   addon: { name: 'Add-on', ok: ['ok', 'Installed', 'Version 1.3.2'], update: ['warn', 'Update ready', 'Version 1.4.0 is ready'], installing: ['closed', 'Installing', 'Installing 1.4.0'], updated: ['ok', 'Updated', 'Version 1.4.0'], 'rolled-back': ['warn', 'Not updated', 'Still on 1.3.2'] },
   reserves: { name: 'Reserves', ok: ['ok', 'In the game', 'Next 12 hours'], reload: ['warn', '/reload needed', 'Molten Core changed'], none: ['closed', 'No raids soon', 'None in the next 12 hours'] },
-  awards: { name: 'Awards', idle: ['closed', 'None yet', 'They send as they’re handed out'], ok: ['ok', 'Sending', 'Going to Molten Core'], waiting: ['stop', 'Waiting', 'Kept until they can send'], refused: ['warn', '1 refused', 'Others still sending'], damaged: ['stop', 'Stopped', 'Waiting list damaged'] },
+  awards: { name: 'Awards', idle: ['closed', 'None yet', 'They send as they’re handed out'], ok: ['ok', 'Sending', 'Going to Molten Core'], waiting: ['stop', 'Waiting', 'Kept until they can send'], refused: ['warn', '1 refused', 'Others still sending'], damaged: ['stop', 'Stopped', 'Waiting list damaged'], chosen: ['closed', 'None yet', 'Going to Molten Core'], 'not-loaded': ['warn', 'Not loaded', 'Raid not loaded'], 'not-chosen': ['warn', 'Not chosen', 'Raid not chosen yet'], off: ['closed', 'Off', 'Not a guild run'] },
 };
 const ORDER = ['site', 'folder', 'addon', 'reserves', 'awards'];
 const linkRow = (id, [tone, word, detail], open = '', current = false, extra = '') => `<li class="${open ? 'open' : ''}" style="padding:12px 14px;border-top:1px solid var(--line);${open ? `background:var(--${tone === 'ok' || tone === 'closed' ? 'ink-800' : tone + '-wash'})` : ''}" ${current ? 'aria-current="step"' : ''}>
@@ -451,6 +468,7 @@ const chainList = rows => `<ol class="chain" style="flex:none;list-style:none;ma
 const sub = html => `<div style="margin:4px 0 0 96px">${html}</div>`;
 function under(id, st, s) {
   if (id === 'reserves' && s.raids.length) return sub(s.raids.map(r => `<div class="row" style="min-height:20px"><span class="caption" style="color:var(--fg-2)">${esc(r.name)}</span><span class="spacer"></span><span class="caption tabular">${raidWhen(r)}</span></div>`).join(''));
+  if (id === 'awards' && s.choice && (s.choice.by !== 'chosen' || !s.going || s.going === s.choice.raid)) return sub(`<p class="caption">${choiceLine(s.choice)}</p>`);
   if (id === 'awards' && s.going) return sub(`<p class="caption">Picked in game. Change it on the add-on’s Sync tab.</p>`);
   return '';
 }
@@ -473,7 +491,7 @@ function render(s, slug) {
 
   // The first link that isn't fine opens with the status message and its action.
   const states = ORDER.map(id => [id, s.chain[id]]);
-  const broken = states.find(([, st]) => !['ok', 'idle', 'none', 'updated'].includes(st));
+  const broken = states.find(([, st]) => !['ok', 'idle', 'none', 'updated', 'chosen', 'not-loaded', 'not-chosen', 'off'].includes(st));
   const msg = `<p class="small" style="color:var(--fg)">${esc(s.status.body)}</p>${s.status.action ? `<div class="row"><button class="btn btn-${s.status.action.kind} btn-sm" type="button">${s.status.action.label}</button></div>` : ''}`;
   const rows = states.map(([id, st]) => {
     let open = '';
@@ -494,6 +512,6 @@ function render(s, slug) {
     <section class="stack" style="gap:2px"><div class="sec-head"><h2 class="th" style="margin:0">Recent activity</h2><span class="caption">CDT</span><span class="spacer"></span>${s.list.length > 3 ? `<button class="link link-row small" type="button">See all ${s.list.length}</button>` : ''}</div>${actList(recent)}</section>
   </main>`;
 }
-boot('B', 'the chain from site to awards, with the broken link opened; setup fills the chain in; activity behind "See all".', render);
+boot('B', 'the chain from site to awards, with the broken link opened; setup fills the chain in; activity behind "See all". How the raid was chosen sits under the Awards row (revision 4).', render);
 </script>
 </body></html>

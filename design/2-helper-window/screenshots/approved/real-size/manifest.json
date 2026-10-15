@@ -364,6 +364,72 @@
       "check": "ok Archivo:true,Newsreader:true,Cinzel:false 420x640\\"
     },
     {
+      "image": "approved-chosen-default-420x640.png",
+      "version": "approved",
+      "state": "chosen",
+      "theme": "default",
+      "width": 420,
+      "height": 640,
+      "pixelWidth": 420,
+      "pixelHeight": 640,
+      "check": "ok 420x640"
+    },
+    {
+      "image": "approved-chosen-live-default-420x640.png",
+      "version": "approved",
+      "state": "chosen-live",
+      "theme": "default",
+      "width": 420,
+      "height": 640,
+      "pixelWidth": 420,
+      "pixelHeight": 640,
+      "check": "ok 420x640"
+    },
+    {
+      "image": "approved-chosen-no-name-default-420x640.png",
+      "version": "approved",
+      "state": "chosen-no-name",
+      "theme": "default",
+      "width": 420,
+      "height": 640,
+      "pixelWidth": 420,
+      "pixelHeight": 640,
+      "check": "ok 420x640"
+    },
+    {
+      "image": "approved-not-loaded-default-420x640.png",
+      "version": "approved",
+      "state": "not-loaded",
+      "theme": "default",
+      "width": 420,
+      "height": 640,
+      "pixelWidth": 420,
+      "pixelHeight": 640,
+      "check": "ok 420x640"
+    },
+    {
+      "image": "approved-not-chosen-default-420x640.png",
+      "version": "approved",
+      "state": "not-chosen",
+      "theme": "default",
+      "width": 420,
+      "height": 640,
+      "pixelWidth": 420,
+      "pixelHeight": 640,
+      "check": "ok 420x640"
+    },
+    {
+      "image": "approved-not-guild-run-default-420x640.png",
+      "version": "approved",
+      "state": "not-guild-run",
+      "theme": "default",
+      "width": 420,
+      "height": 640,
+      "pixelWidth": 420,
+      "pixelHeight": 640,
+      "check": "ok 420x640"
+    },
+    {
       "image": "approved-tray-default-420x640.png",
       "version": "approved",
       "state": "tray",
@@ -372,7 +438,7 @@
       "height": 640,
       "pixelWidth": 420,
       "pixelHeight": 640,
-      "check": "ok Archivo:true,Newsreader:false,Cinzel:false 420x640\\"
+      "check": "ok 420x640"
     },
     {
       "image": "approved-notification-default-420x640.png",
