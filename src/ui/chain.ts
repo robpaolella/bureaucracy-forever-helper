@@ -29,6 +29,8 @@ export interface ChainRow {
   /** Marks the row as the thing to fix; the first such row opens with its message. */
   broken?: boolean;
   message?: RowMessage;
+  /** Content for the open row in place of a message, such as the key field. */
+  body?: Node[];
   /** Extra lines under the row, such as each raid's start time. */
   under?: Node[];
 }
