@@ -3,6 +3,7 @@ pub mod commands;
 pub mod inbox;
 pub mod key;
 pub mod queue;
+pub mod upload;
 
 use tauri::{
     menu::{Menu, MenuItem},

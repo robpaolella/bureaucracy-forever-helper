@@ -13,7 +13,7 @@ mod settings;
 mod site;
 mod store;
 
-pub use site::SiteClient;
+pub use site::{SiteClient, UploadReply};
 pub use store::{SecretStore, StoreAction, StoreError, StoreProblem, SystemStore};
 
 use std::fmt;

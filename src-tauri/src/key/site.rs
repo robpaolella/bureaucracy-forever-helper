@@ -1,5 +1,6 @@
 //! The site client: `GET /api/helper/me` with the key (ADDON-SPEC 7.1, 7.2), its answer
-//! sorted into the engine's results.
+//! sorted into the engine's results, and `POST /api/helper/operations`, its answer handed
+//! back as it came for the upload client to sort.
 
 use super::{Connection, HelperKey, Refusal, Site, SiteError};
 use serde_json::Value;
@@ -44,13 +45,9 @@ impl SiteClient {
 
     /// Asks `site` whether it accepts `key`.
     pub fn check(&self, site: Site, key: &HelperKey) -> Result<Connection, SiteError> {
-        let base = match site {
-            Site::Production => &self.production,
-            Site::Staging => &self.staging,
-        };
         let response = self
             .agent
-            .get(format!("{base}/api/helper/me"))
+            .get(format!("{}/api/helper/me", self.base(site)))
             .header("Authorization", format!("Bearer {}", key.secret()))
             .header("Accept", "application/json")
             .call();
@@ -72,6 +69,59 @@ impl SiteClient {
             .map_err(|e| unreachable(format!("its answer couldn't be read: {}", no_answer(&e))))?;
         let body = serde_json::from_str::<Value>(&text).ok();
         sort(site, status, html, body.as_ref())
+    }
+}
+
+/// The site's answer to an upload, as it came: its status, its `Retry-After` in seconds
+/// (when given as a number), and its body when that is JSON.
+#[derive(Debug, Clone, PartialEq)]
+pub struct UploadReply {
+    pub status: u16,
+    pub retry_after: Option<u64>,
+    pub body: Option<Value>,
+}
+
+impl SiteClient {
+    /// Sends `body`, a `{ "operations": [ ... ] }` upload, to `site` with `key`. An error is
+    /// no answer at all, in words that can't hold the key.
+    pub fn post_operations(
+        &self,
+        site: Site,
+        key: &HelperKey,
+        body: &str,
+    ) -> Result<UploadReply, String> {
+        let response = self
+            .agent
+            .post(format!("{}/api/helper/operations", self.base(site)))
+            .header("Authorization", format!("Bearer {}", key.secret()))
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .send(body);
+        let mut response = response.map_err(|e| no_answer(&e))?;
+        let status = response.status().as_u16();
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse().ok());
+        let text = response
+            .body_mut()
+            .with_config()
+            .limit(MAX_BODY)
+            .read_to_string()
+            .map_err(|e| format!("its answer couldn't be read: {}", no_answer(&e)))?;
+        Ok(UploadReply {
+            status,
+            retry_after,
+            body: serde_json::from_str(&text).ok(),
+        })
+    }
+
+    fn base(&self, site: Site) -> &str {
+        match site {
+            Site::Production => &self.production,
+            Site::Staging => &self.staging,
+        }
     }
 }
 
