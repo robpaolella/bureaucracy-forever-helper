@@ -126,3 +126,8 @@ issues; the helper conductor was asked to carry it (#2 comment 6156569134).
 Merged folder/revision is the feature authority; DESIGN.md/live site govern site-wide
 look. Reconcile issues and paused branches in prep before marking ready. Without a
 conductor, the design session owns that follow-up. Later revisions use new issues/PRs.
+
+## Revision 4 (2026-10-15, issue #62): how the raid was chosen
+- Maker: claude-bridge/claude-opus-5-5 (Opus 5.5).
+- Robert's answers in this design tab, 2026-10-15 (questions in brief.md, Revision 4): 1 "Whatever you recommend." (the latest award decides the raid; the name only when the saved data names the same raid); 2 "Whatever you recommend." (show the read time; ignore saved data older than 12 hours); 3 "Agreed." (tray line without a name); 4 "Whatever you recommend." (wording table); 5 "Whatever you recommend." (amber on the Awards row only).
+- Independent critique: `node /git/maestro/routing/route.ts role checker --maker claude-bridge/claude-opus-5-5` gave GPT-5.6 Terra (`--model openai/gpt-5.6-terra --thinking medium`). Command: `node /git/maestro/scripts/read-only-run.ts "$PWD" review /git/maestro/skills/design-feature/reviewer-prompt.md "Design: …/design/2-helper-window (revision 4 …). Images and manifest: /tmp/design-review-NxOiH8/versions. Maker: claude-bridge/claude-opus-5-5." -- --model openai/gpt-5.6-terra --thinking medium`. Verdict (2026-10-15): one fix: (1) B's chosen-raid note used a 2px green left border, against the craft floor. Fixed: indent only, no border. Re-check of fix 1: **PASS**. All 246 images decoded; workspace unchanged both runs.
