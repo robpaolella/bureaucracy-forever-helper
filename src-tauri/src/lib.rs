@@ -4,6 +4,7 @@ pub mod game_folder;
 pub mod inbox;
 pub mod key;
 pub mod queue;
+pub mod savedvars;
 pub mod upload;
 
 use tauri::{
@@ -15,6 +16,7 @@ use tauri::{
 use commands::Engine;
 use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
 use queue::Queue;
+use savedvars::watcher::{Timing, Watcher};
 use std::sync::{Arc, Mutex};
 use upload::{Runner, SYNC_STATUS_EVENT};
 
@@ -29,9 +31,10 @@ pub fn run() {
             // `set_staging_site` reports; the window still opens.
             let data_dir = app.path().app_data_dir()?;
             let _ = std::fs::create_dir_all(&data_dir);
-            app.manage(std::sync::Arc::new(game_folder::GameFolderStore::new(
+            let folders = Arc::new(game_folder::GameFolderStore::new(
                 data_dir.join(SETTINGS_FILE),
-            )));
+            ));
+            app.manage(Arc::clone(&folders));
             let engine = Engine::new(KeyEngine::open(
                 data_dir.join(SETTINGS_FILE),
                 SystemStore::default(),
@@ -49,6 +52,19 @@ pub fn run() {
                     let _ = handle.emit(SYNC_STATUS_EVENT, status);
                 },
             ));
+            // The add-on's saved file, read when the game saves it. The status and error
+            // display come with the sync window; #60 reads `Watcher::latest`.
+            app.manage(Watcher::start(
+                move || match folders.remembered() {
+                    game_folder::FolderOutcome::Found(install) => {
+                        Some(install.version_folder.into())
+                    }
+                    _ => None,
+                },
+                Arc::clone(&queue),
+                Timing::default(),
+                |_| {},
+            ));
             app.manage(engine);
             app.manage(queue);
             let show = MenuItem::with_id(app, SHOW_ID, "Show", true, None::<&str>)?;
@@ -60,6 +76,7 @@ pub fn run() {
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     QUIT_ID => {
                         app.state::<Runner>().stop();
+                        app.state::<Watcher>().stop();
                         app.exit(0);
                     }
                     SHOW_ID => {
