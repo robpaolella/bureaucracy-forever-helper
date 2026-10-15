@@ -4,8 +4,8 @@
 //! the key engine, so a key only ever goes to the site it belongs to. Connecting, removing
 //! the key or switching site calls `restart`, which wakes it to start again with the new
 //! key and site; a pass already under way sends nothing more with the old one. Quit calls
-//! `stop`. A record in flight then is sent again next time, and the site answers it as a
-//! repeat (ADDON-SPEC 4.2).
+//! `stop`. A record in flight then stays in the list and is sent again next time, and the
+//! site answers it as a repeat (ADDON-SPEC 4.2).
 
 use super::{StatusWatch, SyncStatus, Uplink, Uploader, IDLE};
 use crate::commands::Engine;
@@ -170,7 +170,9 @@ fn run<S: SecretStore>(
 }
 
 /// Sends only while the key and site it was given are still current and the runner isn't
-/// stopped, so a pass under way sends nothing more after a restart or Quit.
+/// stopped, so a pass under way sends nothing more after a restart or Quit. An answer that
+/// comes back after one is dropped, so its records stay in the list and are sent again;
+/// the site answers them as repeats.
 struct Guarded<'a, U> {
     uplink: &'a U,
     shared: &'a Shared,
@@ -184,10 +186,15 @@ impl<U: Uplink> Uplink for Guarded<'_, U> {
         key: &HelperKey,
         body: &str,
     ) -> Result<UploadReply, String> {
+        let outdated = || Err("the key or site changed".to_string());
         if self.shared.outdated(self.generation) {
-            return Err("the key or site changed".to_string());
+            return outdated();
         }
-        self.uplink.post_operations(site, key, body)
+        let reply = self.uplink.post_operations(site, key, body);
+        if self.shared.outdated(self.generation) {
+            return outdated();
+        }
+        reply
     }
 }
 

@@ -382,6 +382,73 @@ fn a_pass_under_way_sends_nothing_more_once_restarted_or_stopped() {
     assert_eq!(site.uploads().len(), 1);
 }
 
+/// A site that holds each answer until the test lets it go.
+struct HeldSite {
+    site: FakeSite,
+    asked: Arc<Mutex<bool>>,
+    release: Arc<(Mutex<bool>, Condvar)>,
+}
+
+impl Uplink for HeldSite {
+    fn post_operations(
+        &self,
+        site: Site,
+        key: &HelperKey,
+        body: &str,
+    ) -> Result<UploadReply, String> {
+        *self.asked.lock().unwrap() = true;
+        let (released, go) = &*self.release;
+        let mut released = released.lock().unwrap();
+        while !*released {
+            released = go.wait(released).unwrap();
+        }
+        self.site.post_operations(site, key, body)
+    }
+}
+
+#[test]
+fn stopping_while_a_request_is_out_keeps_its_record_for_next_time() {
+    let dir = scratch_dir();
+    let store = FakeStore::default();
+    store.put(Site::Production, KEY);
+    let engine = Engine::new(KeyEngine::open(
+        dir.join("settings.json"),
+        store,
+        SiteClient::default(),
+    ));
+    let mut queue = Queue::open(dir.join(FILE_NAME));
+    queue.add(award("a1", "production")).unwrap();
+    let queue = Arc::new(Mutex::new(queue));
+    let site = HeldSite {
+        site: FakeSite::default(),
+        asked: Arc::default(),
+        release: Arc::default(),
+    };
+    let (asked, release, uploads) = (
+        Arc::clone(&site.asked),
+        Arc::clone(&site.release),
+        site.site.clone(),
+    );
+    let runner = Runner::start(engine, Arc::clone(&queue), site, |_| {});
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !*asked.lock().unwrap() {
+        assert!(Instant::now() < deadline);
+        std::thread::sleep(Duration::from_millis(5));
+    }
+
+    runner.stop();
+    *release.0.lock().unwrap() = true;
+    release.1.notify_all();
+    runner.join();
+
+    // The site recorded it, but the answer came after Quit: it stays to be sent again.
+    assert_eq!(
+        uploads.uploads(),
+        vec![sent(KEY, Site::Production, &["a1"])]
+    );
+    assert_eq!(queue.lock().unwrap().operations().unwrap().len(), 1);
+}
+
 #[test]
 fn every_status_change_is_passed_on_once() {
     let app = App::start(FakeStore::default(), &[award("a1", "production")]);

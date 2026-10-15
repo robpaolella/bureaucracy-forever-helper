@@ -195,11 +195,13 @@ pub fn remembered_game_folder(store: &GameFolderStore) -> FolderOutcome {
     store.remembered()
 }
 
-/// After the key or site may have changed, the uploader starts again with the current ones,
-/// whatever the outcome: a failed change leaves them as they were, which is harmless.
-fn restarting<T>(runner: &Runner, outcome: T) -> T {
-    runner.restart();
-    outcome
+/// Once the key or site has changed, the uploader starts again with the new ones. A failed
+/// change leaves them as they were, so the uploader carries on, keeping any wait the site
+/// asked for.
+fn restart_if(runner: &Runner, changed: bool) {
+    if changed {
+        runner.restart();
+    }
 }
 
 /// Connecting and checking wait on the network, so they run off the thread that draws
@@ -219,7 +221,12 @@ pub async fn connect_key(
     key: String,
 ) -> Result<KeyOutcome, String> {
     let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
-    off_thread(move || restarting(&runner, connect(&engine, &key))).await
+    off_thread(move || {
+        let outcome = connect(&engine, &key);
+        restart_if(&runner, matches!(outcome, KeyOutcome::Accepted { .. }));
+        outcome
+    })
+    .await
 }
 
 #[tauri::command]
@@ -234,7 +241,12 @@ pub async fn remove_stored_key(
     runner: tauri::State<'_, Runner>,
 ) -> Result<ChangeOutcome, String> {
     let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
-    off_thread(move || restarting(&runner, remove_key(&engine))).await
+    off_thread(move || {
+        let outcome = remove_key(&engine);
+        restart_if(&runner, outcome == ChangeOutcome::Done);
+        outcome
+    })
+    .await
 }
 
 #[tauri::command]
@@ -249,7 +261,12 @@ pub async fn set_staging_site(
     on: bool,
 ) -> Result<ChangeOutcome, String> {
     let (engine, runner) = (engine.inner().clone(), runner.inner().clone());
-    off_thread(move || restarting(&runner, set_staging(&engine, on))).await
+    off_thread(move || {
+        let outcome = set_staging(&engine, on);
+        restart_if(&runner, outcome == ChangeOutcome::Done);
+        outcome
+    })
+    .await
 }
 
 /// The upload's sync status now; each later change comes as a `sync-status` event.
