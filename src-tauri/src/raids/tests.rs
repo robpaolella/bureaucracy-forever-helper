@@ -231,6 +231,7 @@ fn an_unreadable_answer_is_a_failure() {
         missing("name"),
         missing("startsAt"),
         missing("code"),
+        r#"[{"id":"r","code":"c","name":"N","startsAt":1,"durationMin":60,"hasLootTable":true,"instance":"409"}]"#.to_string(),
         missing("durationMin"),
         missing("hasLootTable"),
         r#"[{"id":"r","code":"c","name":"N","startsAt":"soon","durationMin":60,"hasLootTable":true}]"#.to_string(),
@@ -325,6 +326,22 @@ fn a_rate_limit_is_waited_out_as_the_site_asks() {
     assert_eq!(site.requests().len(), 1 + 1);
     poller.stop();
     poller.join();
+}
+
+#[test]
+fn the_wait_on_retry_after_is_kept_between_the_tick_and_the_longest() {
+    let timing = Timing::default();
+    assert_eq!(retry_wait(None, timing), timing.tick);
+    assert_eq!(retry_wait(Some(5), timing), timing.tick);
+    assert_eq!(retry_wait(Some(300), timing), Duration::from_secs(300));
+    assert_eq!(retry_wait(Some(999_999), timing), timing.max_retry_after);
+}
+
+#[test]
+fn a_null_instance_is_an_absent_one() {
+    let body = json!([{"id":"r","code":"c","name":"N","startsAt":1,"durationMin":60,
+        "hasLootTable":true,"instance":null}]);
+    assert_eq!(Raid::parse_list(&body).unwrap()[0].instance, None);
 }
 
 #[test]

@@ -53,7 +53,10 @@ impl Raid {
             starts_at: entry["startsAt"].as_i64()?,
             duration_min: entry["durationMin"].as_i64()?,
             // The one field a raid may lack (7.5).
-            instance: entry["instance"].as_i64(),
+            instance: match &entry["instance"] {
+                Value::Null => None,
+                other => Some(other.as_i64()?),
+            },
             has_loot_table: entry["hasLootTable"].as_bool()?,
         })
     }
@@ -298,6 +301,16 @@ impl Poller {
     }
 }
 
+/// How long to wait after a failed fetch: the site's `Retry-After` if it gave one, but never
+/// less than the tick or more than `max_retry_after`.
+fn retry_wait(retry_after: Option<u64>, timing: Timing) -> Duration {
+    retry_after
+        .map_or(timing.tick, |s| {
+            Duration::from_secs(s).min(timing.max_retry_after)
+        })
+        .max(timing.tick)
+}
+
 fn run<S: SecretStore>(
     shared: &Shared,
     engine: &Engine<S>,
@@ -348,11 +361,7 @@ fn run<S: SecretStore>(
                         SiteError::KeyRefused(_) => timing.stopped,
                         SiteError::HelperOff | SiteError::StagingNotOpen => timing.slow,
                         // Back off as the site asked, but never faster than the tick.
-                        SiteError::Unreachable { .. } => retry_after
-                            .map_or(timing.tick, |s| {
-                                Duration::from_secs(s).min(timing.max_retry_after)
-                            })
-                            .max(timing.tick),
+                        SiteError::Unreachable { .. } => retry_wait(*retry_after, timing),
                     },
                     Ok(_) => timing.tick,
                 };
