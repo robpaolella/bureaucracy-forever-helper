@@ -173,8 +173,11 @@ impl Uploader {
         if let Some(at) = self.not_before.filter(|at| *at > now) {
             return at - now;
         }
+        let started = Instant::now();
         loop {
-            while self.sent.front().is_some_and(|t| now - *t >= RATE_WINDOW) {
+            // Requests take time, so each is counted from when it actually goes.
+            let at = now + started.elapsed();
+            while self.sent.front().is_some_and(|t| at - *t >= RATE_WINDOW) {
                 self.sent.pop_front();
             }
             let batch = match queue.operations() {
@@ -186,13 +189,13 @@ impl Uploader {
                 return self.next_pending(now).unwrap_or(IDLE);
             }
             if self.sent.len() >= MAX_REQUESTS {
-                return self.sent[0] + RATE_WINDOW - now;
+                return self.sent[0] + RATE_WINDOW - at;
             }
             self.status.set(SyncStatus::Sending {
                 raid: batch[0]["raid"].as_str().unwrap_or_default().to_string(),
             });
             let body = json!({ "operations": batch }).to_string();
-            self.sent.push_back(now);
+            self.sent.push_back(at);
             let reply = uplink.post_operations(site, key, &body);
             if let Some(wait) = self.answer(queue, &batch, reply, site, key, now) {
                 return wait;
@@ -353,13 +356,15 @@ impl Uploader {
 }
 
 /// Whether `op` may go to `site`: not when its `env` names the other site, and a practice
-/// record never to production.
+/// record, or a replacement carrying one, never to production.
 fn belongs_to(op: &Value, site: Site) -> bool {
     let other = match site {
         Site::Production => "staging",
         Site::Staging => "production",
     };
-    let practice = op["practice"] == Value::Bool(true);
+    let practice = [op, &op["award"]]
+        .iter()
+        .any(|o| o["practice"] == Value::Bool(true));
     op["env"] != other && !(practice && site == Site::Production)
 }
 

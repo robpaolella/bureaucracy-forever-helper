@@ -413,6 +413,59 @@ fn a_practice_record_is_never_sent_to_production() {
 }
 
 #[test]
+fn a_replacement_carrying_a_practice_award_is_never_sent_to_production() {
+    let (mut queue, _) = queue_with(&[json!({ "type": "replace", "id": "rp-1111aaaa",
+        "formatVersion": 1, "raid": "cm9xr2k4a0001", "env": "production",
+        "key": "aw-9999aaaa", "at": 1, "award": practice("aw-2222aaaa", "production") })]);
+    let site = FakeSite::default();
+    Uploader::new().pass(
+        &mut queue,
+        &site,
+        Site::Production,
+        &key(KEY),
+        Instant::now(),
+    );
+    assert_eq!(site.requests(), 0);
+    assert_eq!(ids(&queue), ["rp-1111aaaa"]);
+}
+
+#[test]
+fn requests_are_timed_from_when_they_go() {
+    struct Slow<'a>(&'a FakeSite);
+    impl Uplink for Slow<'_> {
+        fn post_operations(
+            &self,
+            site: Site,
+            key: &HelperKey,
+            body: &str,
+        ) -> Result<UploadReply, String> {
+            std::thread::sleep(Duration::from_millis(20));
+            self.0.post_operations(site, key, body)
+        }
+    }
+    let ops: Vec<Value> = (0..31)
+        .map(|n| award(&format!("aw-{n:04}aaaa"), "staging"))
+        .collect();
+    let (mut queue, _) = queue_with(&ops);
+    let site = FakeSite::default();
+    let mut up = Uploader::new();
+    up.batch_limit = Some(1);
+    let wait = up.pass(
+        &mut queue,
+        &site_slow(&site),
+        Site::Staging,
+        &key(KEY),
+        Instant::now(),
+    );
+    assert_eq!(site.requests(), 30);
+    assert!(wait < RATE_WINDOW, "the first request went first: {wait:?}");
+
+    fn site_slow(site: &FakeSite) -> Slow<'_> {
+        Slow(site)
+    }
+}
+
+#[test]
 fn a_record_for_the_other_site_waits_for_it() {
     let (mut queue, _) = queue_with(&[
         award("aw-1111aaaa", "staging"),
@@ -641,8 +694,11 @@ fn no_more_than_30_requests_a_minute() {
     let now = Instant::now();
     let wait = up.pass(&mut queue, &site, Site::Staging, &key(KEY), now);
     assert_eq!(site.requests(), 30);
-    assert_eq!(wait, RATE_WINDOW);
-    up.pass(&mut queue, &site, Site::Staging, &key(KEY), now + wait);
+    assert!(wait <= RATE_WINDOW && wait > RATE_WINDOW / 2, "{wait:?}");
+    up.pass(&mut queue, &site, Site::Staging, &key(KEY), now + wait / 2);
+    assert_eq!(site.requests(), 30);
+    let later = now + RATE_WINDOW + Duration::from_secs(1);
+    up.pass(&mut queue, &site, Site::Staging, &key(KEY), later);
     assert_eq!(site.requests(), 31);
     assert!(ids(&queue).is_empty());
 }
