@@ -5,7 +5,7 @@
 //! of detail. Feature issues call `raise` from Rust or `raise_notification` from the window.
 
 use serde::Deserialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 /// One notice: a bold headline and one line of detail.
@@ -26,6 +26,25 @@ impl Notice {
             headline: headline.into(),
             detail: detail.into(),
         })
+    }
+}
+
+/// Clicking a notice opens the window, even when it was hidden. Called once at start-up.
+pub fn open_window_on_click(app: &AppHandle) -> tauri::Result<()> {
+    let handle = app.clone();
+    app.notification()
+        .on_action(move |action| {
+            if action.action_id() == "tap" {
+                show_window(&handle);
+            }
+        })
+        .map_err(|e| tauri::Error::Anyhow(e.into()))
+}
+
+pub fn show_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
     }
 }
 

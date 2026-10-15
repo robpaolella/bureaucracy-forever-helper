@@ -305,10 +305,14 @@ describe("the tray", () => {
     expect(told).toHaveBeenLastCalledWith(expect.objectContaining({ sentTonight: 3, secondLine: "Not a guild run" }));
   });
 
-  it("leaves the window working when the tray can't be told", async () => {
+  it("leaves the window working when the tray can't be told, and tells it again at the next change", async () => {
     const bridge = fakeBridge(noKey);
-    bridge.setTrayStatus = () => Promise.reject(new Error("no tray"));
+    const told = vi.fn(() => Promise.reject(new Error("no tray")));
+    bridge.setTrayStatus = told;
     const store = await startWindow(document.createElement("div"), bridge);
-    expect(() => store.set((s) => ({ ...s, sentTonight: 1 }))).not.toThrow();
+    await flush();
+    const before = told.mock.calls.length;
+    store.set((s) => ({ ...s, activity: [] }));
+    expect(told).toHaveBeenCalledTimes(before + 1);
   });
 });

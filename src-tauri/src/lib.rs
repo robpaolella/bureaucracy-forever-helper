@@ -80,6 +80,7 @@ pub fn run() {
             app.manage(engine);
             app.manage(queue);
             tray::build(app.handle())?;
+            notify::open_window_on_click(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

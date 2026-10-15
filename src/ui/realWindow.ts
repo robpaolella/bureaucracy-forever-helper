@@ -236,8 +236,10 @@ export async function startWindow(
     const next = JSON.stringify(status);
     if (next === told) return;
     told = next;
-    // A tray that can't be told keeps its last look; the window carries on.
-    bridge.setTrayStatus(status).catch(() => {});
+    // A tray that can't be told keeps its last look and is told again at the next change.
+    bridge.setTrayStatus(status).catch(() => {
+      if (told === next) told = "";
+    });
   };
   store.subscribe(tellTray);
   tellTray();

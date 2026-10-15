@@ -191,12 +191,7 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 app.state::<crate::savedvars::watcher::Watcher>().stop();
                 app.exit(0);
             }
-            SHOW_ID => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
+            SHOW_ID => crate::notify::show_window(app),
             _ => {}
         })
         .build(app)?;
