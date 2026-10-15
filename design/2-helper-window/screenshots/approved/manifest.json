@@ -661,6 +661,126 @@
       "pixelHeight": 900
     },
     {
+      "image": "approved-chosen-default-390.png",
+      "version": "approved",
+      "state": "chosen",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 986
+    },
+    {
+      "image": "approved-chosen-default-1440.png",
+      "version": "approved",
+      "state": "chosen",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "approved-chosen-live-default-390.png",
+      "version": "approved",
+      "state": "chosen-live",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 986
+    },
+    {
+      "image": "approved-chosen-live-default-1440.png",
+      "version": "approved",
+      "state": "chosen-live",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "approved-chosen-no-name-default-390.png",
+      "version": "approved",
+      "state": "chosen-no-name",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 986
+    },
+    {
+      "image": "approved-chosen-no-name-default-1440.png",
+      "version": "approved",
+      "state": "chosen-no-name",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "approved-not-loaded-default-390.png",
+      "version": "approved",
+      "state": "not-loaded",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 986
+    },
+    {
+      "image": "approved-not-loaded-default-1440.png",
+      "version": "approved",
+      "state": "not-loaded",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "approved-not-chosen-default-390.png",
+      "version": "approved",
+      "state": "not-chosen",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 986
+    },
+    {
+      "image": "approved-not-chosen-default-1440.png",
+      "version": "approved",
+      "state": "not-chosen",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
+      "image": "approved-not-guild-run-default-390.png",
+      "version": "approved",
+      "state": "not-guild-run",
+      "theme": "default",
+      "width": 390,
+      "height": 844,
+      "pixelWidth": 390,
+      "pixelHeight": 986
+    },
+    {
+      "image": "approved-not-guild-run-default-1440.png",
+      "version": "approved",
+      "state": "not-guild-run",
+      "theme": "default",
+      "width": 1440,
+      "height": 900,
+      "pixelWidth": 1440,
+      "pixelHeight": 900
+    },
+    {
       "image": "approved-tray-default-390.png",
       "version": "approved",
       "state": "tray",
@@ -668,7 +788,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 967
+      "pixelHeight": 986
     },
     {
       "image": "approved-tray-default-1440.png",

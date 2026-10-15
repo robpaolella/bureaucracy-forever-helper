@@ -1,5 +1,5 @@
 {
-  "design_issue": 44,
+  "design_issue": 62,
   "covers": [
     3,
     4,
@@ -21,9 +21,10 @@
     49,
     52,
     53,
-    56
+    56,
+    60
   ],
-  "revision": 3,
+  "revision": 4,
   "versions": {
     "approved": "index.html"
   },
@@ -61,6 +62,12 @@
     "addon-installing",
     "addon-rolled-back",
     "addon-updated",
+    "chosen",
+    "chosen-live",
+    "chosen-no-name",
+    "not-loaded",
+    "not-chosen",
+    "not-guild-run",
     "tray",
     "notification"
   ],
