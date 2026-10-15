@@ -22,7 +22,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
   return {
     connect: vi.fn(connect ?? unused),
     checkStored: vi.fn(check),
-    removeKey: unused,
+    removeKey: vi.fn(unused),
     staging: unused,
     setStaging: unused,
   };
@@ -210,6 +210,33 @@ describe("the key step", () => {
     expect(root.querySelector(".chain li")?.textContent).toContain("Step 1");
     expect(document.activeElement).toBe(root.querySelector("#key"));
     root.remove();
+  });
+
+  it("shows the engine's own malformed answer in the same way", async () => {
+    const message = "That doesn’t look like a helper key. Copy it again from the officer area.";
+    const outcome: KeyOutcome = { kind: "malformed", reason: "malformed", message };
+    const { root } = await paste(fakeBridge(noKey, () => Promise.resolve(outcome)), KEY);
+    await flush();
+    expect(note(root)?.textContent).toBe(message);
+    expect(note(root)?.getAttribute("role")).toBe("alert");
+    expect(root.querySelector("#key")?.getAttribute("aria-describedby")).toBe("key-note");
+    expect(button(root).textContent).toBe("Connect");
+    root.remove();
+  });
+
+  it("keeps a saved key when staging isn't open, and checks it again on 'Try again'", async () => {
+    const answers: KeyOutcome[] = [{ kind: "stagingNotOpen", message: "The staging site isn't open yet." }, accepted];
+    const bridge = fakeBridge(() => Promise.resolve(answers.shift()!));
+    const root = document.createElement("div");
+    await startWindow(root, bridge);
+    expect(note(root)?.textContent).toBe("The staging site isn't open yet.");
+    expect(note(root)?.className).toBe("note err");
+    expect(button(root).textContent).toBe("Try again");
+    button(root).dispatchEvent(new MouseEvent("click"));
+    await flush();
+    expect(bridge.removeKey).not.toHaveBeenCalled();
+    expect(bridge.connect).not.toHaveBeenCalled();
+    expect(root.querySelector(".chain li")?.textContent).toContain("Connected as Aldric Vane");
   });
 
   it("shows a failure of the Rust side in the field, not endless checking", async () => {
