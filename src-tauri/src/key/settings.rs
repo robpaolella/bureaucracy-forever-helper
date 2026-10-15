@@ -5,23 +5,44 @@ use serde_json::{json, Map, Value};
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::sync::Mutex;
 
 const FORMAT_VERSION: i64 = 1;
 
+/// Writes read the file and put it back, so two at once could lose one; they take turns.
+static WRITING: Mutex<()> = Mutex::new(());
+
 /// Whether the staging setting is on. A missing or unreadable file means off, so the
 /// helper falls back to production.
-pub(super) fn read_staging(path: &Path) -> bool {
+pub(crate) fn read_staging(path: &Path) -> bool {
     read(path)
         .and_then(|settings| settings.get("staging").and_then(Value::as_bool))
         .unwrap_or(false)
 }
 
-/// Writes the staging setting through a temporary file renamed over the old one, so a
-/// crash leaves either the old file or the new one.
-pub(super) fn write_staging(path: &Path, on: bool) -> io::Result<()> {
+/// Writes the staging setting. A crash mid-write leaves either the old file or the new one.
+pub(crate) fn write_staging(path: &Path, on: bool) -> io::Result<()> {
+    write_entry(path, "staging", json!(on))
+}
+
+/// The remembered game folder. A missing or unreadable file, or no entry, means none.
+pub(crate) fn read_game_folder(path: &Path) -> Option<String> {
+    read(path)?
+        .get("gameFolder")
+        .and_then(Value::as_str)
+        .map(str::to_string)
+}
+
+pub(crate) fn write_game_folder(path: &Path, folder: &str) -> io::Result<()> {
+    write_entry(path, "gameFolder", json!(folder))
+}
+
+/// Sets one entry, keeping the others, through a temporary file renamed over the old one.
+fn write_entry(path: &Path, name: &str, value: Value) -> io::Result<()> {
+    let _turn = WRITING.lock().unwrap_or_else(|e| e.into_inner());
     let mut settings = read(path).unwrap_or_default();
     settings.insert("formatVersion".into(), json!(FORMAT_VERSION));
-    settings.insert("staging".into(), json!(on));
+    settings.insert(name.into(), value);
     let bytes = serde_json::to_vec_pretty(&settings).expect("JSON values always serialize");
     let mut temp_name = path.file_name().unwrap_or_default().to_os_string();
     temp_name.push(".tmp");

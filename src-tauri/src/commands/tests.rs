@@ -307,3 +307,76 @@ fn a_removal_is_not_undone_by_a_slower_earlier_connect() {
     // The removal came last, so no key is left.
     assert_eq!(check_stored(&engine), KeyOutcome::NoKey);
 }
+
+mod game_folder_commands {
+    use super::*;
+    use crate::game_folder::{Environment, GameFolderStore, Os};
+    use std::fs;
+
+    fn layout() -> (PathBuf, PathBuf) {
+        let root = settings_path().parent().unwrap().to_path_buf();
+        let version = root.join("World of Warcraft").join("_retail_");
+        fs::create_dir_all(version.join("Interface/AddOns/BureaucracyForever")).unwrap();
+        (root, version)
+    }
+
+    fn windows(root: &std::path::Path) -> Environment {
+        Environment {
+            os: Os::Windows,
+            home: None,
+            program_files: vec![],
+            drives: vec![root.to_path_buf()],
+        }
+    }
+
+    fn value(outcome: &FolderOutcome) -> serde_json::Value {
+        serde_json::to_value(outcome).unwrap()
+    }
+
+    #[test]
+    fn the_commands_search_check_remember_and_read_back() {
+        let (root, version) = layout();
+        let found = find_game_folder(&windows(&root));
+        assert_eq!(value(&found)["kind"], "found");
+        let game = root.join("World of Warcraft");
+        assert_eq!(
+            value(&check_game_folder(game.to_str().unwrap()))["versionFolder"],
+            version.to_str().unwrap()
+        );
+
+        let store = GameFolderStore::new(root.join("settings.json"));
+        assert_eq!(
+            value(&remembered_game_folder(&store))["kind"],
+            "nothingRemembered"
+        );
+        let saved = remember_game_folder(&store, version.to_str().unwrap());
+        assert_eq!(value(&saved)["kind"], "found");
+        assert_eq!(remembered_game_folder(&store), saved);
+    }
+
+    #[test]
+    fn the_commands_report_each_failure_in_plain_words() {
+        let (root, version) = layout();
+        let empty = root.join("empty");
+        fs::create_dir_all(&empty).unwrap();
+        let not_game = check_game_folder(empty.to_str().unwrap());
+        assert_eq!(
+            value(&not_game)["message"],
+            "That folder isn’t a World of Warcraft folder. Choose the folder named World of Warcraft."
+        );
+        let nowhere = find_game_folder(&windows(&empty));
+        assert_eq!(value(&nowhere)["kind"], "notFound");
+
+        let bare = root.join("bare").join("_retail_");
+        fs::create_dir_all(bare.join("Interface")).unwrap();
+        let no_addon = check_game_folder(root.join("bare").to_str().unwrap());
+        assert_eq!(value(&no_addon)["kind"], "noAddon");
+
+        let store = GameFolderStore::new(root.join("settings.json"));
+        remember_game_folder(&store, version.to_str().unwrap());
+        fs::remove_dir_all(&version).unwrap();
+        let gone = remembered_game_folder(&store);
+        assert_eq!(value(&gone)["kind"], "gone");
+        assert_eq!(value(&gone)["path"], version.to_str().unwrap());
+    }
+}

@@ -1,12 +1,16 @@
 //! The window's way into the key engine: Tauri commands that connect with a key, check
 //! the stored key, remove it, and read or change the staging setting.
 //!
+//! The game folder commands search for the folder, check a picked one, and remember or
+//! read the remembered one.
+//!
 //! Every command returns its result as data the front-end can tell apart (`kind`), with
 //! the engine's own plain-words message where there is one. Nothing is swallowed, and
 //! neither the key nor anything the site sent back is in a result beyond what the
 //! engine already allows. The logic is in functions over any engine, so tests use a fake
 //! store and a local site; the `#[tauri::command]` wrappers only hand them the app state.
 
+use crate::game_folder::{self, Environment, FolderOutcome, GameFolderStore};
 use crate::key::{
     ConnectError, Connection, KeyEngine, Refusal, SecretStore, ShapeError, SiteError, SystemStore,
 };
@@ -164,6 +168,24 @@ pub fn set_staging<S: SecretStore>(engine: &Engine<S>, on: bool) -> ChangeOutcom
     }
 }
 
+/// Looks in the usual places for the game folder.
+pub fn find_game_folder(environment: &Environment) -> FolderOutcome {
+    game_folder::search(&environment.usual_places())
+}
+
+/// Checks a folder the officer picked.
+pub fn check_game_folder(folder: &str) -> FolderOutcome {
+    game_folder::check(std::path::Path::new(folder))
+}
+
+pub fn remember_game_folder(store: &GameFolderStore, version_folder: &str) -> FolderOutcome {
+    store.remember(std::path::Path::new(version_folder))
+}
+
+pub fn remembered_game_folder(store: &GameFolderStore) -> FolderOutcome {
+    store.remembered()
+}
+
 /// Connecting and checking wait on the network, so they run off the thread that draws
 /// the window. A failure of the thread itself rejects the call.
 async fn off_thread<T: Send + 'static>(
@@ -207,6 +229,33 @@ pub async fn set_staging_site(
 ) -> Result<ChangeOutcome, String> {
     let engine = engine.inner().clone();
     off_thread(move || set_staging(&engine, on)).await
+}
+
+#[tauri::command]
+pub async fn search_game_folder() -> Result<FolderOutcome, String> {
+    off_thread(|| find_game_folder(&Environment::current())).await
+}
+
+#[tauri::command]
+pub async fn check_picked_game_folder(folder: String) -> Result<FolderOutcome, String> {
+    off_thread(move || check_game_folder(&folder)).await
+}
+
+#[tauri::command]
+pub async fn remember_game_version(
+    store: tauri::State<'_, Arc<GameFolderStore>>,
+    folder: String,
+) -> Result<FolderOutcome, String> {
+    let store = Arc::clone(store.inner());
+    off_thread(move || remember_game_folder(&store, &folder)).await
+}
+
+#[tauri::command]
+pub async fn get_remembered_game_folder(
+    store: tauri::State<'_, Arc<GameFolderStore>>,
+) -> Result<FolderOutcome, String> {
+    let store = Arc::clone(store.inner());
+    off_thread(move || remembered_game_folder(&store)).await
 }
 
 #[cfg(test)]

@@ -9,7 +9,7 @@
 //! `HelperKey` prints as `HelperKey(…)` and every error is built from fixed words and
 //! status codes, never from the key or from what the site sent back.
 
-mod settings;
+pub(crate) mod settings;
 mod site;
 mod store;
 
