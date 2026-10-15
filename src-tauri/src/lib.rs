@@ -3,17 +3,15 @@ pub mod commands;
 pub mod game_folder;
 pub mod inbox;
 pub mod key;
+pub mod notify;
 pub mod queue;
 pub mod raids;
 pub mod savedvars;
+pub mod tray;
 pub mod updater;
 pub mod upload;
 
-use tauri::{
-    menu::{Menu, MenuItem},
-    tray::TrayIconBuilder,
-    Emitter, Manager, WindowEvent,
-};
+use tauri::{Emitter, Manager, WindowEvent};
 
 use commands::Engine;
 use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
@@ -23,12 +21,10 @@ use savedvars::watcher::{Timing, Watcher};
 use std::sync::{Arc, Mutex};
 use upload::{Runner, SYNC_STATUS_EVENT};
 
-const QUIT_ID: &str = "quit";
-const SHOW_ID: &str = "show";
-
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updater::Updates::default())
         .setup(|app| {
@@ -83,31 +79,7 @@ pub fn run() {
             ));
             app.manage(engine);
             app.manage(queue);
-            let show = MenuItem::with_id(app, SHOW_ID, "Show", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, QUIT_ID, "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show, &quit])?;
-            let mut tray = TrayIconBuilder::new()
-                .tooltip("Bureaucracy Forever Helper")
-                .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    QUIT_ID => {
-                        app.state::<Runner>().stop();
-                        app.state::<Poller>().stop();
-                        app.state::<Watcher>().stop();
-                        app.exit(0);
-                    }
-                    SHOW_ID => {
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
-                        }
-                    }
-                    _ => {}
-                });
-            if let Some(icon) = app.default_window_icon() {
-                tray = tray.icon(icon.clone());
-            }
-            tray.build(app)?;
+            tray::build(app.handle())?;
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -125,21 +97,20 @@ pub fn run() {
             commands::check_for_update,
             commands::install_update,
             commands::restart_after_update,
+            tray::set_tray_status,
+            notify::raise_notification,
         ])
         .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                api.prevent_close();
-                let _ = window.hide();
+            match event {
+                WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+                // The menu bar's brightness follows the system theme, so the icon is redrawn.
+                WindowEvent::ThemeChanged(_) => tray::refresh(window.app_handle()),
+                _ => {}
             }
         })
         .run(tauri::generate_context!())
         .expect("error while running the Bureaucracy Forever Helper");
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn placeholder() {
-        assert_eq!(super::QUIT_ID, "quit");
-    }
 }
