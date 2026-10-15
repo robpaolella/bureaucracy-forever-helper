@@ -1,6 +1,7 @@
 // The only place the front-end calls Tauri. Everything else takes a `Bridge`, so tests
 // can hand it a fake. The result shapes mirror `KeyOutcome` and `ChangeOutcome` in
-// src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, and `SyncStatus` in src-tauri/src/upload.rs.
+// src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs,
+// and the update outcomes in src-tauri/src/updater.rs.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -116,6 +117,43 @@ export interface RaidsView {
 /** The event that carries each new raids view (`RAIDS_EVENT` in raids.rs). */
 const RAIDS_EVENT = "raids";
 
+/** Why an update check or install failed; the wording is in `message`. Any failure leaves the
+ * installed version working. */
+export type UpdateFailure =
+  | "offline"
+  | "missing"
+  | "badSignature"
+  | "interrupted"
+  | "checkFailed"
+  | "installFailed";
+
+export type CheckOutcome =
+  /** `notesUrl` is the release page with what's new. */
+  | { kind: "available"; version: string; notesUrl: string }
+  | { kind: "upToDate" }
+  | { kind: "failed"; reason: UpdateFailure; message: string };
+
+export type InstallOutcome =
+  /** Installed; it runs once the helper restarts. */
+  | { kind: "installed"; version: string }
+  /** No earlier check found an update. */
+  | { kind: "nothingFound" }
+  /** An install is already under way. */
+  | { kind: "busy" }
+  | { kind: "failed"; reason: UpdateFailure; message: string };
+
+/** A restart that happens doesn't answer, so this is the only answer the window gets. */
+export type RestartOutcome = { kind: "notInstalled" };
+
+/** Download progress in bytes; `total` is null when the size isn't known. */
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
+}
+
+/** The event that carries download progress (`PROGRESS_EVENT` in updater.rs). */
+const UPDATE_PROGRESS_EVENT = "update-progress";
+
 /** Each call rejects only if the Rust side itself failed; every engine result is data. */
 export interface Bridge {
   connect(key: string): Promise<KeyOutcome>;
@@ -139,6 +177,15 @@ export interface Bridge {
   onSyncStatus(listener: (status: SyncStatus) => void): Promise<() => void>;
   /** Calls `listener` with every later raids view; resolves to a function that stops it. */
   onRaids(listener: (view: RaidsView) => void): Promise<() => void>;
+  /** Asks GitHub for a newer helper. Downloads and installs nothing. */
+  checkForUpdate(): Promise<CheckOutcome>;
+  /** Downloads and installs the update the last check found. Call only once the officer
+   * confirms. On Windows a successful install closes and reopens the helper itself. */
+  installUpdate(): Promise<InstallOutcome>;
+  /** Restarts into the installed update; does nothing unless one installed. */
+  restartAfterUpdate(): Promise<RestartOutcome>;
+  /** Calls `listener` with download progress; resolves to a function that stops it. */
+  onUpdateProgress(listener: (progress: UpdateProgress) => void): Promise<() => void>;
 }
 
 export const tauriBridge: Bridge = {
@@ -159,4 +206,9 @@ export const tauriBridge: Bridge = {
   },
   onSyncStatus: (listener) => listen<SyncStatus>(SYNC_STATUS_EVENT, (event) => listener(event.payload)),
   onRaids: (listener) => listen<RaidsView>(RAIDS_EVENT, (event) => listener(event.payload)),
+  checkForUpdate: () => invoke("check_for_update"),
+  installUpdate: () => invoke("install_update"),
+  restartAfterUpdate: () => invoke("restart_after_update"),
+  onUpdateProgress: (listener) =>
+    listen<UpdateProgress>(UPDATE_PROGRESS_EVENT, (event) => listener(event.payload)),
 };
