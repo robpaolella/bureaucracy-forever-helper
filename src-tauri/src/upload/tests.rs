@@ -192,7 +192,7 @@ fn the_queue_is_sent_in_order_and_removed_once_acknowledged() {
     );
     assert_eq!(site.requests(), 1);
     assert!(ids(&queue).is_empty());
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
     assert_eq!(wait, IDLE);
 }
 
@@ -222,7 +222,7 @@ fn a_crash_between_upload_and_acknowledgement_resends_without_recording_twice() 
     assert_eq!(site.requests(), 2);
     assert_eq!(site.stored_ids(), ["aw-1111aaaa", "aw-2222aaaa"]);
     assert!(ids(&queue).is_empty());
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
 }
 
 #[test]
@@ -266,7 +266,7 @@ fn offline_entries_stay_queued_and_drain_in_order_when_the_site_is_back() {
         ["aw-1111aaaa", "aw-2222aaaa", "aw-3333aaaa"]
     );
     assert!(ids(&queue).is_empty());
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
 }
 
 #[test]
@@ -317,11 +317,12 @@ fn a_refused_record_is_reported_once_and_the_rest_still_goes() {
     assert_eq!(
         up.status(),
         SyncStatus::Refused {
-            records: vec![refused]
+            records: vec![refused],
+            other_site: 0,
         }
     );
     up.clear_refused();
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
 }
 
 #[test]
@@ -337,7 +338,7 @@ fn a_pending_record_stays_queued_and_is_retried_spaced_out() {
     let start = Instant::now();
     up.pass(&mut queue, &site, Site::Staging, &key(KEY), start);
     assert_eq!(ids(&queue), ["vd-1111aaaa"]);
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
 
     // Not resent at once.
     up.pass(
@@ -396,7 +397,7 @@ fn a_practice_record_is_never_sent_to_production() {
         ["aw-1111aaaa", "aw-2222aaaa"],
         "kept for staging"
     );
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 2 });
 
     // On staging the staging record goes; the production one stays for production,
     // where it can never go either.
@@ -410,6 +411,7 @@ fn a_practice_record_is_never_sent_to_production() {
         ]
     );
     assert_eq!(ids(&queue), ["aw-1111aaaa"]);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 1 });
 }
 
 #[test]
@@ -465,23 +467,34 @@ fn requests_are_timed_from_when_they_go() {
     }
 }
 
+/// Records for the other site wait untouched in both directions, never sent and never
+/// refused, and the status counts them.
 #[test]
-fn a_record_for_the_other_site_waits_for_it() {
-    let (mut queue, _) = queue_with(&[
-        award("aw-1111aaaa", "staging"),
-        award("aw-2222aaaa", "production"),
-    ]);
-    let site = FakeSite::default();
-    let mut up = Uploader::new();
-    up.pass(
-        &mut queue,
-        &site,
-        Site::Production,
-        &key(KEY),
-        Instant::now(),
-    );
-    assert_eq!(site.sent_ids(), ["aw-2222aaaa"]);
-    assert_eq!(ids(&queue), ["aw-1111aaaa"]);
+fn a_record_for_the_other_site_waits_untouched_and_is_counted() {
+    for (site_now, other) in [(Site::Production, "staging"), (Site::Staging, "production")] {
+        let mine = if other == "staging" {
+            "production"
+        } else {
+            "staging"
+        };
+        let waiting = [award("aw-1111aaaa", other), award("aw-3333aaaa", other)];
+        let (mut queue, path) = queue_with(&[
+            waiting[0].clone(),
+            award("aw-2222aaaa", mine),
+            waiting[1].clone(),
+        ]);
+        let site = FakeSite::default();
+        site.then(Script::NoAnswer);
+        let mut up = Uploader::new();
+        let now = Instant::now();
+        let wait = up.pass(&mut queue, &site, site_now, &key(KEY), now);
+        assert_eq!(up.status(), SyncStatus::Offline { waiting: 1 });
+        up.pass(&mut queue, &site, site_now, &key(KEY), now + wait);
+        assert_eq!(site.sent_ids(), ["aw-2222aaaa", "aw-2222aaaa"]);
+        assert_eq!(queue.operations().unwrap(), waiting);
+        assert_eq!(Queue::open(&path).operations().unwrap(), waiting);
+        assert_eq!(up.status(), SyncStatus::Idle { other_site: 2 });
+    }
 }
 
 #[test]
@@ -516,7 +529,7 @@ fn a_stopped_key_keeps_the_queue_and_sends_nothing_until_it_changes() {
         );
         assert_eq!(site.requests(), 2);
         assert!(ids(&queue).is_empty());
-        assert_eq!(up.status(), SyncStatus::Idle);
+        assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
     }
 }
 
@@ -537,7 +550,7 @@ fn a_switched_off_site_keeps_the_queue_and_is_asked_again_later() {
 
     up.pass(&mut queue, &site, Site::Staging, &key(KEY), now + SITE_OFF);
     assert!(ids(&queue).is_empty());
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
 }
 
 #[test]
@@ -558,7 +571,7 @@ fn a_damaged_queue_sends_nothing_and_is_not_changed() {
     queue.add(award("aw-1111aaaa", "staging")).unwrap();
     up.pass(&mut queue, &site, Site::Staging, &key(KEY), Instant::now());
     assert_eq!(site.stored_ids(), ["aw-1111aaaa"]);
-    assert_eq!(up.status(), SyncStatus::Idle);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
 }
 
 #[test]
@@ -665,7 +678,7 @@ fn a_batch_stays_under_64_kib_and_an_oversized_record_is_refused_not_dropped() {
     assert_eq!(site.stored_ids().len(), 60);
     assert_eq!(ids(&queue), ["aw-hugeaaaa"], "kept in the list");
     match up.status() {
-        SyncStatus::Refused { records } => {
+        SyncStatus::Refused { records, .. } => {
             assert_eq!(records.len(), 1);
             assert_eq!(records[0].code, "too-large");
         }
@@ -728,7 +741,7 @@ fn sending_names_the_raid_while_the_request_is_out() {
             raid: "cm9xr2k4a0001".into()
         }]
     );
-    assert_eq!(up.watch().get(), SyncStatus::Idle);
+    assert_eq!(up.watch().get(), SyncStatus::Idle { other_site: 0 });
 }
 
 #[test]
@@ -750,6 +763,10 @@ fn the_status_is_plain_data_for_the_window() {
     assert_eq!(
         serde_json::to_value(status).unwrap(),
         json!({ "kind": "offline", "waiting": 3 })
+    );
+    assert_eq!(
+        serde_json::to_value(SyncStatus::Idle { other_site: 2 }).unwrap(),
+        json!({ "kind": "idle", "otherSite": 2 })
     );
     assert_eq!(
         serde_json::to_value(SyncStatus::KeyStopped).unwrap(),

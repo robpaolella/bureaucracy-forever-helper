@@ -7,9 +7,11 @@
 //! upload and its acknowledgement only means the next pass sends the same operations
 //! again, which the site answers `replayed` (ADDON-SPEC 4.2).
 //!
-//! An operation is only sent to the site it belongs to: one whose `env` names the other
-//! site, and any practice record while on production (ADDON-SPEC 2), waits in the list
-//! for that site.
+//! An operation is only sent to the site the helper is set to, with that site's key: a
+//! site refuses another site's records (ADDON-SPEC 2) and a key works only on the site
+//! that made it (7.2). One whose `env` names the other site, and any practice record
+//! while on production, waits in the list untouched, neither sent nor refused, and the
+//! status counts it.
 
 use crate::key::{HelperKey, Site, SiteClient, UploadReply};
 use crate::queue::{Ack, Queue, QueueError};
@@ -73,14 +75,20 @@ pub struct Refused {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SyncStatus {
-    /// Nothing waiting that can be sent now.
-    Idle,
+    /// Nothing waiting that can be sent now; `other_site` records wait for the other site.
+    #[serde(rename_all = "camelCase")]
+    Idle { other_site: usize },
     /// Sending the operations of this raid.
     Sending { raid: String },
-    /// The site can't be reached, or failed on its side; this many wait.
+    /// The site can't be reached, or failed on its side; this many wait for it.
     Offline { waiting: usize },
     /// Records the site refused, or too big to send; the rest of the list still goes.
-    Refused { records: Vec<Refused> },
+    /// `other_site` records wait for the other site.
+    #[serde(rename_all = "camelCase")]
+    Refused {
+        records: Vec<Refused>,
+        other_site: usize,
+    },
     /// The site refused the key (`401` or `403`). Nothing is sent until the key or the
     /// site changes.
     KeyStopped,
@@ -97,7 +105,7 @@ pub struct StatusWatch(Arc<Mutex<Option<SyncStatus>>>);
 impl StatusWatch {
     pub fn get(&self) -> SyncStatus {
         let status = self.0.lock().unwrap_or_else(|e| e.into_inner());
-        status.clone().unwrap_or(SyncStatus::Idle)
+        status.clone().unwrap_or(SyncStatus::Idle { other_site: 0 })
     }
 
     fn set(&self, status: SyncStatus) {
@@ -124,6 +132,8 @@ pub struct Uploader {
     batch_limit: Option<usize>,
     /// When the requests of the last minute were sent.
     sent: VecDeque<Instant>,
+    /// Records in the list waiting for the other site, as of the last look.
+    other_site: usize,
 }
 
 impl Uploader {
@@ -145,7 +155,9 @@ impl Uploader {
     pub fn clear_refused(&mut self) {
         self.refused.clear();
         if matches!(self.status(), SyncStatus::Refused { .. }) {
-            self.status.set(SyncStatus::Idle);
+            self.status.set(SyncStatus::Idle {
+                other_site: self.other_site,
+            });
         }
     }
 
@@ -209,6 +221,7 @@ impl Uploader {
         let limit = self.batch_limit.unwrap_or(MAX_OPERATIONS);
         let mut batch = Vec::new();
         let mut size = r#"{"operations":[]}"#.len();
+        self.other_site = ops.iter().filter(|op| !belongs_to(op, site)).count();
         for op in ops {
             let id = op["id"].as_str().unwrap_or_default();
             let waiting = self.pending.get(id).is_some_and(|(_, at)| *at > now);
@@ -310,7 +323,9 @@ impl Uploader {
         let wait = doubled(RETRY, self.failures);
         self.failures += 1;
         self.not_before = Some(now + wait);
-        let waiting = queue.operations().map_or(0, |ops| ops.len());
+        let waiting = queue
+            .operations()
+            .map_or(0, |ops| ops.len().saturating_sub(self.other_site));
         self.status.set(SyncStatus::Offline { waiting });
         wait
     }
@@ -340,11 +355,13 @@ impl Uploader {
 
     /// The status once nothing more can be sent now.
     fn settled(&self) -> SyncStatus {
+        let other_site = self.other_site;
         if self.refused.is_empty() {
-            SyncStatus::Idle
+            SyncStatus::Idle { other_site }
         } else {
             SyncStatus::Refused {
                 records: self.refused.clone(),
+                other_site,
             }
         }
     }
