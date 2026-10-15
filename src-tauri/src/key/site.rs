@@ -28,7 +28,7 @@ impl SiteClient {
     /// A client for the two sites at these addresses, giving up on a request after
     /// `timeout`. Redirects are not followed: the site's helper API never redirects, and
     /// staging's login page arrives as one.
-    pub(super) fn with_addresses(production: &str, staging: &str, timeout: Duration) -> Self {
+    pub fn with_addresses(production: &str, staging: &str, timeout: Duration) -> Self {
         let agent = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .max_redirects(0)

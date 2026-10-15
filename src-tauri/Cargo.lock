@@ -202,6 +202,7 @@ dependencies = [
  "apple-native-keyring-store",
  "chrono",
  "keyring-core",
+ "serde",
  "serde_json",
  "tauri",
  "tauri-build",

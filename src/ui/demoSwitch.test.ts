@@ -33,7 +33,7 @@ describe("release build", () => {
     const code = result.output
       .map((o) => (o.type === "chunk" ? o.code : ""))
       .join("\n");
-    expect(code).toContain("Bureaucracy Forever Helper");
+    expect(code).toContain("Recent activity");
     expect(code).not.toContain("Shared pieces");
     expect(code).not.toContain("Offline: 4 awards waiting");
     expect(result.output.some((o) => o.fileName.includes("demo"))).toBe(false);
