@@ -236,6 +236,22 @@ describe("Settings → Game folder, when things go wrong", () => {
     expect(section(root).textContent).toContain("Use this folder");
   });
 
+  it("retries the folder last chosen, not an earlier one that failed", async () => {
+    const picks = [`${WOW}\\a`, `${WOW}\\b`];
+    const { root, bridge } = await settings({
+      pickFolder: () => Promise.resolve(picks.shift() ?? null),
+      checkPickedFolder: (f) => Promise.resolve(found(f.endsWith("a") ? "_classic_" : "_classic_era_")),
+      rememberVersion: () => Promise.resolve({ kind: "settingsFailed", message: "Try again." }),
+    });
+    press(root, "Change folder");
+    await flush();
+    press(root, "Change folder");
+    await flush();
+    press(root, "Use this folder");
+    await flush();
+    expect(bridge.rememberVersion).toHaveBeenLastCalledWith(`${WOW}\\_classic_era_`);
+  });
+
   it("ignores a second change while one is being checked, so the latest choice stays", async () => {
     let answer!: (o: FolderOutcome) => void;
     const check = vi.fn(() => new Promise<FolderOutcome>((r) => (answer = r)));

@@ -176,7 +176,9 @@ export async function startWindow(
     }
     if (picked === null) return;
     working(true);
-    patch({ error: undefined });
+    // A new pick starts over: an earlier failed save must not be retried by "Use this folder".
+    if (!store.get().setup) show(undefined);
+    else patch({ error: undefined });
     let outcome: FolderOutcome | undefined;
     try {
       outcome = await ask(() => bridge.checkPickedFolder(picked));
