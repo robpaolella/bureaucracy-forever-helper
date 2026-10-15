@@ -8,7 +8,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-key-empty-default-1440.png",
@@ -28,7 +28,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-key-checking-default-1440.png",
@@ -48,7 +48,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-key-malformed-default-1440.png",
@@ -68,7 +68,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-key-revoked-default-1440.png",
@@ -88,7 +88,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-key-site-off-default-1440.png",
@@ -108,7 +108,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-key-unreachable-default-1440.png",
@@ -128,7 +128,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-key-store-failed-default-1440.png",
@@ -148,7 +148,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-folder-searching-default-1440.png",
@@ -168,7 +168,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-folder-found-default-1440.png",
@@ -188,7 +188,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-folder-several-default-1440.png",
@@ -208,7 +208,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-folder-not-found-default-1440.png",
@@ -228,7 +228,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-folder-not-game-default-1440.png",
@@ -248,7 +248,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-folder-no-addon-default-1440.png",
@@ -268,7 +268,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-folder-gone-default-1440.png",
@@ -288,7 +288,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-ready-default-1440.png",
@@ -308,7 +308,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-reload-default-1440.png",
@@ -328,7 +328,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-live-default-1440.png",
@@ -348,7 +348,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-live-full-default-1440.png",
@@ -368,7 +368,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-no-raids-default-1440.png",
@@ -388,7 +388,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-offline-default-1440.png",
@@ -408,7 +408,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-refused-default-1440.png",
@@ -428,7 +428,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-revoked-default-1440.png",
@@ -448,7 +448,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-site-off-default-1440.png",
@@ -468,7 +468,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-queue-damaged-default-1440.png",
@@ -488,7 +488,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-staging-default-1440.png",
@@ -508,7 +508,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-settings-default-1440.png",
@@ -528,7 +528,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-helper-update-default-1440.png",
@@ -548,7 +548,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-helper-installing-default-1440.png",
@@ -568,7 +568,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-helper-update-failed-default-1440.png",
@@ -588,7 +588,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-addon-update-default-1440.png",
@@ -608,7 +608,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-addon-installing-default-1440.png",
@@ -628,7 +628,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-addon-rolled-back-default-1440.png",
@@ -648,7 +648,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-addon-updated-default-1440.png",
@@ -808,7 +808,7 @@
       "width": 390,
       "height": 844,
       "pixelWidth": 390,
-      "pixelHeight": 986
+      "pixelHeight": 967
     },
     {
       "image": "approved-notification-default-1440.png",
