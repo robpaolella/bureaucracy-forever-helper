@@ -12,7 +12,7 @@ pub mod upload;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, WindowEvent,
+    Emitter, Manager, WindowEvent,
 };
 
 use commands::Engine;
@@ -25,13 +25,6 @@ use upload::{Runner, SYNC_STATUS_EVENT};
 
 const QUIT_ID: &str = "quit";
 const SHOW_ID: &str = "show";
-
-/// Stops the uploader, the raids list and the saved file reader, before the app exits.
-pub(crate) fn stop_background(app: &AppHandle) {
-    app.state::<Runner>().stop();
-    app.state::<Poller>().stop();
-    app.state::<Watcher>().stop();
-}
 
 pub fn run() {
     tauri::Builder::default()
@@ -98,7 +91,9 @@ pub fn run() {
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     QUIT_ID => {
-                        stop_background(app);
+                        app.state::<Runner>().stop();
+                        app.state::<Poller>().stop();
+                        app.state::<Watcher>().stop();
                         app.exit(0);
                     }
                     SHOW_ID => {

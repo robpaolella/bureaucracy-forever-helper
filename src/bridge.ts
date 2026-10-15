@@ -134,16 +134,20 @@ export type CheckOutcome =
   | { kind: "failed"; reason: UpdateFailure; message: string };
 
 export type InstallOutcome =
-  /** Installed; it runs once the helper restarts. */
-  | { kind: "installed"; version: string }
+  /** Installed (on Windows, downloaded and checked); `restartAfterUpdate` finishes it. */
+  | { kind: "ready"; version: string }
   /** No earlier check found an update. */
   | { kind: "nothingFound" }
   /** An install is already under way. */
   | { kind: "busy" }
   | { kind: "failed"; reason: UpdateFailure; message: string };
 
-/** A restart that happens doesn't answer, so this is the only answer the window gets. */
-export type RestartOutcome = { kind: "notInstalled" };
+/** A restart that happens doesn't answer, so these are the only answers the window gets. */
+export type RestartOutcome =
+  /** No update is ready to restart into. */
+  | { kind: "notReady" }
+  /** Windows wouldn't start the installer; the helper carries on as it was. */
+  | { kind: "failed"; reason: UpdateFailure; message: string };
 
 /** Download progress in bytes; `total` is null when the size isn't known. */
 export interface UpdateProgress {
@@ -180,9 +184,9 @@ export interface Bridge {
   /** Asks GitHub for a newer helper. Downloads and installs nothing. */
   checkForUpdate(): Promise<CheckOutcome>;
   /** Downloads and installs the update the last check found. Call only once the officer
-   * confirms. On Windows a successful install closes and reopens the helper itself. */
+   * confirms. On Windows it downloads and checks it; the restart runs the installer. */
   installUpdate(): Promise<InstallOutcome>;
-  /** Restarts into the installed update; does nothing unless one installed. */
+  /** Restarts into the update `installUpdate` made ready; does nothing unless one is. */
   restartAfterUpdate(): Promise<RestartOutcome>;
   /** Calls `listener` with download progress; resolves to a function that stops it. */
   onUpdateProgress(listener: (progress: UpdateProgress) => void): Promise<() => void>;

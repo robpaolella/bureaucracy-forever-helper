@@ -1,12 +1,16 @@
 //! The helper's self-update engine, on Tauri's updater: check the published GitHub release
 //! for a newer version, install a found one only when the window asks (the officer
-//! confirmed), and relaunch into it only after it installed.
+//! confirmed), and relaunch into it only when the window asks after that.
 //!
 //! The updater only ever sees the latest published release, never a draft. Every update
 //! file must carry a signature from the helper's update key that names its version; one
 //! that doesn't is refused before anything is installed. Every result is data the window
 //! can tell apart (`kind`, and `reason` for a failure), with a plain-words message; any
 //! failure leaves the installed version as it was.
+//!
+//! On a Mac the install puts the new version in place and the restart opens it. On Windows
+//! the installer can only run once the helper has closed, so the install downloads and
+//! checks the update and the restart runs the installer, which reopens the helper.
 //!
 //! The download runs on the async runtime and takes no lock the uploader uses, so awards
 //! keep sending while it runs.
@@ -58,8 +62,8 @@ pub enum CheckOutcome {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum InstallOutcome {
-    /// Installed; it runs from the next start, which `restart` gives.
-    Installed {
+    /// Installed (on Windows, downloaded and checked); `restart` finishes it.
+    Ready {
         version: String,
     },
     /// No update was found by an earlier check, so there was nothing to install.
@@ -72,14 +76,19 @@ pub enum InstallOutcome {
     },
 }
 
-/// How asking to restart ended. In the app a restart doesn't return, so the window only
-/// ever hears `notInstalled`.
+/// How asking to restart ended. In the app a restart that happens doesn't return, so the
+/// window only hears `notReady` or `failed`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RestartOutcome {
     Restarting,
-    /// No update has been installed, so there is nothing new to restart into.
-    NotInstalled,
+    /// No update is ready, so there is nothing new to restart into.
+    NotReady,
+    /// Windows wouldn't start the installer; the helper carries on as it was.
+    Failed {
+        reason: Reason,
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -167,8 +176,8 @@ pub struct Progress {
 pub struct Updates {
     /// The update the last check found, for `install`.
     found: Mutex<Option<Update>>,
-    /// The version installed and waiting for a restart.
-    installed: Mutex<Option<String>>,
+    /// The update installed (on Windows, checked and waiting to install) and its file.
+    ready: Mutex<Option<(Update, Vec<u8>)>>,
     busy: AtomicBool,
 }
 
@@ -198,7 +207,7 @@ impl Updates {
     }
 
     /// Downloads the update the last check found, checks its signature and hands it to
-    /// `install`, which the app gives as the updater's own install. `progress` hears each
+    /// `install`: the updater's own install on a Mac, nothing on Windows. `progress` hears each
     /// new whole percent (each piece when the size is unknown). A file that fails its
     /// signature never reaches `install`.
     pub async fn install(
@@ -225,33 +234,40 @@ impl Updates {
         // `download` checks the signature before it returns the bytes.
         let outcome = match update.download(on_chunk, || {}).await {
             Err(e) => Err(failed(&e, Step::Download)),
-            Ok(bytes) => install(&update, &bytes).map_err(|e| failed(&e, Step::Install)),
+            Ok(bytes) => install(&update, &bytes)
+                .map(|()| bytes)
+                .map_err(|e| failed(&e, Step::Install)),
         };
-        self.busy.store(false, Ordering::SeqCst);
-        match outcome {
-            Ok(()) => {
-                *self.installed.lock().unwrap_or_else(|e| e.into_inner()) =
-                    Some(update.version.clone());
-                InstallOutcome::Installed {
-                    version: update.version,
-                }
+        let result = match outcome {
+            Ok(bytes) => {
+                let version = update.version.clone();
+                *self.ready.lock().unwrap_or_else(|e| e.into_inner()) = Some((update, bytes));
+                InstallOutcome::Ready { version }
             }
             Err((reason, message)) => InstallOutcome::Failed { reason, message },
-        }
+        };
+        self.busy.store(false, Ordering::SeqCst);
+        result
     }
 
-    /// Calls `relaunch` only once an update has installed.
-    pub fn restart(&self, relaunch: impl FnOnce()) -> RestartOutcome {
-        if self
-            .installed
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .is_none()
-        {
-            return RestartOutcome::NotInstalled;
+    /// Calls `relaunch` with the ready update and its checked file, only once one is ready:
+    /// the app restarts on a Mac, and runs the installer on Windows. A `relaunch` that
+    /// returns has failed, and the update stays ready to try again.
+    pub fn restart(
+        &self,
+        relaunch: impl FnOnce(&Update, &[u8]) -> Result<(), Error>,
+    ) -> RestartOutcome {
+        let ready = self.ready.lock().unwrap_or_else(|e| e.into_inner());
+        let Some((update, bytes)) = ready.as_ref() else {
+            return RestartOutcome::NotReady;
+        };
+        match relaunch(update, bytes) {
+            Ok(()) => RestartOutcome::Restarting,
+            Err(e) => {
+                let (reason, message) = failed(&e, Step::Install);
+                RestartOutcome::Failed { reason, message }
+            }
         }
-        relaunch();
-        RestartOutcome::Restarting
     }
 }
 

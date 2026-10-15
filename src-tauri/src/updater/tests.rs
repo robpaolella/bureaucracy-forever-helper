@@ -230,10 +230,11 @@ fn a_newer_release_is_found_with_its_version_and_nothing_is_downloaded_or_instal
     assert_eq!(server.hits("/helper.tar.gz"), 0);
     // Nothing installed means nothing to restart into.
     assert_eq!(
-        updates.restart(|| {
+        updates.restart(|_, _| {
             restarts.fetch_add(1, Ordering::SeqCst);
+            Ok(())
         }),
-        RestartOutcome::NotInstalled
+        RestartOutcome::NotReady
     );
     assert_eq!(restarts.load(Ordering::SeqCst), 0);
 }
@@ -268,7 +269,7 @@ fn installing_downloads_the_signed_file_reports_progress_and_installs_it_once() 
     let (outcome, heard, installs) = check_and_install(&keys, &server);
     assert_eq!(
         outcome,
-        InstallOutcome::Installed {
+        InstallOutcome::Ready {
             version: NEWER.into()
         }
     );
@@ -415,8 +416,11 @@ fn a_failed_install_leaves_nothing_to_restart_into() {
     assert_eq!(outcome, failed_for(Reason::InstallFailed));
     let restarted = AtomicBool::new(false);
     assert_eq!(
-        updates.restart(|| restarted.store(true, Ordering::SeqCst)),
-        RestartOutcome::NotInstalled
+        updates.restart(|_, _| {
+            restarted.store(true, Ordering::SeqCst);
+            Ok(())
+        }),
+        RestartOutcome::NotReady
     );
     assert!(!restarted.load(Ordering::SeqCst));
 }
@@ -427,18 +431,47 @@ fn only_the_restart_command_restarts_and_only_after_an_install() {
     let server = release(&keys, Answer::Bytes(FILE.to_vec()));
     let app = app(&keys.public(), &server.url("/latest.json"));
     let updates = Updates::default();
-    let restarts = AtomicUsize::new(0);
-    let restart = || {
-        restarts.fetch_add(1, Ordering::SeqCst);
+    let restarts = Mutex::new(Vec::new());
+    let restart = |update: &Update, bytes: &[u8]| {
+        restarts
+            .lock()
+            .unwrap()
+            .push((update.version.clone(), bytes.to_vec()));
+        Ok(())
     };
     let outcome = tauri::async_runtime::block_on(async {
         updates.check(updater(&app)).await;
         updates.install(|_| {}, Installs::default().record()).await
     });
-    assert!(matches!(outcome, InstallOutcome::Installed { .. }));
-    assert_eq!(restarts.load(Ordering::SeqCst), 0);
+    assert!(matches!(outcome, InstallOutcome::Ready { .. }));
+    assert!(restarts.lock().unwrap().is_empty());
     assert_eq!(updates.restart(restart), RestartOutcome::Restarting);
-    assert_eq!(restarts.load(Ordering::SeqCst), 1);
+    // It gets the checked file, which Windows' installer needs.
+    assert_eq!(
+        *restarts.lock().unwrap(),
+        vec![(NEWER.to_string(), FILE.to_vec())]
+    );
+}
+
+#[test]
+fn a_restart_that_fails_leaves_the_update_ready_to_try_again() {
+    let keys = Keys::new();
+    let server = release(&keys, Answer::Bytes(FILE.to_vec()));
+    let app = app(&keys.public(), &server.url("/latest.json"));
+    let updates = Updates::default();
+    tauri::async_runtime::block_on(async {
+        updates.check(updater(&app)).await;
+        updates.install(|_| {}, Installs::default().record()).await
+    });
+    let refused = std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+    assert_eq!(
+        updates.restart(|_, _| Err(Error::Io(refused))),
+        RestartOutcome::Failed {
+            reason: Reason::InstallFailed,
+            message: Reason::InstallFailed.message().into()
+        }
+    );
+    assert_eq!(updates.restart(|_, _| Ok(())), RestartOutcome::Restarting);
 }
 
 /// A store holding one production key.
@@ -528,7 +561,7 @@ fn awards_keep_sending_while_an_update_downloads_and_a_second_install_waits() {
     let outcome = tauri::async_runtime::block_on(download).unwrap();
     assert_eq!(
         outcome,
-        InstallOutcome::Installed {
+        InstallOutcome::Ready {
             version: NEWER.into()
         }
     );

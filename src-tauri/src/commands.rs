@@ -334,15 +334,13 @@ pub async fn get_remembered_game_folder(
     off_thread(move || remembered_game_folder(&store)).await
 }
 
-/// The updater, set up from the app's config. On Windows the installer closes the helper
-/// itself, so the background work stops first, as on Quit.
+/// The updater, set up from the app's config. On Windows the updater runs its "before
+/// exit" step before it knows the installer started, so that step does nothing: if Windows
+/// refuses to start it, the helper carries on whole. Ending without it is safe, as the
+/// waiting list is only ever replaced whole and a record in flight is sent again.
 fn app_updater(app: &AppHandle) -> Result<Updater, tauri_plugin_updater::Error> {
-    let closing = app.clone();
     updater::configure(app.updater_builder())
-        .on_before_exit(move || {
-            crate::stop_background(&closing);
-            closing.cleanup_before_exit();
-        })
+        .on_before_exit(|| {})
         .build()
 }
 
@@ -355,8 +353,8 @@ pub async fn check_for_update(
 }
 
 /// Installs the update the last check found, sending progress as `update-progress` events.
-/// The window calls it only once the officer confirms. On Windows a successful install
-/// closes the helper and reopens it on the new version, so it doesn't return.
+/// The window calls it only once the officer confirms. On Windows the installer runs from
+/// `restart_after_update`, since it closes the helper.
 #[tauri::command]
 pub async fn install_update(
     app: AppHandle,
@@ -367,16 +365,29 @@ pub async fn install_update(
             |progress| {
                 let _ = app.emit(updater::PROGRESS_EVENT, progress);
             },
-            |update, bytes| update.install(bytes),
+            |update, bytes| {
+                if cfg!(windows) {
+                    Ok(())
+                } else {
+                    update.install(bytes)
+                }
+            },
         )
         .await;
     Ok(outcome)
 }
 
-/// Relaunches into the installed update; only does so after a successful install.
+/// Relaunches into the update once `install_update` made it ready. On Windows this starts
+/// its installer, which closes the helper and opens the new version.
 #[tauri::command]
 pub fn restart_after_update(app: AppHandle, updates: tauri::State<'_, Updates>) -> RestartOutcome {
-    updates.restart(|| app.restart())
+    updates.restart(|update, bytes| {
+        if cfg!(windows) {
+            update.install(bytes)
+        } else {
+            app.restart()
+        }
+    })
 }
 
 #[cfg(test)]
