@@ -1,7 +1,7 @@
 // Sample window states for the test-only demo page, named as in the approved design
 // (design/2-helper-window/index.html). Every name is invented.
 import type { ActivityEvent } from "./activity";
-import type { AppState, View } from "./app";
+import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
 
 export interface DemoState {
@@ -76,6 +76,25 @@ const working: ChainState = {
   awards: awards("Sending", "ok", "Going to Molten Core"),
 };
 
+/** The first-run key step before anything is connected. */
+const keyStep = (key: KeyStep): DemoState => ({
+  app: {
+    status: { tone: "closed", word: "Not set up", title: "Not connected yet" },
+    chain: {
+      site: { tone: "closed", word: "Not connected", detail: "No helper key yet" },
+      folder: ok("", ""),
+      addon: ok("", ""),
+      reserves: ok("", ""),
+      awards: ok("", ""),
+    },
+    activity: [],
+    sentTonight: 0,
+    setup: { key },
+  },
+});
+const KEY = "bfh_3kZ9q2Lw8VtR4mXc7Pn1";
+const keyError = (error: string, action?: string) => keyStep({ value: KEY, checking: false, error, action });
+
 export const demoStates: Record<string, DemoState> = {
   live: {
     app: {
@@ -123,4 +142,18 @@ export const demoStates: Record<string, DemoState> = {
       sentTonight: 9,
     },
   },
+  "key-empty": keyStep({ value: "", checking: false }),
+  "key-checking": keyStep({ value: KEY, checking: true }),
+  "key-malformed": keyStep({
+    value: "my key from the site",
+    checking: false,
+    error: "That doesn’t look like a helper key. Copy it again from the officer area.",
+  }),
+  "key-revoked": keyError("This key has been revoked or no longer works. Create a new key in the officer area."),
+  "key-site-off": keyError("The guild site hasn’t switched the helper on yet. Try again later.", "Try again"),
+  "key-unreachable": keyError("Couldn’t reach the guild site. Check your internet connection and try again.", "Try again"),
+  "key-store-failed": keyError(
+    "The helper couldn’t save your key in Keychain. Allow access when your Mac asks, then try again.",
+    "Try again",
+  ),
 };
