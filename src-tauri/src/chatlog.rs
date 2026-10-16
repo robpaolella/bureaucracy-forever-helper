@@ -5,7 +5,10 @@
 //! ours. Every other line gives `NotOurs` and nothing is kept from it.
 
 use chrono::{Datelike, Local, LocalResult, NaiveDate, NaiveTime, TimeZone};
+use serde_json::{json, Map, Value};
+use std::collections::HashMap;
 
+pub mod follower;
 #[cfg(test)]
 mod tests;
 
@@ -13,6 +16,15 @@ mod tests;
 pub enum Env {
     Production,
     Staging,
+}
+
+impl Env {
+    fn as_str(self) -> &'static str {
+        match self {
+            Env::Production => "production",
+            Env::Staging => "staging",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,6 +49,17 @@ impl LootMethod {
             _ => return None,
         })
     }
+
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Hr => "HR",
+            Self::Sr => "SR",
+            Self::MainSpec => "MAIN_SPEC",
+            Self::OffSpec => "OFF_SPEC",
+            Self::OpenRoll => "OPEN_ROLL",
+            Self::DisenchantBank => "DISENCHANT_BANK",
+        }
+    }
 }
 
 /// A raid the helper knows, from the site's snapshots: its id, environment and the ids
@@ -46,6 +69,14 @@ pub struct KnownRaid {
     pub id: String,
     pub env: Env,
     pub bosses: Vec<String>,
+}
+
+/// A known raid with the names the window shows: the raid's, and each boss's by id.
+#[derive(Debug, Clone)]
+pub struct NamedRaid {
+    pub raid: KnownRaid,
+    pub name: String,
+    pub boss_names: HashMap<String, String>,
 }
 
 /// The `award` operation of ADDON-SPEC section 4 (format version 1).
@@ -92,6 +123,58 @@ pub enum Operation {
     Award(Award),
     Void(Void),
     Replace(Replace),
+}
+
+impl Operation {
+    /// The operation as the site takes it (ADDON-SPEC 4.3): `practice` only when set, `char`
+    /// and `roll` only when there is one.
+    pub fn to_json(&self) -> Value {
+        match self {
+            Operation::Award(a) => award_json(a),
+            Operation::Void(v) => {
+                let mut op = common("void", &v.id, &v.raid, v.env, v.practice);
+                op.insert("key".into(), json!(v.key));
+                op.insert("at".into(), json!(v.at));
+                Value::Object(op)
+            }
+            Operation::Replace(r) => {
+                let mut op = common("replace", &r.id, &r.raid, r.env, r.practice);
+                op.insert("key".into(), json!(r.key));
+                op.insert("award".into(), award_json(&r.award));
+                op.insert("at".into(), json!(r.at));
+                Value::Object(op)
+            }
+        }
+    }
+}
+
+fn common(kind: &str, id: &str, raid: &str, env: Env, practice: bool) -> Map<String, Value> {
+    let mut op = Map::new();
+    op.insert("type".into(), json!(kind));
+    op.insert("id".into(), json!(id));
+    op.insert("formatVersion".into(), json!(1));
+    op.insert("raid".into(), json!(raid));
+    op.insert("env".into(), json!(env.as_str()));
+    if practice {
+        op.insert("practice".into(), json!(true));
+    }
+    op
+}
+
+fn award_json(a: &Award) -> Value {
+    let mut op = common("award", &a.id, &a.raid, a.env, a.practice);
+    op.insert("boss".into(), json!(a.boss));
+    op.insert("item".into(), json!(a.item));
+    if let Some(char) = &a.char {
+        op.insert("char".into(), json!(char));
+    }
+    op.insert("method".into(), json!(a.method.as_str()));
+    if let Some(roll) = a.roll {
+        op.insert("roll".into(), json!(roll));
+    }
+    op.insert("sender".into(), json!(a.sender));
+    op.insert("at".into(), json!(a.at));
+    Value::Object(op)
 }
 
 /// Why a line of ours was rejected (ADDON-SPEC 9.4).
