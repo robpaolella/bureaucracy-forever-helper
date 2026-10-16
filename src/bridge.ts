@@ -1,6 +1,6 @@
 // The only place the front-end calls Tauri. Everything else takes a `Bridge`, so tests
 // can hand it a fake. The result shapes mirror `KeyOutcome` and `ChangeOutcome` in
-// src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs,
+// src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs, `ReservesView` in src-tauri/src/reserves.rs,
 // the update outcomes in src-tauri/src/updater.rs, the add-on update outcomes in
 // src-tauri/src/addon_update.rs, and `TrayStatus` and `Notice` in tray.rs and notify.rs.
 import { invoke } from "@tauri-apps/api/core";
@@ -118,6 +118,28 @@ export interface RaidsView {
 /** The event that carries each new raids view (`RAIDS_EVENT` in raids.rs). */
 const RAIDS_EVENT = "raids";
 
+/** How the reserves stand in the game (`ReservesState` in reserves.rs). */
+export type ReservesState =
+  /** Nothing written yet, or no raids to prepare. */
+  | { kind: "waiting" }
+  /** These raids' reserves are in the add-on's inbox and nothing has changed since. */
+  | { kind: "inGame"; raids: string[] }
+  /** The inbox changed and the game hasn't read it: `changed` are the raids that did. */
+  | { kind: "reload"; raids: string[]; changed: string[] };
+
+export interface ReservesView {
+  state: ReservesState;
+  /** Goes up with every write the officer should hear about, so each is announced once. */
+  changes: number;
+  /** Whether the latest counted write was the first. */
+  first: boolean;
+  /** Why the latest write was refused, in plain words; the old file is as it was. */
+  problem: string | null;
+}
+
+/** The event that carries each new reserves view (`RESERVES_EVENT` in reserves.rs). */
+const RESERVES_EVENT = "reserves";
+
 /** Why an update check or install failed; the wording is in `message`. Any failure leaves the
  * installed version working. */
 export type UpdateFailure =
@@ -221,6 +243,8 @@ export interface Bridge {
   syncStatus(): Promise<SyncStatus>;
   /** The upcoming raids and how the list stands now. */
   raids(): Promise<RaidsView>;
+  /** How the reserves stand in the game now. */
+  reserves(): Promise<ReservesView>;
   /** Looks in the usual places for the game. */
   searchFolder(): Promise<FolderOutcome>;
   /** Checks a folder the officer picked. */
@@ -234,6 +258,8 @@ export interface Bridge {
   onSyncStatus(listener: (status: SyncStatus) => void): Promise<() => void>;
   /** Calls `listener` with every later raids view; resolves to a function that stops it. */
   onRaids(listener: (view: RaidsView) => void): Promise<() => void>;
+  /** Calls `listener` with every later reserves view; resolves to a function that stops it. */
+  onReserves(listener: (view: ReservesView) => void): Promise<() => void>;
   /** Asks GitHub for a newer helper. Downloads and installs nothing. */
   checkForUpdate(): Promise<CheckOutcome>;
   /** Downloads and installs the update the last check found. Call only once the officer
@@ -265,6 +291,7 @@ export const tauriBridge: Bridge = {
   setStaging: (on) => invoke("set_staging_site", { on }),
   syncStatus: () => invoke("get_sync_status"),
   raids: () => invoke("get_raids"),
+  reserves: () => invoke("get_reserves"),
   searchFolder: () => invoke("search_game_folder"),
   checkPickedFolder: (folder) => invoke("check_picked_game_folder", { folder }),
   rememberVersion: (versionFolder) => invoke("remember_game_version", { folder: versionFolder }),
@@ -275,6 +302,7 @@ export const tauriBridge: Bridge = {
   },
   onSyncStatus: (listener) => listen<SyncStatus>(SYNC_STATUS_EVENT, (event) => listener(event.payload)),
   onRaids: (listener) => listen<RaidsView>(RAIDS_EVENT, (event) => listener(event.payload)),
+  onReserves: (listener) => listen<ReservesView>(RESERVES_EVENT, (event) => listener(event.payload)),
   checkForUpdate: () => invoke("check_for_update"),
   installUpdate: () => invoke("install_update"),
   restartAfterUpdate: () => invoke("restart_after_update"),

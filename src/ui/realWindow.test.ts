@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, KeyOutcome, Raid, RaidsView } from "../bridge";
+import type { Bridge, KeyOutcome, Raid, RaidsView, ReservesView } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
 import { applyRaids, initialState, reservesRow, startWindow } from "./realWindow";
@@ -34,6 +34,8 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     onSyncStatus: unused,
     raids: unused,
     onRaids: unused,
+    reserves: unused,
+    onReserves: unused,
     checkForUpdate: unused,
     installUpdate: unused,
     restartAfterUpdate: unused,
@@ -387,5 +389,139 @@ describe("the Reserves row", () => {
     expect(store.get().chain.reserves.detail).toBe("Next 12 hours");
     push(view("empty"));
     expect(store.get().chain.reserves.word).toBe("No raids soon");
+  });
+});
+
+describe("reserves in the window", () => {
+  const raid = (name: string): Raid => ({
+    id: name, code: "mc", name, startsAt: 1_792_000_000, durationMin: 180, instance: null, hasLootTable: true,
+  });
+  const raidsView = (names: string[]): RaidsView => ({ state: { kind: "fresh" }, raids: names.map(raid) });
+  const waitingView: ReservesView = { state: { kind: "waiting" }, changes: 0, first: false, problem: null };
+  const inGame = (...raids: string[]): ReservesView => ({
+    state: { kind: "inGame", raids }, changes: 1, first: true, problem: null,
+  });
+  const reload = (changed: string[], changes = 2): ReservesView => ({
+    state: { kind: "reload", raids: ["Molten Core", "Blackwing Lair"], changed }, changes, first: false, problem: null,
+  });
+  const row = (root: HTMLElement) => root.querySelectorAll(".chain li")[3] as HTMLElement;
+  const headline = (root: HTMLElement) => root.querySelector(".status")!;
+
+  /** A connected window whose raids and reserves a test can push; `notify` is the spy. */
+  async function connectedWindow(first: ReservesView = waitingView) {
+    let pushRaids: (v: RaidsView) => void = () => {};
+    let pushReserves: (v: ReservesView) => void = () => {};
+    const notify = vi.fn(() => Promise.resolve());
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      raids: () => Promise.resolve(raidsView(["Molten Core", "Blackwing Lair"])),
+      onRaids: (l: (v: RaidsView) => void) => ((pushRaids = l), Promise.resolve(() => {})),
+      reserves: () => Promise.resolve(first),
+      onReserves: (l: (v: ReservesView) => void) => ((pushReserves = l), Promise.resolve(() => {})),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+      notify,
+    } as unknown as Bridge;
+    const root = document.createElement("div");
+    const store = await startWindow(root, bridge);
+    return { root, store, notify, pushRaids, pushReserves, bridge };
+  }
+
+  it("keeps 'Not yet' and the connected headline while raids are listed and nothing is written", async () => {
+    const { root, store } = await connectedWindow();
+    expect(row(root).querySelector(".pill")?.textContent).toBe("Not yet");
+    expect(store.get().status.title).toBe("Connected to the guild site");
+  });
+
+  it("reads 'In the game' and 'Ready for tonight' after a write, with the Activity line and no notice", async () => {
+    const { root, store, notify, pushReserves } = await connectedWindow();
+    pushReserves(inGame("Molten Core", "Blackwing Lair"));
+    expect(row(root).querySelector(".pill")?.textContent).toBe("In the game");
+    expect(row(root).querySelector(".pill")?.className).toBe("pill ok");
+    expect(row(root).querySelector(".detail")?.textContent).toBe("Next 12 hours");
+    expect(row(root).querySelectorAll(".under .row")).toHaveLength(2);
+    expect(store.get().status).toEqual({ tone: "ok", word: "Ready", title: "Ready for tonight" });
+    expect(headline(root).textContent).toContain("Ready for tonight");
+    expect(store.get().activity[0]).toMatchObject({
+      tone: "ok", kind: "Reserves written", text: "for Molten Core and Blackwing Lair. Type /reload in game.",
+    });
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("turns amber and asks for a /reload after a real change, with one notice", async () => {
+    const { root, store, notify, pushReserves } = await connectedWindow();
+    pushReserves(inGame("Molten Core", "Blackwing Lair"));
+    pushReserves(reload(["Molten Core"]));
+    expect(row(root).querySelector(".pill")?.textContent).toBe("/reload needed");
+    expect(row(root).querySelector(".pill")?.className).toBe("pill warn");
+    expect(row(root).querySelector(".detail")?.textContent).toBe("Molten Core changed");
+    expect(row(root).className).toContain("link-open");
+    expect(row(root).querySelector(".msg")?.textContent).toBe(
+      "Reserves for Molten Core changed. Type /reload in game to load them.",
+    );
+    expect(store.get().status).toEqual({ tone: "warn", word: "Needs you", title: "Type /reload in game" });
+    expect(store.get().activity[0]).toMatchObject({
+      tone: "warn", kind: "Reserves changed", text: "for Molten Core. Type /reload in game.",
+    });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith({ headline: "Type /reload in game", detail: "Reserves for Molten Core are ready." });
+  });
+
+  it("tells the tray amber through the window status, and green again once the game reloaded", async () => {
+    const { store, pushReserves, bridge } = await connectedWindow();
+    const tray = vi.spyOn(bridge, "setTrayStatus");
+    pushReserves(reload(["Molten Core"]));
+    expect(tray).toHaveBeenLastCalledWith(expect.objectContaining({ tone: "warn" }));
+    pushReserves({ ...reload([]), state: { kind: "inGame", raids: ["Molten Core"] } });
+    expect(store.get().status.title).toBe("Ready for tonight");
+    expect(tray).toHaveBeenLastCalledWith(expect.objectContaining({ tone: "ok" }));
+  });
+
+  it("raises one notice per change, none for the same view again or for a reload ending", async () => {
+    const { notify, pushReserves, store } = await connectedWindow();
+    pushReserves(reload(["Molten Core"], 2));
+    pushReserves(reload(["Molten Core"], 2));
+    pushReserves({ ...reload([], 2), state: { kind: "inGame", raids: ["Molten Core"] } });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(store.get().activity.filter((e) => e.kind === "Reserves changed")).toHaveLength(1);
+    pushReserves(reload(["Blackwing Lair"], 3));
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+
+  it("announces a change that was already pending when the window loaded", async () => {
+    const { notify, store } = await connectedWindow(reload(["Molten Core"]));
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(store.get().chain.reserves.word).toBe("/reload needed");
+  });
+
+  it("still shows the change when the notice can't be raised", async () => {
+    const { store, pushReserves, bridge } = await connectedWindow();
+    vi.spyOn(bridge, "notify").mockRejectedValue(new Error("no notifications"));
+    pushReserves(reload(["Molten Core"]));
+    await flush();
+    expect(store.get().status.title).toBe("Type /reload in game");
+  });
+
+  it("shows a refused write's words in Activity once, and leaves the row as it was", async () => {
+    const { store, pushReserves } = await connectedWindow();
+    pushReserves(inGame("Molten Core", "Blackwing Lair"));
+    const refused = { ...inGame("Molten Core", "Blackwing Lair"), problem: "The reserves for Blackwing Lair are too large to save (250,000 bytes; the limit is 200,000)." };
+    pushReserves(refused);
+    pushReserves(refused);
+    const lines = store.get().activity.filter((e) => e.kind === "Reserves not saved");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.text).toBe(refused.problem);
+    expect(store.get().chain.reserves.word).toBe("In the game");
+  });
+
+  it("goes back to waiting when the reserves are cleared, and ignores them with no raids listed", async () => {
+    const { store, pushReserves, pushRaids } = await connectedWindow();
+    pushReserves(inGame("Molten Core"));
+    pushReserves({ ...waitingView, changes: 1 });
+    expect(store.get().chain.reserves.word).toBe("Not yet");
+    pushReserves(reload(["Molten Core"]));
+    pushRaids({ state: { kind: "empty" }, raids: [] });
+    expect(store.get().chain.reserves.word).toBe("No raids soon");
+    expect(store.get().status.title).toBe("No raids coming up");
   });
 });

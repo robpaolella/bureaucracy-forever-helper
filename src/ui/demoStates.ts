@@ -1,9 +1,11 @@
 // Sample window states for the test-only demo page, named as in the approved design
 // (design/2-helper-window/index.html). Every name is invented.
+import type { ReservesView } from "../bridge";
 import type { ActivityEvent } from "./activity";
 import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
 import type { FolderStep } from "./folder";
+import { applyRaids } from "./realWindow";
 
 export interface DemoState {
   app: AppState;
@@ -117,6 +119,29 @@ const folderStep = (folder: FolderStep): DemoState => ({
   },
 });
 
+/** The window with raids listed and `reserves` written, drawn by the real window code. */
+const written = (reserves: ReservesView, list: ActivityEvent[], minutes: number[]): DemoState => {
+  const at = (h: number, m: number) => new Date().setHours(h, m, 0, 0);
+  const startsAt = (h: number, m: number) => Math.floor(new Date().setHours(h, m, 0, 0) / 1000);
+  const raids = ["Molten Core", "Blackwing Lair"].map((name, i) => ({
+    id: `r${i}`, code: "c", name, startsAt: startsAt(21 + i, i * 30), durationMin: 180, instance: null, hasLootTable: true,
+  }));
+  const state = applyRaids(
+    {
+      status: { tone: "ok", word: "Connected", title: "Connected to the guild site" },
+      chain: { ...working, awards: { tone: "closed", word: "None yet", detail: "They send as they’re handed out" } },
+      activity: list.map((e, i) => ({ ...e, at: at(20, minutes[i] ?? 0) })),
+      sentTonight: 0,
+    },
+    { state: { kind: "fresh" }, raids },
+    reserves,
+  );
+  return { app: state };
+};
+const both = ["Molten Core", "Blackwing Lair"];
+const wrote: ActivityEvent = { at: 0, tone: "ok", kind: "Reserves written", text: "for Molten Core and Blackwing Lair. Type /reload in game." };
+const joined: ActivityEvent = { at: 0, tone: "ok", kind: "Connected", text: "to the guild site." };
+
 export const demoStates: Record<string, DemoState> = {
   live: {
     app: {
@@ -135,6 +160,12 @@ export const demoStates: Record<string, DemoState> = {
       sentTonight: 48,
     },
   },
+  ready: written({ state: { kind: "inGame", raids: both }, changes: 1, first: true, problem: null }, [wrote, joined], [12, 11]),
+  reload: written({ state: { kind: "reload", raids: both, changed: ["Molten Core"] }, changes: 2, first: false, problem: null }, [
+    { at: 0, tone: "warn", kind: "Reserves changed", text: "for Molten Core. Type /reload in game." },
+    wrote,
+    joined,
+  ], [47, 12, 11]),
   settings: {
     view: "settings",
     app: {

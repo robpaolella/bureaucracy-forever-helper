@@ -1,5 +1,6 @@
 // The activity log: today's events, newest first, at most the last 50 (design: "Today,
 // newest first. The last 50 are kept."). Feature issues add events; the window lists them.
+import type { ReservesView } from "../bridge";
 import { GUILD_TIMEZONE } from "../guild";
 import type { Tone } from "./components";
 
@@ -34,6 +35,28 @@ export function visibleActivity(events: readonly ActivityEvent[], now: number): 
     .filter((e) => sameDay(e.at, now))
     .sort((a, b) => b.at - a.at)
     .slice(0, ACTIVITY_KEEP);
+}
+
+/** `events` with `event` added: today's events, newest first, the last 50. */
+export function addEvent(events: readonly ActivityEvent[], event: ActivityEvent, now: number): ActivityEvent[] {
+  return visibleActivity([...events, event], now);
+}
+
+/** Names as the design writes them: "Molten Core and Blackwing Lair". */
+export function nameList(names: readonly string[]): string {
+  return new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(names);
+}
+
+/** The line for a reserves write the officer should hear about, or nothing for any other view. */
+export function reservesEvent(view: ReservesView, at: number): ActivityEvent | undefined {
+  const { state } = view;
+  if (state.kind === "reload") {
+    return { at, tone: "warn", kind: "Reserves changed", text: `for ${nameList(state.changed)}. Type /reload in game.` };
+  }
+  if (state.kind === "inGame" && view.first) {
+    return { at, tone: "ok", kind: "Reserves written", text: `for ${nameList(state.raids)}. Type /reload in game.` };
+  }
+  return undefined;
 }
 
 export interface ActivityLog {

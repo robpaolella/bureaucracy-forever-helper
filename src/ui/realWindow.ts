@@ -1,10 +1,10 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, FolderOutcome, KeyOutcome, RaidsView } from "../bridge";
+import type { Bridge, FolderOutcome, KeyOutcome, RaidsView, ReservesView } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
-import { raidStart } from "./activity";
+import { addEvent, nameList, raidStart, reservesEvent } from "./activity";
 import type { ChainRow } from "./chain";
 import { el } from "./components";
 import { trayStatusOf } from "./tray";
@@ -26,15 +26,32 @@ export const initialState: AppState = {
   sentTonight: 0,
 };
 
+const IN_GAME_WORD = "In the game";
+const RELOAD_WORD = "/reload needed";
+
 /**
- * The Reserves row for the raids list. The pill stays "Not yet" until #29 writes reserves into
- * the game. Raids show in every state that still has a list (a refused key or a site switched
- * off keeps the last one); without one the row is as before the list was known.
+ * The Reserves row for the raids list and what was written for it. The pill stays "Not yet"
+ * until reserves are written into the game, then reads "In the game", and turns amber when a
+ * change needs a /reload. Raids show in every state that still has a list (a refused key or a
+ * site switched off keeps the last one); without one the row is as before the list was known.
  */
-export function reservesRow(view: RaidsView): ChainRow {
+export function reservesRow(view: RaidsView, reserves?: ReservesView): ChainRow {
   if (view.raids.length > 0) {
+    const state = reserves?.state;
+    const row: ChainRow =
+      state?.kind === "inGame"
+        ? { tone: "ok", word: IN_GAME_WORD, detail: "Next 12 hours" }
+        : state?.kind === "reload"
+          ? {
+              tone: "warn",
+              word: RELOAD_WORD,
+              detail: `${nameList(state.changed)} changed`,
+              broken: true,
+              message: { text: `Reserves for ${nameList(state.changed)} changed. Type /reload in game to load them.` },
+            }
+          : waiting("Next 12 hours");
     return {
-      ...waiting("Next 12 hours"),
+      ...row,
       under: view.raids.map((raid) => {
         const when = raidStart(raid.startsAt);
         const time = el("time", "caption tabular", [when.local.replace(/ (?=\S+$)/, "\u00a0")]);
@@ -54,17 +71,34 @@ export function reservesRow(view: RaidsView): ChainRow {
 
 const NO_RAIDS_WORD = "No raids soon";
 
-/** The connected headline: the design says "No raids coming up" while no raid is near. */
-const connectedStatus = (chain: AppState["chain"]): AppState["status"] => ({
-  tone: "ok",
-  word: "Connected",
-  title: chain.reserves.word === NO_RAIDS_WORD ? "No raids coming up" : "Connected to the guild site",
-});
+/**
+ * The connected headline, from the Reserves row: "Type /reload in game" while a reload is
+ * pending, "Ready for tonight" once reserves are in the game, and the design's "No raids
+ * coming up" while no raid is near.
+ */
+const connectedStatus = (chain: AppState["chain"]): AppState["status"] => {
+  switch (chain.reserves.word) {
+    case RELOAD_WORD:
+      return { tone: "warn", word: "Needs you", title: "Type /reload in game" };
+    case IN_GAME_WORD:
+      return { tone: "ok", word: "Ready", title: "Ready for tonight" };
+    case NO_RAIDS_WORD:
+      return { tone: "ok", word: "Connected", title: "No raids coming up" };
+    default:
+      return { tone: "ok", word: "Connected", title: "Connected to the guild site" };
+  }
+};
 
-/** Shows `view` in the Reserves row, and in the headline when a connected helper has no raids to prepare. */
-export function applyRaids(state: AppState, view: RaidsView): AppState {
-  const chain = { ...state.chain, reserves: reservesRow(view) };
-  return { ...state, chain, status: state.status.word === "Connected" ? connectedStatus(chain) : state.status };
+/** The pill words of the connected headline, which follow the Reserves row. */
+const HEADLINE_WORDS: ReadonlySet<string> = new Set(["Connected", "Ready", "Needs you"]);
+
+/**
+ * Shows `view` and what was written for it in the Reserves row, and in the headline when the
+ * helper is connected.
+ */
+export function applyRaids(state: AppState, view: RaidsView, reserves?: ReservesView): AppState {
+  const chain = { ...state.chain, reserves: reservesRow(view, reserves) };
+  return { ...state, chain, status: HEADLINE_WORDS.has(state.status.word) ? connectedStatus(chain) : state.status };
 }
 
 const connected = (officer: string): ChainRow => ({
@@ -286,17 +320,61 @@ export async function startWindow(
   };
   store.subscribe(tellTray);
   tellTray();
-  // The raids list: the first answer, then every change. An event that lands first is newer.
+  // The raids list and what was written for it: the first answer, then every change. An
+  // event that lands first is newer.
+  let raidsView: RaidsView = { state: { kind: "loading" }, raids: [] };
+  let reservesView: ReservesView | undefined;
+  let announced = 0;
+  let shownProblem: string | null = null;
+  const redraw = () => store.set((s) => applyRaids(s, raidsView, reservesView));
+  /** Each counted write adds one Activity line and, when a reload is needed, one notice. */
+  function announce(view: ReservesView): void {
+    if (view.problem && view.problem !== shownProblem) {
+      const event = { at: Date.now(), tone: "warn" as const, kind: "Reserves not saved", text: view.problem };
+      store.set((s) => ({ ...s, activity: addEvent(s.activity, event, event.at) }));
+    }
+    shownProblem = view.problem;
+    if (view.changes <= announced) return;
+    announced = view.changes;
+    const event = reservesEvent(view, Date.now());
+    if (event) store.set((s) => ({ ...s, activity: addEvent(s.activity, event, event.at) }));
+    if (view.state.kind === "reload") {
+      // A notice that can't be raised leaves the amber row, status and Activity line to say it.
+      bridge
+        .notify({ headline: "Type /reload in game", detail: `Reserves for ${nameList(view.state.changed)} are ready.` })
+        .catch(() => {});
+    }
+  }
+  const hear = (view: ReservesView) => {
+    reservesView = view;
+    redraw();
+    announce(view);
+  };
   let sawEvent = false;
   try {
     await bridge.onRaids((view) => {
       sawEvent = true;
-      store.set((s) => applyRaids(s, view));
+      raidsView = view;
+      redraw();
     });
     const first = await bridge.raids();
-    if (!sawEvent) store.set((s) => applyRaids(s, first));
+    if (!sawEvent) {
+      raidsView = first;
+      redraw();
+    }
   } catch {
     // The raids list is unavailable; the Reserves row keeps its last look.
+  }
+  let sawReserves = false;
+  try {
+    await bridge.onReserves((view) => {
+      sawReserves = true;
+      hear(view);
+    });
+    const first = await bridge.reserves();
+    if (!sawReserves) hear(first);
+  } catch {
+    // Reserves are unavailable; the Reserves row keeps its last look.
   }
   try {
     const outcome = await bridge.checkStored();

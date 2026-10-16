@@ -4,10 +4,12 @@ import {
   createActivityLog,
   guildTime,
   raidStart,
+  reservesEvent,
   showSeeAll,
   visibleActivity,
   type ActivityEvent,
 } from "./activity";
+import type { ReservesView } from "../bridge";
 import { GUILD_TIMEZONE } from "../guild";
 
 const NOW = new Date(2026, 9, 14, 20, 0).getTime();
@@ -76,5 +78,20 @@ describe("raidStart", () => {
     expect(start.local).toMatch(/^\w{3} \d{1,2}:\d{2} [AP]M \S+$/);
     expect(start.guild).toBe("7:00 PM guild time");
     expect(start.label).toBe(`${start.local}, 7:00 PM guild time`);
+  });
+});
+
+describe("reservesEvent", () => {
+  const view = (state: ReservesView["state"], first = false): ReservesView => ({ state, changes: 1, first, problem: null });
+
+  it("words a first write and a change as the design does", () => {
+    expect(reservesEvent(view({ kind: "inGame", raids: ["Molten Core", "Blackwing Lair"] }, ), 1)).toBeUndefined();
+    expect(reservesEvent(view({ kind: "inGame", raids: ["Molten Core", "Blackwing Lair"] }, true), 1)).toEqual({
+      at: 1, tone: "ok", kind: "Reserves written", text: "for Molten Core and Blackwing Lair. Type /reload in game.",
+    });
+    expect(reservesEvent(view({ kind: "reload", raids: ["Molten Core"], changed: ["Molten Core"] }), 1)).toEqual({
+      at: 1, tone: "warn", kind: "Reserves changed", text: "for Molten Core. Type /reload in game.",
+    });
+    expect(reservesEvent(view({ kind: "waiting" }), 1)).toBeUndefined();
   });
 });
