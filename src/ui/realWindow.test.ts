@@ -2,10 +2,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, KeyOutcome } from "../bridge";
+import type { Bridge, KeyOutcome, Raid, RaidsView } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
-import { initialState, startWindow } from "./realWindow";
+import { applyRaids, initialState, reservesRow, startWindow } from "./realWindow";
 
 const accepted: KeyOutcome = {
   kind: "accepted",
@@ -314,5 +314,75 @@ describe("the tray", () => {
     const before = told.mock.calls.length;
     store.set((s) => ({ ...s, activity: [] }));
     expect(told).toHaveBeenCalledTimes(before + 1);
+  });
+});
+
+describe("the Reserves row", () => {
+  // Tue 20 Oct 2026, 9:00 PM in Chicago (CDT) and in Los Angeles (PDT) it is 7:00 PM.
+  const raid = (name: string, startsAt: number): Raid => ({
+    id: name, code: "mc", name, startsAt, durationMin: 180, instance: null, hasLootTable: true,
+  });
+  const TUE_9PM_CDT = Date.UTC(2026, 9, 21, 2, 0) / 1000;
+  const view = (kind: RaidsView["state"]["kind"], raids: Raid[] = []): RaidsView =>
+    ({ state: { kind }, raids }) as RaidsView;
+  const rowOf = (v: RaidsView) => {
+    const root = document.createElement("div");
+    const store = createStore(applyRaids(initialState, v));
+    mountApp(root, { getState: store.get });
+    return root.querySelectorAll(".chain li")[3] as HTMLElement;
+  };
+
+  it("shows the waiting pill, 'Next 12 hours' and each raid's time, never 'In the game'", () => {
+    const row = rowOf(view("fresh", [raid("Molten Core", TUE_9PM_CDT), raid("Blackwing Lair", TUE_9PM_CDT + 9000)]));
+    expect(row.querySelector(".pill")?.textContent).toBe("Not yet");
+    expect(row.querySelector(".pill")?.className).toBe("pill closed");
+    expect(row.querySelector(".detail")?.textContent).toBe("Next 12 hours");
+    expect(row.querySelectorAll(".under .row")).toHaveLength(2);
+    expect(row.querySelector(".under .row span")?.textContent).toBe("Molten Core");
+    expect(row.textContent).not.toContain("In the game");
+    expect(row.textContent).not.toContain("/reload");
+  });
+
+  it("shows the start in the officer's zone, with the guild time on hover and in the name", () => {
+    const time = rowOf(view("fresh", [raid("Molten Core", TUE_9PM_CDT)])).querySelector("time")!;
+    expect(time.textContent).toMatch(/^\w{3} \d{1,2}:\d{2}\s[AP]M\u00a0\S+$/);
+    expect(time.title).toBe("7:00 PM guild time");
+    expect(time.getAttribute("aria-label")).toBe(`${time.textContent!.replace("\u00a0", " ")}, 7:00 PM guild time`);
+    expect(time.tabIndex).toBe(0);
+  });
+
+  it("says 'No raids soon' for an empty list, and the headline follows", () => {
+    const state = applyRaids({ ...initialState, status: { tone: "ok", word: "Connected", title: "Connected to the guild site" } }, view("empty"));
+    expect(state.chain.reserves).toMatchObject({ tone: "closed", word: "No raids soon", detail: "None in the next 12 hours" });
+    expect(state.status.title).toBe("No raids coming up");
+    const back = applyRaids(state, view("fresh", [raid("Molten Core", TUE_9PM_CDT)]));
+    expect(back.status.title).toBe("Connected to the guild site");
+  });
+
+  it.each(["unreachable", "keyRefused", "siteOff", "stagingNotOpen"] as const)("keeps the last list when %s", (kind) => {
+    const row = reservesRow(view(kind, [raid("Molten Core", TUE_9PM_CDT)]));
+    expect(row.detail).toBe("Next 12 hours");
+    expect(row.under).toHaveLength(1);
+  });
+
+  it.each(["loading", "noKey", "unreachable", "keyRefused"] as const)("stays waiting with no list when %s", (kind) => {
+    expect(reservesRow(view(kind))).toEqual(initialState.chain.reserves);
+  });
+
+  it("is fed from the bridge at start and on every later event", async () => {
+    let push: (v: RaidsView) => void = () => {};
+    const bridge = {
+      ...fakeBridge(noKey),
+      raids: () => Promise.resolve(view("fresh", [raid("Molten Core", TUE_9PM_CDT)])),
+      onRaids: (l: (v: RaidsView) => void) => {
+        push = l;
+        return Promise.resolve(() => {});
+      },
+    } as Bridge;
+    const root = document.createElement("div");
+    const store = await startWindow(root, bridge);
+    expect(store.get().chain.reserves.detail).toBe("Next 12 hours");
+    push(view("empty"));
+    expect(store.get().chain.reserves.word).toBe("No raids soon");
   });
 });

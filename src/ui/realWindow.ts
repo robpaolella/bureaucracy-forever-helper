@@ -1,10 +1,12 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, FolderOutcome, KeyOutcome } from "../bridge";
+import type { Bridge, FolderOutcome, KeyOutcome, RaidsView } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
+import { raidStart } from "./activity";
 import type { ChainRow } from "./chain";
+import { el } from "./components";
 import { trayStatusOf } from "./tray";
 import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
 
@@ -23,6 +25,47 @@ export const initialState: AppState = {
   activity: [],
   sentTonight: 0,
 };
+
+/**
+ * The Reserves row for the raids list. The pill stays "Not yet" until #29 writes reserves into
+ * the game. Raids show in every state that still has a list (a refused key or a site switched
+ * off keeps the last one); without one the row is as before the list was known.
+ */
+export function reservesRow(view: RaidsView): ChainRow {
+  if (view.raids.length > 0) {
+    return {
+      ...waiting("Next 12 hours"),
+      under: view.raids.map((raid) => {
+        const when = raidStart(raid.startsAt);
+        const time = el("time", "caption tabular", [when.local.replace(/ (?=\S+$)/, "\u00a0")]);
+        time.dateTime = new Date(raid.startsAt * 1000).toISOString();
+        time.tabIndex = 0;
+        time.title = when.guild;
+        time.setAttribute("aria-label", when.label);
+        return el("div", "row", [el("span", "caption", [raid.name]), el("span", "spacer"), time]);
+      }),
+    };
+  }
+  if (view.state.kind === "empty" || view.state.kind === "fresh") {
+    return { tone: "closed", word: NO_RAIDS_WORD, detail: "None in the next 12 hours" };
+  }
+  return initialState.chain.reserves;
+}
+
+const NO_RAIDS_WORD = "No raids soon";
+
+/** The connected headline: the design says "No raids coming up" while no raid is near. */
+const connectedStatus = (chain: AppState["chain"]): AppState["status"] => ({
+  tone: "ok",
+  word: "Connected",
+  title: chain.reserves.word === NO_RAIDS_WORD ? "No raids coming up" : "Connected to the guild site",
+});
+
+/** Shows `view` in the Reserves row, and in the headline when a connected helper has no raids to prepare. */
+export function applyRaids(state: AppState, view: RaidsView): AppState {
+  const chain = { ...state.chain, reserves: reservesRow(view) };
+  return { ...state, chain, status: state.status.word === "Connected" ? connectedStatus(chain) : state.status };
+}
 
 const connected = (officer: string): ChainRow => ({
   tone: "ok",
@@ -57,7 +100,7 @@ export function applyKeyOutcome(state: AppState, outcome: KeyOutcome, pasted = "
   if (outcome.kind === "accepted") {
     return {
       ...state,
-      status: { tone: "ok", word: "Connected", title: "Connected to the guild site" },
+      status: connectedStatus(state.chain),
       chain: { ...state.chain, site: connected(outcome.officer) },
       setup: { key: emptyKey },
     };
@@ -243,6 +286,18 @@ export async function startWindow(
   };
   store.subscribe(tellTray);
   tellTray();
+  // The raids list: the first answer, then every change. An event that lands first is newer.
+  let sawEvent = false;
+  try {
+    await bridge.onRaids((view) => {
+      sawEvent = true;
+      store.set((s) => applyRaids(s, view));
+    });
+    const first = await bridge.raids();
+    if (!sawEvent) store.set((s) => applyRaids(s, first));
+  } catch {
+    // The raids list is unavailable; the Reserves row keeps its last look.
+  }
   try {
     const outcome = await bridge.checkStored();
     store.set((s) => applyKeyOutcome(s, outcome, "", outcome.kind !== "noKey"));
