@@ -171,11 +171,16 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
       el("main", "win-body", [
         el("div", "row status", [el("h1", "title-sm", [s.status.title]), pill(s.status.tone, s.status.word)]),
         chainList(s.chain),
-        ...(s.update && options.updateActions ? [updateCard(s.update, s.helperVersion, options.updateActions)] : []),
+        ...helperUpdateCard(s),
         el("section", "stack tight", [head, activityList(recent)]),
       ]),
     );
     return pieces;
+  }
+
+  /** The helper's update card, under the chain; setup shows it too, so an update can't wait on a key. */
+  function helperUpdateCard(s: AppState): Node[] {
+    return s.update && options.updateActions ? [updateCard(s.update, s.helperVersion, options.updateActions)] : [];
   }
 
   function connect(): void {
@@ -235,6 +240,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
         el("h1", "title-sm", ["Connect the helper"]),
         el("p", "small lede", ["Two steps, once. After that the helper runs by itself."]),
         chainList(setupChain(s, key)),
+        ...helperUpdateCard(s),
       ]),
     ];
   }

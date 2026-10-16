@@ -232,3 +232,31 @@ describe("Check for updates", () => {
     expect(versions(root)?.textContent).toContain("You have the latest version.");
   });
 });
+
+describe("checks that overlap", () => {
+  it("share one answer, so a later one can’t undo what an earlier one found", async () => {
+    const answers: ((o: CheckOutcome) => void)[] = [];
+    const { bridge } = fakeEngine({ check: () => new Promise((r) => answers.push(r)) });
+    const root = await open(bridge);
+    root.querySelector<HTMLButtonElement>("[aria-label=Settings]")!.click();
+    press(root, "Check for updates");
+    expect(bridge.checkForUpdate).toHaveBeenCalledTimes(1);
+    answers[0]?.(found);
+    await flush();
+    root.querySelector<HTMLElement>(".back")!.click();
+    expect(card(root)?.textContent).toContain("Helper 0.3.0 is ready to install");
+    expect(bridge.notify).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("during first-run setup", () => {
+  it("shows the update card under the setup chain", async () => {
+    const { bridge } = fakeEngine();
+    bridge.checkStored = () => Promise.resolve({ kind: "noKey" });
+    const root = await open(bridge);
+    expect(root.querySelector("h1")?.textContent).toBe("Connect the helper");
+    expect(card(root)?.textContent).toContain("Helper 0.3.0 is ready to install");
+    press(root, "Install and restart");
+    expect(bridge.installUpdate).toHaveBeenCalledTimes(1);
+  });
+});

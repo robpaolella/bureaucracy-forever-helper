@@ -201,15 +201,19 @@ export function helperUpdates(store: Store<AppState>, bridge: Bridge): HelperUpd
     }));
   }
 
+  /** The check under way. One runs at a time, as the engine keeps the last one's answer for
+   * the install; a check asked for meanwhile shares its answer. */
+  let running: Promise<CheckOutcome> | undefined;
+  const ask = () =>
+    bridge
+      .checkForUpdate()
+      .catch((): CheckOutcome => ({ kind: "failed", reason: "checkFailed", message: "" }))
+      .finally(() => (running = undefined));
+
   async function check(asked: boolean): Promise<void> {
-    if (installing() || store.get().updateCheck?.checking) return;
+    if (installing()) return;
     if (asked) set(() => ({ updateCheck: { checking: true } }));
-    let outcome: CheckOutcome;
-    try {
-      outcome = await bridge.checkForUpdate();
-    } catch {
-      outcome = { kind: "failed", reason: "checkFailed", message: "" };
-    }
+    const outcome = await (running ??= ask());
     if (asked) set(() => ({ updateCheck: { checking: false, note: checkNote(outcome) } }));
     if (installing()) return;
     if (outcome.kind === "upToDate") {
@@ -244,7 +248,8 @@ export function helperUpdates(store: Store<AppState>, bridge: Bridge): HelperUpd
     if (outcome.kind === "busy") return;
     if (outcome.kind === "nothingFound") return fail(version, "missing");
     if (outcome.kind === "failed") return fail(version, outcome.reason);
-    // A restart that happens never answers; one that answers didn't happen.
+    // A restart that happens never answers; one that answers didn't happen. Only Windows can
+    // answer `failed` (its installer didn't start), and there nothing was installed yet.
     let restart: RestartOutcome;
     try {
       restart = await bridge.restartAfterUpdate();
