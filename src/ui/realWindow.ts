@@ -5,6 +5,7 @@ import type { Bridge, FolderOutcome, KeyOutcome } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
 import type { ChainRow } from "./chain";
+import { trayStatusOf } from "./tray";
 import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
 
 const waiting = (detail: string): ChainRow => ({ tone: "closed", word: "Not yet", detail });
@@ -228,6 +229,20 @@ export async function startWindow(
     folderActions: actions,
   });
   store.subscribe(app.refresh);
+  // The tray shows the same status as the window; it is told only when that changes.
+  let told = "";
+  const tellTray = () => {
+    const status = trayStatusOf(store.get());
+    const next = JSON.stringify(status);
+    if (next === told) return;
+    told = next;
+    // A tray that can't be told keeps its last look and is told again at the next change.
+    bridge.setTrayStatus(status).catch(() => {
+      if (told === next) told = "";
+    });
+  };
+  store.subscribe(tellTray);
+  tellTray();
   try {
     const outcome = await bridge.checkStored();
     store.set((s) => applyKeyOutcome(s, outcome, "", outcome.kind !== "noKey"));

@@ -1,7 +1,7 @@
 // The only place the front-end calls Tauri. Everything else takes a `Bridge`, so tests
 // can hand it a fake. The result shapes mirror `KeyOutcome` and `ChangeOutcome` in
 // src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs,
-// and the update outcomes in src-tauri/src/updater.rs.
+// the update outcomes in src-tauri/src/updater.rs, and `TrayStatus` and `Notice` in tray.rs and notify.rs.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -158,6 +158,23 @@ export interface UpdateProgress {
 /** The event that carries download progress (`PROGRESS_EVENT` in updater.rs). */
 const UPDATE_PROGRESS_EVENT = "update-progress";
 
+/** What the window tells the tray (`TrayStatus` in src-tauri/src/tray.rs). */
+export interface TrayStatus {
+  /** The status pill's tone; `closed` ("Not set up") shows as amber. */
+  tone: "ok" | "warn" | "stop" | "closed";
+  word: string;
+  sentTonight: number;
+  staging: boolean;
+  /** The finished second menu line; null leaves it out. */
+  secondLine: string | null;
+}
+
+/** A system notification: a bold headline and one line of detail (`Notice` in notify.rs). */
+export interface Notice {
+  headline: string;
+  detail: string;
+}
+
 /** Each call rejects only if the Rust side itself failed; every engine result is data. */
 export interface Bridge {
   connect(key: string): Promise<KeyOutcome>;
@@ -190,6 +207,10 @@ export interface Bridge {
   restartAfterUpdate(): Promise<RestartOutcome>;
   /** Calls `listener` with download progress; resolves to a function that stops it. */
   onUpdateProgress(listener: (progress: UpdateProgress) => void): Promise<() => void>;
+  /** Shows the tray its new status: icon dot, menu and hover text. */
+  setTrayStatus(status: TrayStatus): Promise<void>;
+  /** Raises a system notification. Only when the officer must act, never for routine news. */
+  notify(notice: Notice): Promise<void>;
 }
 
 export const tauriBridge: Bridge = {
@@ -215,4 +236,6 @@ export const tauriBridge: Bridge = {
   restartAfterUpdate: () => invoke("restart_after_update"),
   onUpdateProgress: (listener) =>
     listen<UpdateProgress>(UPDATE_PROGRESS_EVENT, (event) => listener(event.payload)),
+  setTrayStatus: (status) => invoke("set_tray_status", { status }),
+  notify: (notice) => invoke("raise_notification", { notice }),
 };

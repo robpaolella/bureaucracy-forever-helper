@@ -14,6 +14,8 @@ export interface AppState {
   /** Today's events, newest first (see visibleActivity). */
   activity: ActivityEvent[];
   sentTonight: number;
+  /** The tray's second line, finished ("Awards going to Molten Core"); #60 supplies it. */
+  awardsLine?: string;
   staging?: boolean;
   /** Set while the first-run setup is showing in place of the main screen. */
   setup?: { key: KeyStep };

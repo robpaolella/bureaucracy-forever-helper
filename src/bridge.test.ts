@@ -36,6 +36,14 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("check_picked_game_folder", { folder: "/games" });
     await tauriBridge.rememberVersion("/games/_retail_");
     expect(invoke).toHaveBeenLastCalledWith("remember_game_version", { folder: "/games/_retail_" });
+    await tauriBridge.setTrayStatus({ tone: "ok", word: "Sending", sentTonight: 2, staging: false, secondLine: null });
+    expect(invoke).toHaveBeenLastCalledWith("set_tray_status", {
+      status: { tone: "ok", word: "Sending", sentTonight: 2, staging: false, secondLine: null },
+    });
+    await tauriBridge.notify({ headline: "Type /reload in game", detail: "Reserves are ready." });
+    expect(invoke).toHaveBeenLastCalledWith("raise_notification", {
+      notice: { headline: "Type /reload in game", detail: "Reserves are ready." },
+    });
     await tauriBridge.rememberedFolder();
     expect(invoke).toHaveBeenLastCalledWith("get_remembered_game_folder");
     await tauriBridge.checkForUpdate();

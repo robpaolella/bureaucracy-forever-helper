@@ -47,6 +47,8 @@ function fake(folder: Folder = {}): Bridge {
     installUpdate: unused,
     restartAfterUpdate: unused,
     onUpdateProgress: unused,
+    setTrayStatus: () => Promise.resolve(),
+    notify: unused,
     searchFolder: vi.fn(() => Promise.resolve(nothing)),
     checkPickedFolder: unused,
     rememberVersion: vi.fn((f: string) => Promise.resolve({ kind: "found", ...install(f.split("\\").pop()!) } as FolderOutcome)),

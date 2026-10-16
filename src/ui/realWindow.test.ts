@@ -38,6 +38,8 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     installUpdate: unused,
     restartAfterUpdate: unused,
     onUpdateProgress: unused,
+    setTrayStatus: () => Promise.resolve(),
+    notify: unused,
   };
 }
 
@@ -285,5 +287,32 @@ describe("the bridge", () => {
       .filter((f) => !f.endsWith(".test.ts") && readFileSync(f, "utf8").includes("@tauri-apps"))
       .map((f) => f.slice(src.length + 1));
     expect(callers).toEqual(["bridge.ts"]);
+  });
+});
+
+describe("the tray", () => {
+  it("is told the status at start and again only when it changes", async () => {
+    const bridge = fakeBridge(noKey);
+    const told = vi.fn(() => Promise.resolve());
+    bridge.setTrayStatus = told;
+    const store = await startWindow(document.createElement("div"), bridge);
+    expect(told).toHaveBeenCalledTimes(1);
+    expect(told).toHaveBeenLastCalledWith(expect.objectContaining({ tone: "closed", word: "Not set up" }));
+    store.set((s) => ({ ...s, activity: [] }));
+    expect(told).toHaveBeenCalledTimes(1);
+    store.set((s) => ({ ...s, sentTonight: 3, awardsLine: "Not a guild run" }));
+    expect(told).toHaveBeenCalledTimes(2);
+    expect(told).toHaveBeenLastCalledWith(expect.objectContaining({ sentTonight: 3, secondLine: "Not a guild run" }));
+  });
+
+  it("leaves the window working when the tray can't be told, and tells it again at the next change", async () => {
+    const bridge = fakeBridge(noKey);
+    const told = vi.fn(() => Promise.reject(new Error("no tray")));
+    bridge.setTrayStatus = told;
+    const store = await startWindow(document.createElement("div"), bridge);
+    await flush();
+    const before = told.mock.calls.length;
+    store.set((s) => ({ ...s, activity: [] }));
+    expect(told).toHaveBeenCalledTimes(before + 1);
   });
 });
