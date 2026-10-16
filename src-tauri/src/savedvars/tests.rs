@@ -433,8 +433,9 @@ fn a_file_still_being_written_is_not_read_until_it_stops_changing() {
             last = Instant::now();
             std::thread::sleep(Duration::from_millis(20));
         }
-        longest_pause = longest_pause.max(last.elapsed());
+        // Measured after looking, so a stall before the look counts as a pause too.
         let early = r.events.try_recv();
+        longest_pause = longest_pause.max(last.elapsed());
         if longest_pause >= FAST.settle {
             r.finish();
             continue;
