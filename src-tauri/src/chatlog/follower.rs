@@ -310,7 +310,8 @@ impl Follower {
     }
 
     /// An operation no longer in the queue was acknowledged by the site; one it refused is
-    /// shown by the upload's status instead.
+    /// shown by the upload's status instead, and so is one whose outcome the queue has
+    /// forgotten.
     fn acknowledge(&mut self, queue: &Mutex<Queue>, events: &mut Vec<ChatEvent>) {
         let queue = queue.lock().unwrap_or_else(|e| e.into_inner());
         let Ok(ops) = queue.operations() else {
@@ -320,9 +321,11 @@ impl Follower {
         for handed in waiting.filter(|h| !h.acknowledged) {
             if !ops.contains(&handed.op) {
                 handed.acknowledged = true;
-                if !matches!(
+                // An outcome no longer remembered may have been a refusal, so it isn't
+                // reported as sent.
+                if matches!(
                     queue.acknowledgement(&handed.op),
-                    Some(Ack::Rejected { .. })
+                    Some(Ack::Recorded | Ack::Replayed | Ack::Voided)
                 ) {
                     events.push(ChatEvent::Sent(handed.sent.clone()));
                 }

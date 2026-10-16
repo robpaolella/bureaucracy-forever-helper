@@ -181,6 +181,12 @@ impl Queue {
         Ok(removed)
     }
 
+    /// Remembers only the latest `n` acknowledgements, so tests can make one be forgotten.
+    #[cfg(test)]
+    pub(crate) fn keep_only(&mut self, n: usize) {
+        self.keep = n;
+    }
+
     /// How the site acknowledged `op`, if it was removed lately.
     pub fn acknowledgement(&self, op: &Value) -> Option<&Ack> {
         self.recent

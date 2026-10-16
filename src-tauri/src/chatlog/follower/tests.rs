@@ -510,6 +510,34 @@ fn a_refused_line_moves_the_position_but_is_not_reported_as_sent() {
 }
 
 #[test]
+fn a_line_whose_outcome_is_forgotten_moves_the_position_but_is_not_reported_as_sent() {
+    let mut rig = Rig::new();
+    rig.pass();
+    rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
+    rig.pass();
+    {
+        let mut queue = rig.queue.lock().unwrap();
+        let op = queue.operations().unwrap()[0].clone();
+        let refused = Ack::Rejected {
+            code: "unknown-sender".into(),
+        };
+        queue.remove_acknowledged(&op, &refused).unwrap();
+        // Enough other acknowledgements that the refusal is forgotten.
+        queue.keep_only(2);
+        for n in 0..2 {
+            let other = json!({ "type": "confirm", "id": format!("cf-{n:08}"),
+                "formatVersion": 1, "raid": "cm9xr2k4a0001", "env": "staging",
+                "key": "aw-9d2f6h1j", "at": 1 });
+            queue.add(other.clone()).unwrap();
+            queue.remove_acknowledged(&other, &Ack::Recorded).unwrap();
+        }
+        assert_eq!(queue.acknowledgement(&op), None);
+    }
+    assert!(sent_items(&rig.pass()).is_empty());
+    assert_eq!(rig.saved_offset(), rig.log_len());
+}
+
+#[test]
 fn malformed_and_newer_lines_are_ignored_and_the_next_line_still_goes() {
     let mut rig = Rig::new();
     rig.pass();
