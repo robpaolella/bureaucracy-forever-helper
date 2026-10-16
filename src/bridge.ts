@@ -2,7 +2,8 @@
 // can hand it a fake. The result shapes mirror `KeyOutcome` and `ChangeOutcome` in
 // src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs, `ReservesView` in src-tauri/src/reserves.rs,
 // the update outcomes in src-tauri/src/updater.rs, the add-on update outcomes in
-// src-tauri/src/addon_update.rs, and `TrayStatus` and `Notice` in tray.rs and notify.rs.
+// src-tauri/src/addon_update.rs, `TrayStatus` and `Notice` in tray.rs and notify.rs, and
+// `ChatEvent` in src-tauri/src/chatlog/follower.rs.
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -220,6 +221,30 @@ export type AddonProgress =
 /** The event that carries add-on install progress (`PROGRESS_EVENT` in addon_update.rs). */
 const ADDON_PROGRESS_EVENT = "addon-progress";
 
+/** A chat log line whose operation the site acknowledged (`SentLine` in chatlog/follower.rs). */
+export interface SentLine {
+  line: "award" | "replacement" | "undo";
+  /** The game item id and name from the line's item link. */
+  item: number | null;
+  itemName: string | null;
+  /** The winner; null for an undo or a disenchant. */
+  character: string | null;
+  /** The boss's name; null for an undo. */
+  boss: string | null;
+  raid: string;
+  raidName: string;
+  /** When the line was posted, Unix seconds. */
+  at: number;
+}
+
+/** What the chat log follower reports: a sent line, or an add-on line it couldn't use. */
+export type ChatEvent =
+  | ({ kind: "sent" } & SentLine)
+  | { kind: "ignored"; reason: "malformed" | "newerVersion" };
+
+/** The event that carries each chat log event (`CHAT_LOG_EVENT` in chatlog/follower.rs). */
+const CHAT_LOG_EVENT = "chat-log";
+
 /** What the window tells the tray (`TrayStatus` in src-tauri/src/tray.rs). */
 export interface TrayStatus {
   /** The status pill's tone; `closed` ("Not set up") shows as amber. */
@@ -264,6 +289,8 @@ export interface Bridge {
   onRaids(listener: (view: RaidsView) => void): Promise<() => void>;
   /** Calls `listener` with every later reserves view; resolves to a function that stops it. */
   onReserves(listener: (view: ReservesView) => void): Promise<() => void>;
+  /** Calls `listener` with each line the chat log follower sent or ignored; resolves to a function that stops it. */
+  onChatLog(listener: (event: ChatEvent) => void): Promise<() => void>;
   /** Asks GitHub for a newer helper. Downloads and installs nothing. */
   checkForUpdate(): Promise<CheckOutcome>;
   /** Downloads and installs the update the last check found. Call only once the officer
@@ -313,6 +340,7 @@ export const tauriBridge: Bridge = {
   onSyncStatus: (listener) => listen<SyncStatus>(SYNC_STATUS_EVENT, (event) => listener(event.payload)),
   onRaids: (listener) => listen<RaidsView>(RAIDS_EVENT, (event) => listener(event.payload)),
   onReserves: (listener) => listen<ReservesView>(RESERVES_EVENT, (event) => listener(event.payload)),
+  onChatLog: (listener) => listen<ChatEvent>(CHAT_LOG_EVENT, (event) => listener(event.payload)),
   checkForUpdate: () => invoke("check_for_update"),
   installUpdate: () => invoke("install_update"),
   restartAfterUpdate: () => invoke("restart_after_update"),

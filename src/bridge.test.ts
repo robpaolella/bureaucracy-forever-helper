@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AddonProgress, RaidsView, ReservesView, SyncStatus, UpdateProgress } from "./bridge";
+import type { AddonProgress, ChatEvent, RaidsView, ReservesView, SyncStatus, UpdateProgress } from "./bridge";
 
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -119,6 +119,27 @@ describe("tauriBridge", () => {
     const view = { state: { kind: "waiting" }, changes: 0, first: false, problem: null };
     emit({ payload: view });
     expect(heard).toEqual([view]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("passes on each chat log event until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard: ChatEvent[] = [];
+    const unlisten = await tauriBridge.onChatLog((event) => heard.push(event));
+    expect(listen).toHaveBeenCalledWith("chat-log", expect.any(Function));
+    const sent = {
+      kind: "sent", line: "award", item: 16805, itemName: "Felheart Gloves", character: "Zoé Brûlé",
+      boss: "Lucifron", raid: "cm9xr2k4a0001", raidName: "Molten Core", at: 1791885711,
+    };
+    emit({ payload: sent });
+    emit({ payload: { kind: "ignored", reason: "newerVersion" } });
+    expect(heard).toEqual([sent, { kind: "ignored", reason: "newerVersion" }]);
     unlisten();
     expect(stop).toHaveBeenCalled();
   });

@@ -23,6 +23,7 @@ function fakeEngine(engine: { check?: () => Promise<CheckOutcome>; install?: () 
     onRaids: unused,
     reserves: unused,
     onReserves: unused,
+    onChatLog: unused,
     searchFolder: unused,
     checkPickedFolder: unused,
     rememberVersion: unused,
