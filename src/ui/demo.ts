@@ -3,6 +3,7 @@
 // carries none of it. `?demo` shows the shared pieces; `?demo=<state>` shows a window screen.
 import { mountApp } from "./app";
 import { gameFolderSection } from "./folder";
+import { versionsSection } from "./update";
 import { demoStates } from "./demoStates";
 import { button, card, choice, field, link, pill, switchControl, tag } from "./components";
 
@@ -36,7 +37,13 @@ const inert = { use() {}, continueWith() {}, choose() {}, select() {} };
 export function renderDemo(root: HTMLElement, name = ""): void {
   const state = demoStates[name];
   if (state) {
-    mountApp(root, { getState: () => state.app, view: state.view, settingsSections: () => [gameFolderSection(state.app.gamePath, undefined, inert)], folderActions: inert });
+    mountApp(root, {
+      getState: () => state.app,
+      view: state.view,
+      settingsSections: () => [gameFolderSection(state.app.gamePath, undefined, inert), versionsSection(state.app.helperVersion, undefined, false, () => {})],
+      folderActions: inert,
+      updateActions: { install() {}, later() {}, notes() {} },
+    });
     return;
   }
   root.className = "win-body";
