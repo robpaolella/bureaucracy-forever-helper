@@ -1,6 +1,7 @@
 //! The tray (menu bar) icon, its menu and its hover text. The window owns the status and
 //! passes it here through `set_tray_status` whenever it changes; this module only shows it.
-//! Words and order follow the approved design (`tray` state).
+//! Words and order follow the approved design (`tray` state). "Check for updates" opens the
+//! window and asks it to check, so the answer shows where the Settings button shows it.
 //!
 //! The Mac menu bar can be light or dark, so the icon comes in a version for each, chosen by
 //! the system theme; the status dot's colour follows the status tone.
@@ -11,13 +12,16 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Manager, Theme,
+    AppHandle, Emitter, Manager, Runtime, Theme,
 };
 
 pub const TRAY_ID: &str = "main";
 pub const SHOW_ID: &str = "show";
+pub const CHECK_ID: &str = "check-updates";
 pub const QUIT_ID: &str = "quit";
 const APP_NAME: &str = "Bureaucracy Forever Helper";
+/// The event that asks the window to check for a helper update (`onTrayCheck` in src/bridge.ts).
+pub const CHECK_EVENT: &str = "tray-check-for-updates";
 
 /// How the status reads, as the window's pill does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -133,7 +137,7 @@ fn icon(dot: Dot, light_bar: bool) -> Image<'static> {
 #[derive(Default)]
 pub struct Current(Mutex<TrayStatus>);
 
-fn menu(app: &AppHandle, status: &TrayStatus) -> tauri::Result<Menu<tauri::Wry>> {
+fn menu<R: Runtime>(app: &AppHandle<R>, status: &TrayStatus) -> tauri::Result<Menu<R>> {
     let line = |text: String| MenuItem::new(app, text, false, None::<&str>);
     let menu = Menu::new(app)?;
     menu.append(&line(status.status_line())?)?;
@@ -148,7 +152,13 @@ fn menu(app: &AppHandle, status: &TrayStatus) -> tauri::Result<Menu<tauri::Wry>>
         true,
         None::<&str>,
     )?)?;
-    // "Check for updates" is added here, with its action, by #7.
+    menu.append(&MenuItem::with_id(
+        app,
+        CHECK_ID,
+        "Check for updates",
+        true,
+        None::<&str>,
+    )?)?;
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(
         app,
@@ -192,6 +202,10 @@ pub fn build(app: &AppHandle) -> tauri::Result<()> {
                 app.exit(0);
             }
             SHOW_ID => crate::notify::show_window(app),
+            CHECK_ID => {
+                crate::notify::show_window(app);
+                let _ = app.emit(CHECK_EVENT, ());
+            }
             _ => {}
         })
         .build(app)?;
@@ -304,6 +318,34 @@ mod tests {
         .unwrap();
         assert_eq!(s.tone, Tone::Warn);
         assert_eq!(s.status_line(), "Offline · 4 awards sent");
+    }
+
+    #[test]
+    fn the_menu_offers_check_for_updates_between_open_and_quit() {
+        let app = tauri::test::mock_app();
+        let menu = menu(app.handle(), &status("Sending", 14)).unwrap();
+        let items: Vec<(String, String)> = menu
+            .items()
+            .unwrap()
+            .iter()
+            .map(|item| match item.as_menuitem() {
+                Some(i) => (i.id().0.clone(), i.text().unwrap()),
+                None => (String::new(), "---".into()),
+            })
+            .collect();
+        let texts: Vec<&str> = items.iter().map(|(_, t)| t.as_str()).collect();
+        assert_eq!(
+            texts,
+            [
+                "Sending · 14 awards sent",
+                "---",
+                "Open Bureaucracy Forever Helper",
+                "Check for updates",
+                "---",
+                "Quit"
+            ]
+        );
+        assert_eq!(items[3].0, CHECK_ID);
     }
 
     #[test]
