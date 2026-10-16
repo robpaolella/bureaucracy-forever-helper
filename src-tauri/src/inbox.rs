@@ -98,6 +98,8 @@ pub enum InboxError {
     ReadBackMismatch,
     /// Writing or replacing the file failed.
     Io(io::Error),
+    /// The write was no longer wanted when its turn came.
+    Cancelled,
 }
 
 impl fmt::Display for InboxError {
@@ -122,6 +124,9 @@ impl fmt::Display for InboxError {
                 write!(f, "The reserves couldn't be saved: a safety check failed.")
             }
             InboxError::Io(e) => write!(f, "The reserves couldn't be saved to the add-on: {e}."),
+            InboxError::Cancelled => {
+                write!(f, "The reserves weren't saved: they were out of date.")
+            }
         }
     }
 }
@@ -163,8 +168,22 @@ enum Lua {
 /// Writes the inbox for `raids`, in the given order, to `target`, replacing any old file
 /// whole. `written` is the Unix time stored in the file.
 pub fn write_inbox(target: &Path, raids: &[RaidData], written: i64) -> Result<(), InboxError> {
+    write_inbox_while(target, raids, written, || true)
+}
+
+/// `write_inbox`, but only if `wanted` still says so once the add-on folder is free, so a
+/// write that was overtaken while it waited (for a swap) is dropped, not made.
+pub fn write_inbox_while(
+    target: &Path,
+    raids: &[RaidData],
+    written: i64,
+    wanted: impl Fn() -> bool,
+) -> Result<(), InboxError> {
     let (inbox, bytes) = render(raids, written)?;
     let _folder = ADDON_FOLDER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    if !wanted() {
+        return Err(InboxError::Cancelled);
+    }
     replace_file(
         target,
         |file| file.write_all(&bytes),
@@ -189,7 +208,8 @@ pub enum OnDisk {
     Different,
 }
 
-/// Compares the file at `target` with `raids`, ignoring the `written` time.
+/// Compares the file at `target` with `raids`, ignoring what the helper stamps on every
+/// fetch: the file's `written` time and each snapshot's and catch-up's `generated` time.
 pub fn compare_on_disk(target: &Path, raids: &[RaidData]) -> OnDisk {
     let Ok(old) = fs::read(target) else {
         return match target.exists() {
@@ -197,17 +217,59 @@ pub fn compare_on_disk(target: &Path, raids: &[RaidData]) -> OnDisk {
             false => OnDisk::Missing,
         };
     };
-    let written = match parse_inbox(&old) {
-        Ok(Lua::Table(fields)) => fields.into_iter().find_map(|field| match field {
-            (Some(Key::Name("written")), Lua::Int(written)) => Some(written),
-            _ => None,
-        }),
-        _ => None,
+    let same = match (parse_inbox(&old), render(raids, 0)) {
+        (Ok(old), Ok((new, _))) => without_times(old) == without_times(new),
+        _ => false,
     };
-    match written.map(|written| render_inbox(raids, written)) {
-        Some(Ok(new)) if new == old => OnDisk::Same,
-        _ => OnDisk::Different,
+    match same {
+        true => OnDisk::Same,
+        false => OnDisk::Different,
     }
+}
+
+/// The inbox without its `written` time and each raid's `generated` times.
+fn without_times(inbox: Lua) -> Lua {
+    let named = |key: &Option<Key>, name| *key == Some(Key::Name(name));
+    let Lua::Table(fields) = inbox else {
+        return inbox;
+    };
+    let strip_raid = |raid: Lua| match raid {
+        Lua::Table(parts) => Lua::Table(
+            parts
+                .into_iter()
+                .map(|(key, part)| match part {
+                    Lua::Table(rest) if named(&key, "snapshot") || named(&key, "catchup") => (
+                        key,
+                        Lua::Table(
+                            rest.into_iter()
+                                .filter(|(k, _)| !named(k, "generated"))
+                                .collect(),
+                        ),
+                    ),
+                    part => (key, part),
+                })
+                .collect(),
+        ),
+        other => other,
+    };
+    Lua::Table(
+        fields
+            .into_iter()
+            .filter(|(key, _)| !named(key, "written"))
+            .map(|(key, value)| match value {
+                Lua::Table(raids) if named(&key, "raids") => (
+                    key,
+                    Lua::Table(
+                        raids
+                            .into_iter()
+                            .map(|(k, raid)| (k, strip_raid(raid)))
+                            .collect(),
+                    ),
+                ),
+                value => (key, value),
+            })
+            .collect(),
+    )
 }
 
 /// The inbox as a data tree and as the bytes of the file.

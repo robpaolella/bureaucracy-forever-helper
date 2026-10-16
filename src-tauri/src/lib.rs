@@ -9,6 +9,7 @@ pub mod queue;
 pub mod raids;
 pub mod reserves;
 pub mod savedvars;
+pub mod throttle;
 pub mod tray;
 pub mod updater;
 pub mod upload;

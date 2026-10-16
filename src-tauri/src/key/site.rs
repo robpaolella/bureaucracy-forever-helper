@@ -5,6 +5,7 @@
 
 use super::{Connection, HelperKey, Refusal, Site, SiteError};
 use crate::raids::{Raid, RaidsFailure};
+use crate::throttle::{self, Throttle};
 use serde_json::Value;
 use std::time::Duration;
 
@@ -16,6 +17,8 @@ const MAX_BODY: u64 = 64 * 1024;
 const MAX_RAID_BODY: u64 = 1024 * 1024;
 
 pub struct SiteClient {
+    /// The budget every request waits its turn on; none for a client in a test.
+    throttle: Option<&'static Throttle>,
     agent: ureq::Agent,
     production: String,
     staging: String,
@@ -23,11 +26,14 @@ pub struct SiteClient {
 
 impl Default for SiteClient {
     fn default() -> Self {
-        SiteClient::with_addresses(
-            Site::Production.address(),
-            Site::Staging.address(),
-            Duration::from_secs(20),
-        )
+        SiteClient {
+            throttle: Some(&throttle::SHARED),
+            ..SiteClient::with_addresses(
+                Site::Production.address(),
+                Site::Staging.address(),
+                Duration::from_secs(20),
+            )
+        }
     }
 }
 
@@ -43,6 +49,7 @@ impl SiteClient {
             .build()
             .into();
         SiteClient {
+            throttle: None,
             agent,
             production: production.to_string(),
             staging: staging.to_string(),
@@ -104,6 +111,7 @@ impl SiteClient {
         path: &str,
         limit: u64,
     ) -> Result<(u16, bool, Option<Value>, Option<u64>), SiteError> {
+        self.take_turn(site);
         let response = self
             .agent
             .get(format!("{}{path}", self.base(site)))
@@ -154,6 +162,7 @@ impl SiteClient {
         key: &HelperKey,
         body: &str,
     ) -> Result<UploadReply, String> {
+        self.take_turn(site);
         let response = self
             .agent
             .post(format!("{}/api/helper/operations", self.base(site)))
@@ -175,6 +184,13 @@ impl SiteClient {
             retry_after,
             body: serde_json::from_str(&text).ok(),
         })
+    }
+
+    /// Waits for this request's turn in the key's one request budget.
+    fn take_turn(&self, site: Site) {
+        if let Some(throttle) = self.throttle {
+            throttle.wait(self.base(site));
+        }
     }
 
     fn base(&self, site: Site) -> &str {
@@ -271,4 +287,16 @@ fn no_answer(e: &ureq::Error) -> String {
 
 fn unreachable(detail: String) -> SiteError {
     SiteError::Unreachable { detail }
+}
+
+#[cfg(test)]
+mod throttle_tests {
+    use super::*;
+
+    #[test]
+    fn the_real_client_waits_its_turn_and_a_test_client_does_not() {
+        assert!(SiteClient::default().throttle.is_some());
+        let test = SiteClient::with_addresses("http://a", "http://b", Duration::from_secs(1));
+        assert!(test.throttle.is_none());
+    }
 }

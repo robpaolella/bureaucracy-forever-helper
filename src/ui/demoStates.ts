@@ -124,7 +124,7 @@ const written = (reserves: ReservesView, list: ActivityEvent[], minutes: number[
   const at = (h: number, m: number) => new Date().setHours(h, m, 0, 0);
   const startsAt = (h: number, m: number) => Math.floor(new Date().setHours(h, m, 0, 0) / 1000);
   const raids = ["Molten Core", "Blackwing Lair"].map((name, i) => ({
-    id: `r${i}`, code: "c", name, startsAt: startsAt(21 + i, i * 30), durationMin: 180, instance: null, hasLootTable: true,
+    id: `r${i}`, code: "c", name, startsAt: startsAt(21 + i * 2, i * 30), durationMin: 180, instance: null, hasLootTable: true,
   }));
   const state = applyRaids(
     {

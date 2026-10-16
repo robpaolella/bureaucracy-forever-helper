@@ -96,6 +96,8 @@ struct FakeSource {
     calls: Arc<Mutex<Vec<(String, Part, Instant)>>>,
     /// Failures handed out first, one per request, before the answers.
     failures: Arc<Mutex<Vec<RaidsFailure>>>,
+    /// How long a catch-up takes to arrive.
+    slow_catchup: Arc<Mutex<Duration>>,
 }
 
 impl FakeSource {
@@ -129,7 +131,8 @@ impl ReservesSource for FakeSource {
         if let Some(failure) = self.failures.lock().unwrap().pop() {
             return Err(failure);
         }
-        self.answers
+        let answer = self
+            .answers
             .lock()
             .unwrap()
             .get(&(raid_id.to_string(), part))
@@ -138,7 +141,11 @@ impl ReservesSource for FakeSource {
                 Err(RaidsFailure::from(SiteError::Unreachable {
                     detail: "it answered 404".into(),
                 }))
-            })
+            });
+        if part == Part::Catchup {
+            std::thread::sleep(*self.slow_catchup.lock().unwrap());
+        }
+        answer
     }
 }
 
@@ -158,6 +165,7 @@ struct Rig {
     source: FakeSource,
     raids: Arc<Mutex<RaidsView>>,
     inbox: PathBuf,
+    folder: Arc<Mutex<PathBuf>>,
     now: Arc<AtomicI64>,
     events: Arc<Mutex<Vec<ReservesView>>>,
 }
@@ -167,10 +175,11 @@ impl Rig {
         Rig::with(raids, quick(), true, true)
     }
 
-    fn with(raids: RaidsView, timing: Timing, key: bool, folder: bool) -> Rig {
+    fn with(raids: RaidsView, timing: Timing, key: bool, known: bool) -> Rig {
         let source = FakeSource::default();
         let shared_raids = Arc::new(Mutex::new(raids));
         let inbox = scratch_dir().join("Inbox.lua");
+        let folder = Arc::new(Mutex::new(inbox.clone()));
         let now = Arc::new(AtomicI64::new(WRITTEN));
         let events: Arc<Mutex<Vec<ReservesView>>> = Arc::default();
         let reserves = Reserves::start(
@@ -182,8 +191,8 @@ impl Rig {
                     move || raids.lock().unwrap().clone()
                 },
                 target: {
-                    let inbox = inbox.clone();
-                    move || folder.then(|| inbox.clone())
+                    let target = Arc::clone(&folder);
+                    move || known.then(|| target.lock().unwrap().clone())
                 },
                 now: {
                     let now = Arc::clone(&now);
@@ -201,6 +210,7 @@ impl Rig {
             source,
             raids: shared_raids,
             inbox,
+            folder,
             now,
             events,
         }
@@ -680,4 +690,87 @@ fn the_site_client_asks_for_each_document_with_the_key_and_reads_big_ones() {
     assert!(client
         .fetch(Site::Production, &key, "gone", Part::Catchup)
         .is_err());
+}
+
+#[test]
+fn a_new_generated_time_alone_is_not_a_change() {
+    let rig = Rig::start(two_raids());
+    rig.source.serve("r1", "Molten Core", "Ana");
+    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    rig.wait_for("a write", |v| v.changes == 1);
+    let first = rig.file().unwrap();
+    let events = rig.events.lock().unwrap().len();
+    // The site stamps every answer with the time it was built.
+    for id in ["r1", "r2"] {
+        let mut snapshot = snapshot(id, id, "x");
+        snapshot["generated"] = json!(99);
+        let mut catchup = catchup(id);
+        catchup["generated"] = json!(99);
+        let name = if id == "r1" {
+            "Molten Core"
+        } else {
+            "Blackwing Lair"
+        };
+        let reserve = if id == "r1" { "Ana" } else { "Bo" };
+        snapshot["name"] = json!(name);
+        snapshot["reserves"] = self::snapshot(id, name, reserve)["reserves"].clone();
+        rig.source.set(id, Part::Snapshot, Ok(snapshot));
+        rig.source.set(id, Part::Catchup, Ok(catchup));
+    }
+    let calls = rig.source.calls().len();
+    rig.settle();
+    assert!(rig.source.calls().len() > calls);
+    assert_eq!(rig.file().unwrap(), first);
+    assert_eq!(rig.events.lock().unwrap().len(), events);
+    assert_eq!(rig.reserves.view().changes, 1);
+}
+
+#[test]
+fn a_file_from_an_earlier_run_differing_only_in_generated_is_still_right() {
+    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
+    let mut older = snapshot("r1", "Molten Core", "Ana");
+    older["generated"] = json!(1);
+    let old = inbox::render_inbox(
+        &[RaidData {
+            snapshot: older,
+            catchup: Some(catchup("r1")),
+        }],
+        5,
+    )
+    .unwrap();
+    fs::write(&rig.inbox, &old).unwrap();
+    rig.source.serve("r1", "Molten Core", "Ana");
+    rig.wait_for("in the game", |v| {
+        matches!(v.state, ReservesState::InGame { .. })
+    });
+    rig.settle();
+    assert_eq!(rig.file().unwrap(), old);
+    assert_eq!(rig.reserves.view().changes, 0);
+}
+
+#[test]
+fn an_answer_that_arrives_after_a_restart_is_never_written() {
+    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
+    rig.source.serve("r1", "Molten Core", "Ana");
+    *rig.source.slow_catchup.lock().unwrap() = Duration::from_millis(400);
+    rig.wait_for("the catch-up request", |_| rig.source.calls().len() >= 2);
+    // The key or site changes while the last answer is on its way; the new key's passes find
+    // nothing to fetch.
+    rig.source.answers.lock().unwrap().clear();
+    rig.reserves.restart();
+    std::thread::sleep(Duration::from_millis(900));
+    assert!(rig.file().is_none(), "the old key's answer was written");
+    assert_eq!(rig.reserves.view().state, ReservesState::Waiting);
+}
+
+#[test]
+fn a_new_game_folder_gets_the_reserves_even_when_nothing_changed() {
+    let rig = Rig::start(two_raids());
+    rig.source.serve("r1", "Molten Core", "Ana");
+    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    rig.wait_for("a write", |v| v.changes == 1);
+    let other = scratch_dir().join("Inbox.lua");
+    *rig.folder.lock().unwrap() = other.clone();
+    rig.wait_for("the other folder's file", |_| other.exists());
+    assert_eq!(fs::read(&other).unwrap(), rig.file().unwrap());
 }

@@ -7,16 +7,17 @@
 //! the `written` time. A result that is the same writes nothing and says nothing. Any failed
 //! fetch ends the pass with the old file untouched, so the game never gets half a list.
 //!
-//! The site allows a key 30 requests a minute (7.6). The raids list costs one a minute, the
-//! uploader a few, and this timer never sends two requests closer than `spacing`: at most 20 a
-//! minute whatever the number of raids. A `429` is waited out as the site asks.
+//! The site allows a key 30 requests a minute (7.6). This timer never sends two requests closer
+//! than `spacing`: at most 20 a minute whatever the number of raids, and the real site client
+//! also makes every request wait its turn on the one budget the raids list and the uploader
+//! share (`throttle`). A `429` is waited out as the site asks.
 //!
 //! The first file written (none there) is "in the game"; a later change is a reload prompt,
 //! and so is a file on disk from an earlier run that differs. The prompt stays until the
 //! game saves its variables after the write, which it does at `/reload`.
 
 use crate::commands::Engine;
-use crate::inbox::{self, OnDisk, RaidData};
+use crate::inbox::{self, InboxError, OnDisk, RaidData};
 use crate::key::{HelperKey, SecretStore, Site, SiteClient, SiteError};
 use crate::raids::{Raid, RaidsFailure, RaidsState, RaidsView};
 use serde::Serialize;
@@ -349,7 +350,8 @@ fn run<S, R, V, T, N>(
         now,
         timing,
     } = inputs;
-    let mut last: Option<Vec<Entry>> = None;
+    // What was last written, and where: a new game folder starts from its own file.
+    let mut last: Option<(PathBuf, Vec<Entry>)> = None;
     let mut seen = 0;
     loop {
         let generation = {
@@ -391,7 +393,21 @@ fn run<S, R, V, T, N>(
                             Err(wait) => wait,
                             Ok(data) => {
                                 let entries = entries_of(&list.raids, &data);
-                                settle(&path, &data, entries, &mut last, now(), &publish);
+                                if last.as_ref().is_some_and(|(was, _)| *was != path) {
+                                    last = None;
+                                }
+                                let wanted = || !shared.outdated(generation);
+                                let mut before = last.take().map(|(_, entries)| entries);
+                                settle(
+                                    &path,
+                                    &data,
+                                    entries,
+                                    &mut before,
+                                    now(),
+                                    &publish,
+                                    &wanted,
+                                );
+                                last = before.map(|entries| (path, entries));
                                 timing.tick
                             }
                         }
@@ -444,9 +460,27 @@ fn entries_of(raids: &[Raid], data: &[RaidData]) -> Vec<Entry> {
         .map(|(raid, data)| Entry {
             id: raid.id.clone(),
             name: raid.name.clone(),
-            bytes: inbox::render_inbox(std::slice::from_ref(data), 0).unwrap_or_default(),
+            bytes: inbox::render_inbox(&[data.without_times()], 0).unwrap_or_default(),
         })
         .collect()
+}
+
+impl RaidData {
+    /// The raid as the site sent it but for the `generated` times it stamps on every answer,
+    /// which say nothing about the reserves.
+    fn without_times(&self) -> RaidData {
+        let strip = |document: &Value| {
+            let mut document = document.clone();
+            if let Some(fields) = document.as_object_mut() {
+                fields.remove("generated");
+            }
+            document
+        };
+        RaidData {
+            snapshot: strip(&self.snapshot),
+            catchup: self.catchup.as_ref().map(strip),
+        }
+    }
 }
 
 fn names(entries: &[Entry]) -> Vec<String> {
@@ -474,6 +508,7 @@ fn settle(
     last: &mut Option<Vec<Entry>>,
     now: i64,
     publish: &Publish<'_>,
+    wanted: &dyn Fn() -> bool,
 ) {
     let action = match last.as_ref() {
         Some(old) if *old == entries => None,
@@ -496,7 +531,8 @@ fn settle(
         });
         return;
     };
-    match inbox::write_inbox(path, data, now) {
+    match inbox::write_inbox_while(path, data, now, wanted) {
+        Err(InboxError::Cancelled) => {}
         Err(error) => publish(&|inner| inner.view.problem = Some(error.to_string())),
         Ok(()) => {
             *last = Some(entries.clone());

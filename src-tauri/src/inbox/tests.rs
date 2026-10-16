@@ -715,3 +715,41 @@ fn a_write_waits_while_the_add_on_folder_is_being_swapped() {
     writer.join().unwrap();
     assert!(target.exists());
 }
+
+#[test]
+fn a_write_that_is_no_longer_wanted_is_dropped_once_the_folder_is_free() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    let result = write_inbox_while(&target, &[], 1, || false);
+    assert!(matches!(result, Err(InboxError::Cancelled)));
+    assert!(!target.exists());
+}
+
+#[test]
+fn compare_on_disk_ignores_generated_times_too() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    let mut older = worked_example();
+    older["generated"] = json!(1);
+    write_inbox(
+        &target,
+        &[RaidData {
+            snapshot: older,
+            catchup: Some(sample_catchup()),
+        }],
+        100,
+    )
+    .unwrap();
+    let now = [RaidData {
+        snapshot: worked_example(),
+        catchup: Some(sample_catchup()),
+    }];
+    assert_eq!(compare_on_disk(&target, &now), OnDisk::Same);
+    let mut other = worked_example();
+    other["reserves"]["16805"][0]["char"] = json!("Someone Else");
+    let changed = [RaidData {
+        snapshot: other,
+        catchup: Some(sample_catchup()),
+    }];
+    assert_eq!(compare_on_disk(&target, &changed), OnDisk::Different);
+}
