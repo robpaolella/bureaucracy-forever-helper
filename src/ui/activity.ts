@@ -76,3 +76,22 @@ export function zoneName(at: number): string {
     .find((p) => p.type === "timeZoneName");
   return part?.value ?? "";
 }
+
+/** When a raid starts: the officer's weekday, time and zone, with the guild's time for hover and screen readers. */
+export interface RaidStart {
+  /** Such as "Tue 9:00 PM CDT". */
+  local: string;
+  /** Such as "7:00 PM guild time". */
+  guild: string;
+  /** What a screen reader says: both, in one line. */
+  label: string;
+}
+
+/** `startsAt` is Unix seconds, as the raids list carries it. */
+export function raidStart(startsAt: number): RaidStart {
+  const at = startsAt * 1000;
+  const day = new Date(at).toLocaleDateString("en-US", { weekday: "short" });
+  const local = `${day} ${formatTime(at)} ${zoneName(at)}`.trim();
+  const guild = `${guildTime(at)} guild time`;
+  return { local, guild, label: `${local}, ${guild}` };
+}
