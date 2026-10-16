@@ -1,6 +1,6 @@
 # Runs the repo's Checks (AGENTS.md) and builds unsigned installers as artifacts.
 # Read-only and secret-free, so it is safe for pull requests from forks.
-# It never publishes a release or pushes tags; releases are a separate workflow (#16).
+# It never publishes a release or pushes tags; release drafts are made by release.yml.
 name: CI
 
 on:
