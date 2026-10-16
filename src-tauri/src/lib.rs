@@ -1,3 +1,4 @@
+pub mod addon_update;
 pub mod chatlog;
 pub mod commands;
 pub mod game_folder;
@@ -27,6 +28,9 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updater::Updates::default())
+        .manage(Arc::new(addon_update::AddonUpdates::new(
+            addon_update::GitHub::default(),
+        )))
         .setup(|app| {
             // A missing folder only means the staging setting can't be saved later, which
             // `set_staging_site` reports; the window still opens.
@@ -98,6 +102,8 @@ pub fn run() {
             commands::check_for_update,
             commands::install_update,
             commands::restart_after_update,
+            commands::check_addon_update,
+            commands::install_addon,
             tray::set_tray_status,
             notify::raise_notification,
         ])

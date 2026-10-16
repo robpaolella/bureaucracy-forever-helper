@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { RaidsView, SyncStatus, UpdateProgress } from "./bridge";
+import type { AddonProgress, RaidsView, SyncStatus, UpdateProgress } from "./bridge";
 
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -52,6 +52,10 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("install_update");
     await tauriBridge.restartAfterUpdate();
     expect(invoke).toHaveBeenLastCalledWith("restart_after_update");
+    await tauriBridge.checkAddon("/games/_retail_");
+    expect(invoke).toHaveBeenLastCalledWith("check_addon_update", { folder: "/games/_retail_" });
+    await tauriBridge.installAddon("/games/_retail_");
+    expect(invoke).toHaveBeenLastCalledWith("install_addon", { folder: "/games/_retail_" });
   });
 
   it("opens the native picker for one folder and gives back its path, or null when cancelled", async () => {
@@ -110,6 +114,26 @@ describe("tauriBridge", () => {
     expect(heard).toEqual([
       { downloaded: 10, total: 20 },
       { downloaded: 20, total: null },
+    ]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("passes on add-on install progress from the addon-progress event until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard: AddonProgress[] = [];
+    const unlisten = await tauriBridge.onAddonProgress((progress) => heard.push(progress));
+    expect(listen).toHaveBeenCalledWith("addon-progress", expect.any(Function));
+    emit({ payload: { step: "downloading", version: "1.4.0", downloaded: 10, total: 20 } });
+    emit({ payload: { step: "installing", version: "1.4.0" } });
+    expect(heard).toEqual([
+      { step: "downloading", version: "1.4.0", downloaded: 10, total: 20 },
+      { step: "installing", version: "1.4.0" },
     ]);
     unlisten();
     expect(stop).toHaveBeenCalled();

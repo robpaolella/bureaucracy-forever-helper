@@ -1,7 +1,8 @@
 // The only place the front-end calls Tauri. Everything else takes a `Bridge`, so tests
 // can hand it a fake. The result shapes mirror `KeyOutcome` and `ChangeOutcome` in
 // src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs,
-// the update outcomes in src-tauri/src/updater.rs, and `TrayStatus` and `Notice` in tray.rs and notify.rs.
+// the update outcomes in src-tauri/src/updater.rs, the add-on update outcomes in
+// src-tauri/src/addon_update.rs, and `TrayStatus` and `Notice` in tray.rs and notify.rs.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -158,6 +159,41 @@ export interface UpdateProgress {
 /** The event that carries download progress (`PROGRESS_EVENT` in updater.rs). */
 const UPDATE_PROGRESS_EVENT = "update-progress";
 
+/** Why an add-on check or install failed; the wording is in `message`. The old add-on and its
+ * inbox are always left as they were. */
+export type AddonFailure =
+  | "site"
+  | "noRelease"
+  | "offline"
+  | "badDownload"
+  | "notGameFolder"
+  | "installFailed"
+  /** The old add-on couldn't be moved back yet; the next check or install moves it back. */
+  | "notRestored";
+
+/** The add-on's latest version against the installed one; `installed` is null when there is none. */
+export type AddonCheck =
+  /** `note` is the release's "Before you update" section, null when it has none. */
+  | { kind: "checked"; latest: string; note: string | null; installed: string | null; upToDate: boolean }
+  | { kind: "failed"; reason: AddonFailure; message: string; installed: string | null };
+
+export type AddonInstall =
+  | { kind: "installed"; version: string }
+  /** No earlier check found a release. */
+  | { kind: "nothingFound" }
+  /** An install is already under way. */
+  | { kind: "busy" }
+  /** `kept` is the version still in place, null when there was none. Nothing tries again by itself. */
+  | { kind: "notInstalled"; reason: AddonFailure; message: string; kept: string | null };
+
+/** Where an add-on install is; `total` is null when the download's size isn't known. */
+export type AddonProgress =
+  | { step: "downloading"; version: string; downloaded: number; total: number | null }
+  | { step: "installing"; version: string };
+
+/** The event that carries add-on install progress (`PROGRESS_EVENT` in addon_update.rs). */
+const ADDON_PROGRESS_EVENT = "addon-progress";
+
 /** What the window tells the tray (`TrayStatus` in src-tauri/src/tray.rs). */
 export interface TrayStatus {
   /** The status pill's tone; `closed` ("Not set up") shows as amber. */
@@ -207,6 +243,14 @@ export interface Bridge {
   restartAfterUpdate(): Promise<RestartOutcome>;
   /** Calls `listener` with download progress; resolves to a function that stops it. */
   onUpdateProgress(listener: (progress: UpdateProgress) => void): Promise<() => void>;
+  /** Compares the add-on in a game version folder with the latest version the site names.
+   * Downloads nothing. */
+  checkAddon(versionFolder: string): Promise<AddonCheck>;
+  /** Installs the add-on the last check found into a game version folder, with or without an
+   * add-on already there. */
+  installAddon(versionFolder: string): Promise<AddonInstall>;
+  /** Calls `listener` with add-on install progress; resolves to a function that stops it. */
+  onAddonProgress(listener: (progress: AddonProgress) => void): Promise<() => void>;
   /** Shows the tray its new status: icon dot, menu and hover text. */
   setTrayStatus(status: TrayStatus): Promise<void>;
   /** Raises a system notification. Only when the officer must act, never for routine news. */
@@ -236,6 +280,10 @@ export const tauriBridge: Bridge = {
   restartAfterUpdate: () => invoke("restart_after_update"),
   onUpdateProgress: (listener) =>
     listen<UpdateProgress>(UPDATE_PROGRESS_EVENT, (event) => listener(event.payload)),
+  checkAddon: (versionFolder) => invoke("check_addon_update", { folder: versionFolder }),
+  installAddon: (versionFolder) => invoke("install_addon", { folder: versionFolder }),
+  onAddonProgress: (listener) =>
+    listen<AddonProgress>(ADDON_PROGRESS_EVENT, (event) => listener(event.payload)),
   setTrayStatus: (status) => invoke("set_tray_status", { status }),
   notify: (notice) => invoke("raise_notification", { notice }),
 };

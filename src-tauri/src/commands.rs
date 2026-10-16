@@ -5,6 +5,7 @@
 //! read the remembered one.
 //!
 //! The update commands check for a newer helper, install a found one, and restart into it.
+//! The add-on commands check for a newer add-on and install it into a game version folder.
 //!
 //! Every command returns its result as data the front-end can tell apart (`kind`), with
 //! the engine's own plain-words message where there is one. Nothing is swallowed, and
@@ -12,6 +13,7 @@
 //! engine already allows. The logic is in functions over any engine, so tests use a fake
 //! store and a local site; the `#[tauri::command]` wrappers only hand them the app state.
 
+use crate::addon_update::{self, AddonCheck, AddonInstall, AddonUpdates};
 use crate::game_folder::{self, Environment, FolderOutcome, GameFolderStore};
 use crate::key::{
     ConnectError, Connection, HelperKey, KeyEngine, Refusal, SecretStore, ShapeError, Site,
@@ -201,6 +203,16 @@ pub fn remembered_game_folder(store: &GameFolderStore) -> FolderOutcome {
     store.remembered()
 }
 
+/// Checks the add-on in `version_folder` against the latest version the site names.
+pub fn check_addon<S: SecretStore>(
+    engine: &Engine<S>,
+    updates: &AddonUpdates,
+    version_folder: &str,
+) -> AddonCheck {
+    let latest = engine.read().check_stored().ok().map(|c| c.addon_version);
+    updates.check(latest, std::path::Path::new(version_folder))
+}
+
 /// Once the key or site has changed, the uploader and the raids list start again with the
 /// new ones. A failed change leaves them as they were, so both carry on, keeping any wait
 /// the site asked for.
@@ -332,6 +344,33 @@ pub async fn get_remembered_game_folder(
 ) -> Result<FolderOutcome, String> {
     let store = Arc::clone(store.inner());
     off_thread(move || remembered_game_folder(&store)).await
+}
+
+#[tauri::command]
+pub async fn check_addon_update(
+    engine: tauri::State<'_, Engine>,
+    updates: tauri::State<'_, Arc<AddonUpdates>>,
+    folder: String,
+) -> Result<AddonCheck, String> {
+    let (engine, updates) = (engine.inner().clone(), Arc::clone(updates.inner()));
+    off_thread(move || check_addon(&engine, &updates, &folder)).await
+}
+
+/// Installs the add-on the last check found into the game version `folder`, sending progress
+/// as `addon-progress` events. Also the first install, into a folder with no add-on.
+#[tauri::command]
+pub async fn install_addon(
+    app: AppHandle,
+    updates: tauri::State<'_, Arc<AddonUpdates>>,
+    folder: String,
+) -> Result<AddonInstall, String> {
+    let updates = Arc::clone(updates.inner());
+    off_thread(move || {
+        updates.install(std::path::Path::new(&folder), |progress| {
+            let _ = app.emit(addon_update::PROGRESS_EVENT, progress);
+        })
+    })
+    .await
 }
 
 /// The updater, set up from the app's config. On Windows the updater runs its "before
