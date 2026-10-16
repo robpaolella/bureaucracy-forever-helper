@@ -4,7 +4,8 @@
 //! `BureaucracyForever` folder, and its `.toc` must name the release's version. It is then
 //! unpacked beside the live add-on, takes the officer's `Inbox.lua` from the live folder,
 //! and is swapped in with two renames. If the second rename fails, the first is undone, so
-//! the old add-on, inbox included, stays exactly as it was. The temporary folders start
+//! the old add-on, inbox included, stays exactly as it was; if even that fails, `recover`
+//! puts it back at the next check or install. The temporary folders start
 //! with a dot and their `.toc` doesn't match their name, so the game never loads them.
 
 use crate::game_folder::ADDON_FOLDER;
@@ -81,6 +82,22 @@ pub enum PlaceError {
     NotGameFolder,
     /// Unpacking or the swap failed; the old add-on is as it was.
     Failed,
+    /// The swap failed and the old add-on couldn't be moved back; `recover` moves it later.
+    NotRestored,
+}
+
+/// Puts back an add-on a swap left aside (the helper closed between the renames, or the
+/// move back failed). Does nothing when the add-on is in place.
+pub fn recover(version_folder: &Path) {
+    let _ = restore(&addons(version_folder), |from, to| fs::rename(from, to));
+}
+
+fn restore(addons: &Path, rename: impl Fn(&Path, &Path) -> io::Result<()>) -> io::Result<()> {
+    let (live, old) = (addons.join(ADDON_FOLDER), addons.join(OLD));
+    match !live.exists() && old.is_dir() {
+        true => rename(&old, &live),
+        false => Ok(()),
+    }
 }
 
 /// Unpacks `zip` into `version_folder`'s add-ons and swaps it in, keeping the live inbox.
@@ -103,12 +120,13 @@ pub fn put_in_place_with(
         addons.join(NEW),
         addons.join(OLD),
     );
-    // A swap cut short (the helper closed between the renames) left the add-on in `old`.
-    if !live.exists() && old.is_dir() {
-        rename(&old, &live).map_err(|_| PlaceError::Failed)?;
-    }
+    restore(&addons, &rename).map_err(|_| PlaceError::Failed)?;
     let _ = fs::remove_dir_all(&new);
     let _ = fs::remove_dir_all(&old);
+    // A leftover that can't be removed would mix its files into the new add-on.
+    if new.exists() || old.exists() {
+        return Err(PlaceError::Failed);
+    }
     let unpacked = fs::create_dir_all(&new)
         .and_then(|()| unpack(zip, &new))
         .and_then(|()| match live.join(INBOX).is_file() {
@@ -125,11 +143,11 @@ pub fn put_in_place_with(
         return Err(PlaceError::Failed);
     }
     if rename(&new, &live).is_err() {
-        if had_live {
-            let _ = rename(&old, &live);
-        }
         let _ = fs::remove_dir_all(&new);
-        return Err(PlaceError::Failed);
+        return match had_live && rename(&old, &live).is_err() {
+            true => Err(PlaceError::NotRestored),
+            false => Err(PlaceError::Failed),
+        };
     }
     // A copy that can't be removed now is removed by the next install.
     let _ = fs::remove_dir_all(&old);

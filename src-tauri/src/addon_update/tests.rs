@@ -1,4 +1,4 @@
-use super::install::{check, put_in_place_with};
+use super::install::{check, put_in_place, put_in_place_with};
 use super::*;
 use serde_json::json;
 use std::collections::{BTreeMap, HashMap};
@@ -391,6 +391,45 @@ fn a_failed_swap_rolls_back_to_the_old_version() {
             2
         );
     }
+}
+
+#[test]
+fn an_addon_that_couldnt_be_moved_back_is_put_back_at_the_next_check() {
+    let github = FakeGitHub::start();
+    let folder = version_folder(Some("1.3.2"));
+    let before = files(&folder);
+    let zip = addon_zip("1.4.0");
+    // The swap (call 2) and the move back (call 3) both fail.
+    let calls = AtomicUsize::new(0);
+    let rename = |from: &Path, to: &Path| match calls.fetch_add(1, Ordering::SeqCst) + 1 {
+        2 | 3 => Err(std::io::Error::other("refused")),
+        _ => fs::rename(from, to),
+    };
+    let placed = put_in_place_with(&folder, check(&zip, "1.4.0").unwrap(), rename);
+    assert_eq!(placed, Err(install::PlaceError::NotRestored));
+    assert_eq!(installed_version(&folder), None);
+    // The next check moves it back, with no download.
+    let checked = github.engine().check(None, &folder);
+    assert!(matches!(checked, AddonCheck::Failed { installed: Some(v), .. } if v == "1.3.2"));
+    assert_eq!(files(&folder), before);
+    assert_eq!(github.downloads(), 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_leftover_that_cant_be_removed_stops_the_install() {
+    use std::os::unix::fs::PermissionsExt;
+    let folder = version_folder(Some("1.3.2"));
+    let locked = folder.join("Interface/AddOns/.BureaucracyForever-new/locked");
+    fs::create_dir_all(&locked).unwrap();
+    fs::write(locked.join("stale.lua"), "-- stale").unwrap();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o555)).unwrap();
+    let before = files(&folder);
+    let zip = addon_zip("1.4.0");
+    let placed = put_in_place(&folder, check(&zip, "1.4.0").unwrap());
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(placed, Err(install::PlaceError::Failed));
+    assert_eq!(files(&folder), before);
 }
 
 #[test]

@@ -161,7 +161,15 @@ const UPDATE_PROGRESS_EVENT = "update-progress";
 
 /** Why an add-on check or install failed; the wording is in `message`. The old add-on and its
  * inbox are always left as they were. */
-export type AddonFailure = "site" | "noRelease" | "offline" | "badDownload" | "notGameFolder" | "installFailed";
+export type AddonFailure =
+  | "site"
+  | "noRelease"
+  | "offline"
+  | "badDownload"
+  | "notGameFolder"
+  | "installFailed"
+  /** The old add-on couldn't be moved back yet; the next check or install moves it back. */
+  | "notRestored";
 
 /** The add-on's latest version against the installed one; `installed` is null when there is none. */
 export type AddonCheck =

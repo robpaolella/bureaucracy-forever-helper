@@ -51,6 +51,9 @@ pub enum Reason {
     NotGameFolder,
     /// The new version couldn't be put in place.
     InstallFailed,
+    /// The swap failed and the old version couldn't be moved back yet; the next check or
+    /// install moves it back.
+    NotRestored,
 }
 
 impl Reason {
@@ -70,6 +73,7 @@ impl Reason {
             }
             Reason::NotGameFolder => "That folder isn’t a World of Warcraft game folder.",
             Reason::InstallFailed => "The add-on couldn’t be put in place.",
+            Reason::NotRestored => "The add-on update didn’t install, and the old version couldn’t be put back yet. Try again.",
         }
     }
 }
@@ -251,6 +255,7 @@ impl AddonUpdates {
     /// Compares the site's `latest` version (None when the site didn't give it) with the add-on
     /// in `version_folder`, and finds its release. Nothing is downloaded.
     pub fn check(&self, latest: Option<String>, version_folder: &Path) -> AddonCheck {
+        install::recover(version_folder);
         let installed = installed_version(version_folder);
         let found = latest
             .ok_or(Reason::Site)
@@ -285,6 +290,7 @@ impl AddonUpdates {
         if self.busy.swap(true, Ordering::SeqCst) {
             return AddonInstall::Busy;
         }
+        install::recover(version_folder);
         let version = release.version.clone();
         let result = self
             .github
@@ -303,6 +309,7 @@ impl AddonUpdates {
                 install::put_in_place(version_folder, zip).map_err(|e| match e {
                     PlaceError::NotGameFolder => Reason::NotGameFolder,
                     PlaceError::Failed => Reason::InstallFailed,
+                    PlaceError::NotRestored => Reason::NotRestored,
                 })
             });
         self.busy.store(false, Ordering::SeqCst);
