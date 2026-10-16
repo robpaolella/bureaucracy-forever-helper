@@ -3,6 +3,7 @@ import {
   ACTIVITY_KEEP,
   createActivityLog,
   guildTime,
+  raidStart,
   showSeeAll,
   visibleActivity,
   type ActivityEvent,
@@ -66,5 +67,14 @@ describe("guildTime", () => {
 
   it("uses the one guild zone constant", () => {
     expect(GUILD_TIMEZONE).toBe("America/Los_Angeles");
+  });
+});
+
+describe("raidStart", () => {
+  it("gives the officer's weekday, time and zone, and the guild time", () => {
+    const start = raidStart(Date.UTC(2026, 9, 21, 2, 0) / 1000);
+    expect(start.local).toMatch(/^\w{3} \d{1,2}:\d{2} [AP]M \S+$/);
+    expect(start.guild).toBe("7:00 PM guild time");
+    expect(start.label).toBe(`${start.local}, 7:00 PM guild time`);
   });
 });

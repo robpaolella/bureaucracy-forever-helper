@@ -371,7 +371,13 @@ struct Running {
 }
 
 fn run(folder: &Path, queue_dir: &Path) -> Running {
-    let queue = Arc::new(open_queue(queue_dir).into_inner().unwrap().into());
+    run_on(
+        folder,
+        Arc::new(open_queue(queue_dir).into_inner().unwrap().into()),
+    )
+}
+
+fn run_on(folder: &Path, queue: Arc<Mutex<Queue>>) -> Running {
     let (tx, events) = mpsc::channel();
     let tx = Mutex::new(tx);
     let folder = folder.to_path_buf();
@@ -405,27 +411,45 @@ impl Running {
 
 #[test]
 fn a_file_still_being_written_is_not_read_until_it_stops_changing() {
-    let (folder, file) = version_folder_with_file("BureaucracyForeverDB = {");
-    let r = run(&folder, &scratch_dir());
-    // Keep rewriting for longer than the settle time: every state is half-written.
-    let start = Instant::now();
-    let mut n = 0;
-    while start.elapsed() < Duration::from_millis(600) {
-        n += 1;
-        fs::write(
-            &file,
-            format!("BureaucracyForeverDB = {{ {}", " ".repeat(n)),
-        )
-        .unwrap();
-        std::thread::sleep(Duration::from_millis(20));
+    // The claim holds only while the writer never pauses for the settle time. A busy
+    // machine can stall the writer that long, and then reading is correct, so such an
+    // attempt proves nothing and is run again.
+    for _ in 0..20 {
+        let (folder, file) = version_folder_with_file("BureaucracyForeverDB = {");
+        let r = run(&folder, &scratch_dir());
+        // Keep rewriting for longer than the settle time: every state is half-written.
+        let start = Instant::now();
+        let mut last = start;
+        let mut longest_pause = Duration::ZERO;
+        let mut n = 0;
+        while start.elapsed() < Duration::from_millis(600) {
+            n += 1;
+            fs::write(
+                &file,
+                format!("BureaucracyForeverDB = {{ {}", " ".repeat(n)),
+            )
+            .unwrap();
+            longest_pause = longest_pause.max(last.elapsed());
+            last = Instant::now();
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        // Measured after looking, so a stall before the look counts as a pause too.
+        let early = r.events.try_recv();
+        longest_pause = longest_pause.max(last.elapsed());
+        if longest_pause >= FAST.settle {
+            r.finish();
+            continue;
+        }
+        assert!(early.is_err(), "read while still changing: {early:?}");
+        fs::write(&file, FIXTURE).unwrap();
+        match r.next() {
+            Event::Read(reading) => assert_eq!(reading.operations["cm9xr2k4a0001"].len(), 3),
+            other => panic!("{other:?}"),
+        }
+        r.finish();
+        return;
     }
-    assert!(r.events.try_recv().is_err(), "read while still changing");
-    fs::write(&file, FIXTURE).unwrap();
-    match r.next() {
-        Event::Read(reading) => assert_eq!(reading.operations["cm9xr2k4a0001"].len(), 3),
-        other => panic!("{other:?}"),
-    }
-    r.finish();
+    panic!("the writer paused for the settle time in every attempt");
 }
 
 #[test]
@@ -477,9 +501,11 @@ fn several_accounts_are_each_read_and_a_missing_folder_does_nothing() {
 #[test]
 fn a_changed_file_is_read_again_even_while_the_queue_is_busy() {
     let (folder, file) = version_folder_with_file(FIXTURE);
-    let r = run(&folder, &scratch_dir());
-    // An upload in progress holds the queue's lock.
-    let busy = r.queue.lock().unwrap();
+    // An upload in progress holds the queue's lock. Held before the watcher starts, so
+    // no stall in this thread can let the first reading go through first.
+    let queue = Arc::new(open_queue(&scratch_dir()).into_inner().unwrap().into());
+    let busy = Mutex::lock(&queue).unwrap();
+    let r = run_on(&folder, Arc::clone(&queue));
     let Event::Read(first) = r.next() else {
         panic!("expected a reading")
     };
