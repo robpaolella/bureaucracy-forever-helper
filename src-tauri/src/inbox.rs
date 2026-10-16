@@ -12,6 +12,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 const GLOBAL_NAME: &str = "BureaucracyLootInbox";
 const FORMAT_VERSION: i64 = 1;
@@ -63,6 +64,20 @@ const KEYS: &[&str] = &[
     "voids",
     "written",
 ];
+
+/// Held while the inbox is written and while the add-on folder is swapped by an install, so
+/// a write can't land in the old folder between the installer's copy of the inbox and its
+/// swap, and be lost.
+pub static ADDON_FOLDER_LOCK: Mutex<()> = Mutex::new(());
+
+/// The inbox file inside a game version folder's add-on.
+pub fn path_in(version_folder: &Path) -> PathBuf {
+    version_folder
+        .join("Interface")
+        .join("AddOns")
+        .join(crate::game_folder::ADDON_FOLDER)
+        .join("Inbox.lua")
+}
 
 /// One raid as fetched from the helper API: its snapshot and, once fetched, its catch-up.
 pub struct RaidData {
@@ -149,6 +164,7 @@ enum Lua {
 /// whole. `written` is the Unix time stored in the file.
 pub fn write_inbox(target: &Path, raids: &[RaidData], written: i64) -> Result<(), InboxError> {
     let (inbox, bytes) = render(raids, written)?;
+    let _folder = ADDON_FOLDER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     replace_file(
         target,
         |file| file.write_all(&bytes),
@@ -160,6 +176,38 @@ pub fn write_inbox(target: &Path, raids: &[RaidData], written: i64) -> Result<()
 /// The exact bytes `write_inbox` would write: the same input gives the same bytes.
 pub fn render_inbox(raids: &[RaidData], written: i64) -> Result<Vec<u8>, InboxError> {
     render(raids, written).map(|(_, bytes)| bytes)
+}
+
+/// How the file at `target` stands against what would be written for `raids`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum OnDisk {
+    /// There is no file.
+    Missing,
+    /// The file holds exactly this data, whatever its `written` time.
+    Same,
+    /// The file holds something else, or can't be read as an inbox.
+    Different,
+}
+
+/// Compares the file at `target` with `raids`, ignoring the `written` time.
+pub fn compare_on_disk(target: &Path, raids: &[RaidData]) -> OnDisk {
+    let Ok(old) = fs::read(target) else {
+        return match target.exists() {
+            true => OnDisk::Different,
+            false => OnDisk::Missing,
+        };
+    };
+    let written = match parse_inbox(&old) {
+        Ok(Lua::Table(fields)) => fields.into_iter().find_map(|field| match field {
+            (Some(Key::Name("written")), Lua::Int(written)) => Some(written),
+            _ => None,
+        }),
+        _ => None,
+    };
+    match written.map(|written| render_inbox(raids, written)) {
+        Some(Ok(new)) if new == old => OnDisk::Same,
+        _ => OnDisk::Different,
+    }
 }
 
 /// The inbox as a data tree and as the bytes of the file.

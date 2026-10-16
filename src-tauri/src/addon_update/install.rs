@@ -9,6 +9,7 @@
 //! with a dot and their `.toc` doesn't match their name, so the game never loads them.
 
 use crate::game_folder::ADDON_FOLDER;
+use crate::inbox::ADDON_FOLDER_LOCK;
 use std::fs;
 use std::io::{self, Cursor, Read};
 use std::path::{Component, Path, PathBuf};
@@ -89,6 +90,7 @@ pub enum PlaceError {
 /// Puts back an add-on a swap left aside (the helper closed between the renames, or the
 /// move back failed). Does nothing when the add-on is in place.
 pub fn recover(version_folder: &Path) {
+    let _folder = ADDON_FOLDER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let _ = restore(&addons(version_folder), |from, to| fs::rename(from, to));
 }
 
@@ -114,6 +116,8 @@ pub fn put_in_place_with(
     if !version_folder.join("Interface").is_dir() {
         return Err(PlaceError::NotGameFolder);
     }
+    // No inbox write may land between the copy of the inbox and the swap.
+    let _folder = ADDON_FOLDER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
     let addons = addons(version_folder);
     let (live, new, old) = (
         addons.join(ADDON_FOLDER),

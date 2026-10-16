@@ -514,3 +514,26 @@ fn reports_progress_while_installing() {
     let progress = serde_json::to_value(&heard[0]).unwrap();
     assert_eq!(progress["step"], "downloading");
 }
+
+#[test]
+fn the_swap_waits_for_an_inbox_write_in_progress() {
+    let folder = version_folder(Some("1.3.2"));
+    let guard = crate::inbox::ADDON_FOLDER_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    let swap = {
+        let folder = folder.clone();
+        std::thread::spawn(move || {
+            let zip = addon_zip("1.4.0");
+            put_in_place(&folder, check(&zip, "1.4.0").unwrap())
+        })
+    };
+    std::thread::sleep(Duration::from_millis(200));
+    assert!(
+        files(&folder)["BureaucracyForever/Core.lua"].contains("old"),
+        "it swapped while an inbox write held the lock"
+    );
+    drop(guard);
+    assert_eq!(swap.join().unwrap(), Ok(()));
+    assert!(files(&folder)["BureaucracyForever/Core.lua"].contains("new"));
+}
