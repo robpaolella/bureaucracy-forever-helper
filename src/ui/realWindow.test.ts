@@ -36,6 +36,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     onRaids: unused,
     reserves: unused,
     onReserves: unused,
+    onChatLog: unused,
     checkForUpdate: unused,
     installUpdate: unused,
     restartAfterUpdate: unused,

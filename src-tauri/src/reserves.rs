@@ -1,6 +1,7 @@
 //! Keeps the add-on's inbox current: for every raid on the upcoming list it fetches the
 //! snapshot and the catch-up (ADDON-SPEC 7.1), writes them with the inbox writer, and tells
-//! the window when the officer has to type `/reload` for the game to read them.
+//! the window when the officer has to type `/reload` for the game to read them. The last
+//! snapshots' raids and bosses stay readable for the chat log follower (`known_raids`).
 //!
 //! Each pass waits for the raids list to be good, fetches every raid's two documents one
 //! request at a time, and only then compares the result with what was last written, ignoring
@@ -16,6 +17,7 @@
 //! and so is a file on disk from an earlier run that differs. The prompt stays until the
 //! game saves its variables after the write, which it does at `/reload`.
 
+use crate::chatlog::{Env, KnownRaid, NamedRaid};
 use crate::commands::Engine;
 use crate::inbox::{self, InboxError, OnDisk, RaidData};
 use crate::key::{HelperKey, SecretStore, Site, SiteClient, SiteError};
@@ -167,6 +169,8 @@ struct Inner {
     view: ReservesView,
     /// When the latest write was made, Unix seconds.
     written_at: i64,
+    /// The raids and bosses of the last snapshots fetched, for the chat log follower.
+    known: Option<Vec<NamedRaid>>,
 }
 
 struct Shared {
@@ -249,6 +253,7 @@ impl Reserves {
             inner: Mutex::new(Inner {
                 view: ReservesView::waiting(),
                 written_at: 0,
+                known: None,
             }),
         });
         let on_change: Arc<dyn Fn(&ReservesView) + Send + Sync> = Arc::new(on_change);
@@ -268,6 +273,13 @@ impl Reserves {
         self.shared.inner().view.clone()
     }
 
+    /// The raids and bosses of the last snapshots fetched for the current site and key, or
+    /// `None` before the first fetch since the app, the key or the site changed. A failed
+    /// fetch keeps the last ones.
+    pub fn known_raids(&self) -> Option<Vec<NamedRaid>> {
+        self.shared.inner().known.clone()
+    }
+
     /// The key or site changed: forget what was written and fetch again now.
     pub fn restart(&self) {
         let view = {
@@ -279,6 +291,7 @@ impl Reserves {
                 changes: inner.view.changes,
                 ..ReservesView::waiting()
             };
+            inner.known = None;
             inner.view.clone()
         };
         self.shared.wake.notify_all();
@@ -392,6 +405,11 @@ fn run<S, R, V, T, N>(
                         match fetched {
                             Err(wait) => wait,
                             Ok(data) => {
+                                let mut inner = shared.inner();
+                                if !shared.outdated(generation) {
+                                    inner.known = Some(named_raids(&data));
+                                }
+                                drop(inner);
                                 let entries = entries_of(&list.raids, &data);
                                 if last.as_ref().is_some_and(|(was, _)| *was != path) {
                                     last = None;
@@ -451,6 +469,40 @@ fn fetch_all(
         });
     }
     Ok(data)
+}
+
+/// Each snapshot's raid, environment, name and bosses; a snapshot missing any of them is
+/// left out, so a line naming its raid is not read.
+fn named_raids(data: &[RaidData]) -> Vec<NamedRaid> {
+    data.iter()
+        .filter_map(|d| {
+            let s = &d.snapshot;
+            let env = match s["env"].as_str()? {
+                "production" => Env::Production,
+                "staging" => Env::Staging,
+                _ => return None,
+            };
+            let bosses = s["bosses"]
+                .as_array()?
+                .iter()
+                .map(|b| {
+                    Some((
+                        b["id"].as_str()?.to_string(),
+                        b["name"].as_str()?.to_string(),
+                    ))
+                })
+                .collect::<Option<Vec<_>>>()?;
+            Some(NamedRaid {
+                raid: KnownRaid {
+                    id: s["raid"].as_str()?.to_string(),
+                    env,
+                    bosses: bosses.iter().map(|(id, _)| id.clone()).collect(),
+                },
+                name: s["name"].as_str()?.to_string(),
+                boss_names: bosses.into_iter().collect(),
+            })
+        })
+        .collect()
 }
 
 fn entries_of(raids: &[Raid], data: &[RaidData]) -> Vec<Entry> {

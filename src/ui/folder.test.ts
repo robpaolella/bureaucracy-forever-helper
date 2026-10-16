@@ -45,6 +45,7 @@ function fake(folder: Folder = {}): Bridge {
     onRaids: unused,
     reserves: unused,
     onReserves: unused,
+    onChatLog: unused,
     checkForUpdate: unused,
     installUpdate: unused,
     restartAfterUpdate: unused,

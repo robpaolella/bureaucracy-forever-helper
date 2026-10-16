@@ -599,6 +599,44 @@ fn a_restart_forgets_what_was_written_but_not_how_many_notices_were_counted() {
 }
 
 #[test]
+fn the_last_snapshots_raids_and_bosses_are_known_until_a_restart() {
+    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
+    assert!(rig.reserves.known_raids().is_none());
+    let mut snap = snapshot("r1", "Molten Core", "Ana");
+    snap["env"] = json!("staging");
+    snap["bosses"] = json!([
+        { "id": "lb_lucifron", "name": "Lucifron", "trash": false, "items": [16805] },
+        { "id": "lb_trash", "name": "Trash", "trash": true, "items": [] }
+    ]);
+    rig.source.set("r1", Part::Snapshot, Ok(snap));
+    rig.source.set("r1", Part::Catchup, Ok(catchup("r1")));
+    rig.wait_for("a write", |v| v.changes == 1);
+    let known = rig.reserves.known_raids().unwrap();
+    assert_eq!(known.len(), 1);
+    assert_eq!(known[0].raid.id, "r1");
+    assert_eq!(known[0].raid.env, Env::Staging);
+    assert_eq!(known[0].raid.bosses, ["lb_lucifron", "lb_trash"]);
+    assert_eq!(known[0].name, "Molten Core");
+    assert_eq!(known[0].boss_names["lb_lucifron"], "Lucifron");
+    // A failed fetch keeps them; a new key or site forgets them.
+    rig.source.answers.lock().unwrap().clear();
+    rig.settle();
+    assert_eq!(rig.reserves.known_raids().unwrap().len(), 1);
+    rig.reserves.restart();
+    rig.settle();
+    assert!(rig.reserves.known_raids().is_none());
+}
+
+#[test]
+fn a_snapshot_without_an_environment_or_bosses_gives_no_known_raid() {
+    let data = [RaidData {
+        snapshot: snapshot("r1", "Molten Core", "Ana"),
+        catchup: None,
+    }];
+    assert!(named_raids(&data).is_empty());
+}
+
+#[test]
 fn the_view_serialises_for_the_window() {
     let view = ReservesView {
         state: ReservesState::Reload {

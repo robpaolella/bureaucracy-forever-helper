@@ -16,6 +16,7 @@ pub mod upload;
 
 use tauri::{Emitter, Manager, WindowEvent};
 
+use chatlog::follower::{self, Follower, Tail, CHAT_LOG_EVENT};
 use commands::Engine;
 use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
 use queue::Queue;
@@ -50,7 +51,7 @@ pub fn run() {
                 SiteClient::default(),
             ));
             // One waiting list for the whole app; the add-on reader and chat log follower
-            // will add to it through this same lock. A damaged file shows in the status.
+            // add to it through this same lock. A damaged file shows in the status.
             let queue = Arc::new(Mutex::new(Queue::open(data_dir.join(queue::FILE_NAME))));
             let handle = app.handle().clone();
             app.manage(Runner::start(
@@ -95,6 +96,25 @@ pub fn run() {
                 },
             );
             app.manage(reserves.clone());
+            // The chat log, followed for the add-on's award lines, with the raids and bosses
+            // of the snapshots the reserves fetched.
+            let (handle, remembered, known) =
+                (app.handle().clone(), Arc::clone(&folders), reserves.clone());
+            app.manage(Tail::start(
+                Follower::open(data_dir.join(follower::FILE_NAME)),
+                move || match remembered.remembered() {
+                    game_folder::FolderOutcome::Found(install) => {
+                        Some(install.version_folder.into())
+                    }
+                    _ => None,
+                },
+                move || known.known_raids(),
+                Arc::clone(&queue),
+                follower::POLL,
+                move |event| {
+                    let _ = handle.emit(CHAT_LOG_EVENT, event);
+                },
+            ));
             // The add-on's saved file, read when the game saves it. The status and error
             // display come with the sync window; #60 reads `Watcher::latest`.
             app.manage(Watcher::start(
