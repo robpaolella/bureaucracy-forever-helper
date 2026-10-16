@@ -17,6 +17,12 @@ export interface Draft {
   id: number;
   tag: string;
   target: string;
+  notes: string;
+}
+
+export interface File {
+  name: string;
+  data: Uint8Array<ArrayBuffer>;
 }
 
 export interface Api {
@@ -24,6 +30,7 @@ export interface Api {
   tagExists(tag: string): Promise<boolean>;
   isAncestor(older: string, newer: string): Promise<boolean>;
   releaseState(id: number): Promise<"draft" | "published" | "gone">;
+  files(id: number): Promise<File[]>;
   createDraft(tag: string, target: string, notes: string): Promise<number>;
   upload(id: number, name: string, data: Uint8Array<ArrayBuffer>): Promise<void>;
   remove(id: number): Promise<void>;
@@ -65,7 +72,7 @@ export type Outcome = "created" | "newer" | "published";
 // every older draft so there is only ever one.
 export async function create(
   api: Api,
-  input: Planned & { head: string; files: { name: string; data: Uint8Array<ArrayBuffer> }[] },
+  input: Planned & { head: string; files: File[] },
 ): Promise<Outcome> {
   const tag = `v${input.version}`;
   if (await api.tagExists(tag)) throw takenError(tag);
@@ -78,13 +85,7 @@ export async function create(
     }
   }
 
-  const id = await api.createDraft(tag, input.head, input.notes);
-  try {
-    for (const file of input.files) await api.upload(id, file.name, file.data);
-  } catch (error) {
-    await api.remove(id);
-    throw error;
-  }
+  const id = await draftWith(api, tag, input.head, input.notes, input.files);
 
   for (const draft of old) {
     // Robert may have published it since the list: look again right before deleting.
@@ -95,15 +96,26 @@ export async function create(
       console.log(`${draft.tag} was published during this run: the next merge drafts the release after it.`);
       return "published";
     }
+    // GitHub can't delete only if still a draft, so Robert could publish it in the moment
+    // before the delete. Publishing makes the tag and deleting the release keeps it, so that
+    // shows up afterwards; its files and notes, saved first, put it back as a draft.
+    const saved = await api.files(draft.id);
     await api.remove(draft.id);
-    // GitHub can't delete only if still a draft. Publishing makes the tag, and deleting the
-    // release keeps it, so a publish in the moment before the delete shows up here.
     if (await api.tagExists(draft.tag)) {
       await api.remove(id);
+      try {
+        await draftWith(api, draft.tag, draft.target, draft.notes, saved);
+      } catch (error) {
+        throw new Error(
+          `${draft.tag} was published just as this run replaced its draft, so the release was deleted, ` +
+            `and putting it back as a draft failed (${error}). Its tag is kept: draft a release on the tag ` +
+            `${draft.tag} on GitHub with the files from the workflow run that built it, and publish it.`,
+          { cause: error },
+        );
+      }
       throw new Error(
-        `${draft.tag} was published just as this run replaced its draft, so the release was deleted. ` +
-          `Its tag is kept. To restore it, draft a release on the tag ${draft.tag} on GitHub with the ` +
-          "files from the workflow run that built it, and publish it.",
+        `${draft.tag} was published just as this run replaced its draft. It is back as a draft with ` +
+          "the same files and notes: publish it again on GitHub.",
       );
     }
   }
@@ -111,8 +123,20 @@ export async function create(
   return "created";
 }
 
+// A new draft holding `files`. If an upload fails it is deleted, so no half-filled draft stays.
+async function draftWith(api: Api, tag: string, target: string, notes: string, files: File[]): Promise<number> {
+  const id = await api.createDraft(tag, target, notes);
+  try {
+    for (const file of files) await api.upload(id, file.name, file.data);
+  } catch (error) {
+    await api.remove(id);
+    throw error;
+  }
+  return id;
+}
+
 // The GitHub REST API. It never edits a release, so it can't publish one: it only creates
-// drafts, uploads to them and deletes them.
+// drafts, uploads to them, reads them and deletes them.
 export function githubApi(fetcher: Fetch, token: string, repo: string): Api {
   const headers = {
     Accept: "application/vnd.github+json",
@@ -136,9 +160,11 @@ export function githubApi(fetcher: Fetch, token: string, repo: string): Api {
     async drafts() {
       const out: Draft[] = [];
       for (let page = 1; ; page++) {
-        type Release = { id: number; tag_name: string; target_commitish: string; draft: boolean };
+        type Release = { id: number; tag_name: string; target_commitish: string; body: string | null; draft: boolean };
         const batch = (await json<Release[]>(await call("GET", `${base}/releases?per_page=100&page=${page}`))) ?? [];
-        for (const r of batch) if (r.draft) out.push({ id: r.id, tag: r.tag_name, target: r.target_commitish });
+        for (const r of batch) {
+          if (r.draft) out.push({ id: r.id, tag: r.tag_name, target: r.target_commitish, notes: r.body ?? "" });
+        }
         if (batch.length < 100) return out;
       }
     },
@@ -152,6 +178,22 @@ export function githubApi(fetcher: Fetch, token: string, repo: string): Api {
     async releaseState(id) {
       const body = await json<{ draft: boolean }>(await call("GET", `${base}/releases/${id}`, { missing: true }));
       return body === undefined ? "gone" : body.draft ? "draft" : "published";
+    },
+    async files(id) {
+      const out: File[] = [];
+      for (let page = 1; ; page++) {
+        const path = `${base}/releases/${id}/assets?per_page=100&page=${page}`;
+        const batch = (await json<{ id: number; name: string }[]>(await call("GET", path))) ?? [];
+        for (const asset of batch) {
+          // GitHub answers with a redirect to the file; fetch drops the token when following it.
+          const response = await fetcher(`https://api.github.com${base}/releases/assets/${asset.id}`, {
+            headers: { ...headers, Accept: "application/octet-stream" },
+          });
+          if (!response.ok) throw new Error(`GitHub answered ${response.status} for asset ${asset.name}`);
+          out.push({ name: asset.name, data: new Uint8Array(await response.arrayBuffer()) });
+        }
+        if (batch.length < 100) return out;
+      }
     },
     async createDraft(tag, target, notes) {
       const payload = { tag_name: tag, target_commitish: target, name: tag, body: notes, draft: true };

@@ -21,9 +21,10 @@ function fake(state: {
   published?: number[];
   gone?: number[];
   publishedOnDelete?: number[];
-  failUpload?: boolean;
+  failUpload?: string;
 }) {
   const calls: string[] = [];
+  let next = 99;
   const tags = new Set(state.tags ?? []);
   const api: Api = {
     drafts: async () => state.drafts ?? [],
@@ -31,12 +32,13 @@ function fake(state: {
     isAncestor: async (older, newer) => (state.ancestors ?? []).includes(`${older}>${newer}`),
     releaseState: async (id) =>
       state.gone?.includes(id) ? "gone" : state.published?.includes(id) ? "published" : "draft",
+    files: async (id) => [{ name: `old-${id}`, data: new Uint8Array() }],
     createDraft: async (tag, target) => {
       calls.push(`create ${tag} ${target}`);
-      return 99;
+      return next++;
     },
     upload: async (id, name) => {
-      if (state.failUpload) throw new Error("upload failed");
+      if (name === state.failUpload) throw new Error("upload failed");
       calls.push(`upload ${id} ${name}`);
     },
     remove: async (id) => {
@@ -48,6 +50,7 @@ function fake(state: {
   return { api, calls };
 }
 
+const old = (id: number, tag: string, target: string): Draft => ({ id, tag, target, notes: `notes ${id}` });
 const input = { version: "1.2.0", notes: "## New\n- A\n", head: HEAD, files };
 
 describe("parsePlan", () => {
@@ -77,7 +80,7 @@ describe("create", () => {
   });
 
   it("refreshes a re-run for the same version, leaving one draft", async () => {
-    const { api, calls } = fake({ drafts: [{ id: 1, tag: "v1.2.0", target: HEAD }] });
+    const { api, calls } = fake({ drafts: [old(1, "v1.2.0", HEAD)] });
     expect(await create(api, input)).toBe("created");
     expect(calls.filter((c) => c.startsWith("create"))).toHaveLength(1);
     expect(calls.at(-1)).toBe("remove 1");
@@ -85,8 +88,8 @@ describe("create", () => {
 
   it("replaces an older draft, including one aimed at a branch name", async () => {
     const drafts = [
-      { id: 1, tag: "v1.1.1", target: OLDER },
-      { id: 2, tag: "v1.2.0", target: "main" },
+      old(1, "v1.1.1", OLDER),
+      old(2, "v1.2.0", "main"),
     ];
     const { api, calls } = fake({ drafts, ancestors: [`${OLDER}>${HEAD}`] });
     expect(await create(api, input)).toBe("created");
@@ -94,7 +97,7 @@ describe("create", () => {
   });
 
   it("leaves a draft from a newer merge alone", async () => {
-    const { api, calls } = fake({ drafts: [{ id: 1, tag: "v1.2.0", target: NEWER }], ancestors: [`${HEAD}>${NEWER}`] });
+    const { api, calls } = fake({ drafts: [old(1, "v1.2.0", NEWER)], ancestors: [`${HEAD}>${NEWER}`] });
     expect(await create(api, input)).toBe("newer");
     expect(calls).toEqual([]);
   });
@@ -106,38 +109,43 @@ describe("create", () => {
   });
 
   it("keeps the old draft when an upload fails", async () => {
-    const { api, calls } = fake({ drafts: [{ id: 1, tag: "v1.2.0", target: OLDER }], failUpload: true });
+    const { api, calls } = fake({ drafts: [old(1, "v1.2.0", OLDER)], failUpload: "x.dmg" });
     await expect(create(api, input)).rejects.toThrow("upload failed");
     expect(calls).toEqual(["create v1.2.0 " + HEAD, "remove 99"]);
   });
 
   it("backs out when Robert published the old draft during the run", async () => {
-    const { api, calls } = fake({ drafts: [{ id: 1, tag: "v1.2.0", target: OLDER }], published: [1] });
+    const { api, calls } = fake({ drafts: [old(1, "v1.2.0", OLDER)], published: [1] });
     expect(await create(api, input)).toBe("published");
     expect(calls).not.toContain("remove 1");
     expect(calls.at(-1)).toBe("remove 99");
   });
 
   it("skips an old draft deleted by hand during the run", async () => {
-    const { api, calls } = fake({ drafts: [{ id: 1, tag: "v1.2.0", target: OLDER }], gone: [1] });
+    const { api, calls } = fake({ drafts: [old(1, "v1.2.0", OLDER)], gone: [1] });
     expect(await create(api, input)).toBe("created");
     expect(calls).not.toContain("remove 1");
   });
 
-  it("fails loudly when a publish lands just before the delete", async () => {
-    const { api, calls } = fake({ drafts: [{ id: 1, tag: "v1.1.1", target: OLDER }], publishedOnDelete: [1] });
-    await expect(create(api, input)).rejects.toThrow("v1.1.1 was published just as this run replaced its draft");
-    expect(calls.slice(-2)).toEqual(["remove 1", "remove 99"]);
+  it("puts the release back as a draft when a publish lands just before the delete", async () => {
+    const { api, calls } = fake({ drafts: [old(1, "v1.1.1", OLDER)], publishedOnDelete: [1] });
+    await expect(create(api, input)).rejects.toThrow("It is back as a draft with the same files and notes");
+    expect(calls.slice(-4)).toEqual(["remove 1", "remove 99", "create v1.1.1 " + OLDER, "upload 100 old-1"]);
+  });
+
+  it("says how to restore it by hand if putting it back fails", async () => {
+    const { api } = fake({ drafts: [old(1, "v1.1.1", OLDER)], publishedOnDelete: [1], failUpload: "old-1" });
+    await expect(create(api, input)).rejects.toThrow("putting it back as a draft failed");
   });
 });
 
 describe("githubApi", () => {
   function recorded(answer: (method: string, url: string) => { status?: number; body?: unknown }) {
-    const calls: { method: string; url: string; body?: unknown; type?: string }[] = [];
+    const calls: { method: string; url: string; body?: unknown; type?: string; accept?: string }[] = [];
     const fetcher: Fetch = async (url, init) => {
       const headers = init?.headers as Record<string, string>;
       const method = init?.method ?? "GET";
-      calls.push({ method, url: String(url), body: init?.body, type: headers["Content-Type"] });
+      calls.push({ method, url: String(url), body: init?.body, type: headers["Content-Type"], accept: headers.Accept });
       const { status = 200, body = {} } = answer(method, String(url));
       return new Response(status === 204 ? null : JSON.stringify(body), { status });
     };
@@ -176,11 +184,23 @@ describe("githubApi", () => {
   it("lists only drafts", async () => {
     const { api } = recorded(() => ({
       body: [
-        { id: 1, tag_name: "v1.2.0", target_commitish: HEAD, draft: true },
+        { id: 1, tag_name: "v1.2.0", target_commitish: HEAD, body: "notes 1", draft: true },
         { id: 2, tag_name: "v1.1.0", target_commitish: "main", draft: false },
       ],
     }));
-    expect(await api.drafts()).toEqual([{ id: 1, tag: "v1.2.0", target: HEAD }]);
+    expect(await api.drafts()).toEqual([old(1, "v1.2.0", HEAD)]);
+  });
+
+  it("downloads a release's files as files, not as JSON", async () => {
+    const { api, calls } = recorded((_, url) =>
+      url.includes("/releases/7/assets") ? { body: [{ id: 5, name: "a.dmg" }] } : { body: "bytes" },
+    );
+    const files = await api.files(7);
+    expect(files.map((f) => [f.name, new TextDecoder().decode(f.data)])).toEqual([["a.dmg", '"bytes"']]);
+    expect(calls[1]).toMatchObject({
+      url: "https://api.github.com/repos/o/r/releases/assets/5",
+      accept: "application/octet-stream",
+    });
   });
 
   it("reads tags, ancestry and release state", async () => {
