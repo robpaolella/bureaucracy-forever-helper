@@ -6,6 +6,7 @@ import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
 import type { FolderStep } from "./folder";
 import { applyRaids } from "./realWindow";
+import { updateFailedEvent, type HelperUpdate } from "./update";
 
 export interface DemoState {
   app: AppState;
@@ -139,6 +140,13 @@ const written = (reserves: ReservesView, list: ActivityEvent[], minutes: number[
   return { app: state };
 };
 const both = ["Molten Core", "Blackwing Lair"];
+const ready = (): DemoState => written({ state: { kind: "inGame", raids: both }, changes: 1, first: true, problem: null }, [wrote, joined], [12, 11]);
+/** The ready window with the helper's update card, as in the design's `helper-*` states. */
+const helperUpdate = (update: HelperUpdate, extra: ActivityEvent[] = []): DemoState => {
+  const { app } = ready();
+  const activity = [...extra.map((e) => ({ ...e, at: new Date().setHours(20, 20, 0, 0) })), ...app.activity];
+  return { app: { ...app, update, helperVersion: "0.2.1", activity } };
+};
 const wrote: ActivityEvent = { at: 0, tone: "ok", kind: "Reserves written", text: "for Molten Core and Blackwing Lair. Type /reload in game." };
 const joined: ActivityEvent = { at: 0, tone: "ok", kind: "Connected", text: "to the guild site." };
 
@@ -160,7 +168,12 @@ export const demoStates: Record<string, DemoState> = {
       sentTonight: 48,
     },
   },
-  ready: written({ state: { kind: "inGame", raids: both }, changes: 1, first: true, problem: null }, [wrote, joined], [12, 11]),
+  ready: ready(),
+  "helper-update": helperUpdate({ phase: "available", version: "0.3.0" }),
+  "helper-installing": helperUpdate({ phase: "installing", version: "0.3.0", percent: 45 }),
+  "helper-update-failed": helperUpdate({ phase: "failed", version: "0.3.0", reason: "badSignature" }, [
+    updateFailedEvent("badSignature", "0.2.1", 0),
+  ]),
   reload: written({ state: { kind: "reload", raids: both, changed: ["Molten Core"] }, changes: 2, first: false, problem: null }, [
     { at: 0, tone: "warn", kind: "Reserves changed", text: "for Molten Core. Type /reload in game." },
     wrote,
@@ -174,6 +187,7 @@ export const demoStates: Record<string, DemoState> = {
       activity: [],
       sentTonight: 0,
       gamePath: `${MAC}/_classic_`,
+      helperVersion: "0.2.1",
     },
   },
   offline: {

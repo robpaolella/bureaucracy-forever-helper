@@ -6,6 +6,9 @@ vi.mock("@tauri-apps/api/core", () => ({ invoke }));
 const listen = vi.fn();
 vi.mock("@tauri-apps/api/event", () => ({ listen }));
 
+const getVersion = vi.fn();
+vi.mock("@tauri-apps/api/app", () => ({ getVersion }));
+
 const open = vi.fn();
 vi.mock("@tauri-apps/plugin-dialog", () => ({ open }));
 
@@ -54,6 +57,8 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("install_update");
     await tauriBridge.restartAfterUpdate();
     expect(invoke).toHaveBeenLastCalledWith("restart_after_update");
+    await tauriBridge.openUpdateNotes();
+    expect(invoke).toHaveBeenLastCalledWith("open_update_notes");
     await tauriBridge.checkAddon("/games/_retail_");
     expect(invoke).toHaveBeenLastCalledWith("check_addon_update", { folder: "/games/_retail_" });
     await tauriBridge.installAddon("/games/_retail_");
@@ -134,6 +139,28 @@ describe("tauriBridge", () => {
       { downloaded: 10, total: 20 },
       { downloaded: 20, total: null },
     ]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("reads the helper's own version", async () => {
+    getVersion.mockResolvedValueOnce("0.2.1");
+    expect(await tauriBridge.helperVersion()).toBe("0.2.1");
+  });
+
+  it("calls back each time the tray's Check for updates is chosen, until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard = vi.fn();
+    const unlisten = await tauriBridge.onTrayCheck(heard);
+    expect(listen).toHaveBeenCalledWith("tray-check-for-updates", expect.any(Function));
+    emit({ payload: null });
+    emit({ payload: null });
+    expect(heard).toHaveBeenCalledTimes(2);
     unlisten();
     expect(stop).toHaveBeenCalled();
   });

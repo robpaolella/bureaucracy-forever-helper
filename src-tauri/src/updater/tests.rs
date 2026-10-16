@@ -224,9 +224,12 @@ fn a_newer_release_is_found_with_its_version_and_nothing_is_downloaded_or_instal
         outcome,
         CheckOutcome::Available {
             version: NEWER.into(),
-            notes_url: NOTES_URL.into()
+            notes_url:
+                "https://github.com/robpaolella/bureaucracy-forever-helper/releases/tag/v0.2.0"
+                    .into()
         }
     );
+    assert_eq!(updates.found_notes_url(), Some(notes_url(NEWER)));
     assert_eq!(server.hits("/helper.tar.gz"), 0);
     // Nothing installed means nothing to restart into.
     assert_eq!(
@@ -258,8 +261,11 @@ fn the_same_or_an_older_version_or_an_empty_answer_is_up_to_date() {
         Answer::Status("204 No Content"),
     )]));
     let app = app(&keys.public(), &server.url("/latest.json"));
-    let outcome = tauri::async_runtime::block_on(Updates::default().check(updater(&app)));
+    let updates = Updates::default();
+    let outcome = tauri::async_runtime::block_on(updates.check(updater(&app)));
     assert_eq!(outcome, CheckOutcome::UpToDate);
+    // Nothing found means no release notes to open.
+    assert_eq!(updates.found_notes_url(), None);
 }
 
 #[test]

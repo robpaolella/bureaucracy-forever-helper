@@ -29,6 +29,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(updater::Updates::default())
         .manage(Arc::new(addon_update::AddonUpdates::new(
@@ -133,6 +134,7 @@ pub fn run() {
             commands::check_for_update,
             commands::install_update,
             commands::restart_after_update,
+            updater::open_update_notes,
             commands::check_addon_update,
             commands::install_addon,
             tray::set_tray_status,

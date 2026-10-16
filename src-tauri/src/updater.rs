@@ -24,9 +24,10 @@ use tauri_plugin_updater::{Error, Update, Updater, UpdaterBuilder};
 /// The event that carries download progress to the window.
 pub const PROGRESS_EVENT: &str = "update-progress";
 
-/// Where the officer reads what's new: the release the updater reads its update from.
-pub const NOTES_URL: &str =
-    "https://github.com/robpaolella/bureaucracy-forever-helper/releases/latest";
+/// Where the officer reads what's new in `version`: its release on GitHub, tagged `v<version>`.
+pub fn notes_url(version: &str) -> String {
+    format!("https://github.com/robpaolella/bureaucracy-forever-helper/releases/tag/v{version}")
+}
 
 /// How long to wait to connect, and between pieces of an answer, before giving up.
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
@@ -198,12 +199,21 @@ impl Updates {
         let outcome = match &found {
             Some(update) => CheckOutcome::Available {
                 version: update.version.clone(),
-                notes_url: NOTES_URL.to_string(),
+                notes_url: notes_url(&update.version),
             },
             None => CheckOutcome::UpToDate,
         };
         *self.found.lock().unwrap_or_else(|e| e.into_inner()) = found;
         outcome
+    }
+
+    /// The release notes page of the update the last check found, if it found one.
+    pub fn found_notes_url(&self) -> Option<String> {
+        self.found
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+            .map(|update| notes_url(&update.version))
     }
 
     /// Downloads the update the last check found, checks its signature and hands it to
@@ -269,6 +279,22 @@ impl Updates {
             }
         }
     }
+}
+
+/// Opens what's new in the found update in the browser. The page is the found version's, so
+/// the window can't open any other address.
+#[tauri::command]
+pub fn open_update_notes(
+    app: tauri::AppHandle,
+    updates: tauri::State<'_, Updates>,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = updates
+        .found_notes_url()
+        .ok_or("No update has been found to read about.")?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

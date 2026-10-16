@@ -6,6 +6,7 @@ import { ACTIVITY_RECENT, formatTime, guildTime, showSeeAll, zoneName, type Acti
 import { ROW_NAMES, ROW_ORDER, firstBroken, type ChainRow, type ChainState, type RowId } from "./chain";
 import { button, el, field, pill, type Child, type Tone } from "./components";
 import { folderBody, type FolderActions, type FolderStep } from "./folder";
+import { updateCard, type HelperUpdate, type UpdateActions, type UpdateCheck } from "./update";
 
 export interface AppState {
   /** The headline and its pill, such as "Everything’s working" and "Sending". */
@@ -25,6 +26,12 @@ export interface AppState {
   gamePath?: string;
   /** A folder is being checked or saved. */
   folderBusy?: boolean;
+  /** The installed helper's version, such as "0.2.1". */
+  helperVersion?: string;
+  /** A newer helper, shown in a card under the chain. */
+  update?: HelperUpdate;
+  /** A check for updates the officer asked for in Settings or the tray. */
+  updateCheck?: UpdateCheck;
 }
 
 /** The key field and its button on the setup screen's first step. */
@@ -49,6 +56,8 @@ export interface AppOptions {
   onConnect?: (value: string) => void;
   /** What the buttons on the game folder step do. */
   folderActions?: FolderActions;
+  /** What the update card's buttons and link do; without them no card is shown. */
+  updateActions?: UpdateActions;
 }
 
 export type View = "main" | "settings" | "activity";
@@ -131,7 +140,7 @@ function activityList(events: ActivityEvent[]): HTMLElement {
   );
 }
 
-export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): void } {
+export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): void; show(view: View): void } {
   let view: View = options.view ?? "main";
   const go = (next: View) => {
     view = next;
@@ -162,10 +171,16 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
       el("main", "win-body", [
         el("div", "row status", [el("h1", "title-sm", [s.status.title]), pill(s.status.tone, s.status.word)]),
         chainList(s.chain),
+        ...helperUpdateCard(s),
         el("section", "stack tight", [head, activityList(recent)]),
       ]),
     );
     return pieces;
+  }
+
+  /** The helper's update card, under the chain; setup shows it too, so an update can't wait on a key. */
+  function helperUpdateCard(s: AppState): Node[] {
+    return s.update && options.updateActions ? [updateCard(s.update, s.helperVersion, options.updateActions)] : [];
   }
 
   function connect(): void {
@@ -225,6 +240,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
         el("h1", "title-sm", ["Connect the helper"]),
         el("p", "small lede", ["Two steps, once. After that the helper runs by itself."]),
         chainList(setupChain(s, key)),
+        ...helperUpdateCard(s),
       ]),
     ];
   }
@@ -267,5 +283,5 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
   }
 
   render();
-  return { refresh: render };
+  return { refresh: render, show: go };
 }

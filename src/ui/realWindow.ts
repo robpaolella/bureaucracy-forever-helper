@@ -9,6 +9,10 @@ import type { ChainRow } from "./chain";
 import { el } from "./components";
 import { trayStatusOf } from "./tray";
 import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
+import { helperUpdates, versionsSection } from "./update";
+
+/** How often the helper looks for a newer version of itself while it runs. */
+export const UPDATE_CHECK_EVERY = 6 * 60 * 60 * 1000;
 
 const waiting = (detail: string): ChainRow => ({ tone: "closed", word: "Not yet", detail });
 
@@ -301,9 +305,24 @@ export async function startWindow(
     void check(() => bridge.connect(key), key, stored);
   }
 
-  const app = mountApp(root, { getState: store.get, settingsSections: () => [gameFolderSection(store.get().gamePath, store.get().folder, actions, store.get().folderBusy)],
+  const updates = helperUpdates(store, bridge);
+  /** The officer's own check, from Settings or the tray: its answer shows in Settings. */
+  const checkAsked = () => {
+    app.show("settings");
+    void updates.check(true);
+  };
+  const app = mountApp(root, {
+    getState: store.get,
+    settingsSections: () => {
+      const s = store.get();
+      return [
+        gameFolderSection(s.gamePath, s.folder, actions, s.folderBusy),
+        versionsSection(s.helperVersion, s.updateCheck, s.update?.phase === "installing", checkAsked),
+      ];
+    },
     onConnect: connect,
     folderActions: actions,
+    updateActions: updates,
   });
   store.subscribe(app.refresh);
   // The tray shows the same status as the window; it is told only when that changes.
@@ -376,6 +395,13 @@ export async function startWindow(
   } catch {
     // Reserves are unavailable; the Reserves row keeps its last look.
   }
+  // The helper's own version and update: progress and the tray's check, a check now, then
+  // one every few hours. Each part that fails leaves the rest of the window as it is.
+  bridge.helperVersion().then((helperVersion) => store.set((s) => ({ ...s, helperVersion })), () => {});
+  bridge.onUpdateProgress(updates.progress).catch(() => {});
+  bridge.onTrayCheck(checkAsked).catch(() => {});
+  void updates.check(false);
+  setInterval(() => void updates.check(false), UPDATE_CHECK_EVERY);
   try {
     const outcome = await bridge.checkStored();
     store.set((s) => applyKeyOutcome(s, outcome, "", outcome.kind !== "noKey"));
