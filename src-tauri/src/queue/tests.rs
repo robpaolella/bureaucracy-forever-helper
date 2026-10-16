@@ -117,6 +117,35 @@ fn removing_an_acknowledged_entry_removes_only_that_entry() {
         .unwrap());
     assert!(queue.operations().unwrap().is_empty());
     assert!(Queue::open(&path).operations().unwrap().is_empty());
+
+    // How each was acknowledged is remembered; one never waiting has none.
+    assert_eq!(
+        queue.acknowledgement(&award("aw-2222aaaa")),
+        Some(&Ack::Recorded)
+    );
+    assert_eq!(
+        queue.acknowledgement(&award("aw-3333aaaa")),
+        Some(&rejected)
+    );
+    assert_eq!(queue.acknowledgement(&award("aw-9999aaaa")), None);
+}
+
+#[test]
+fn only_the_latest_acknowledgements_are_remembered() {
+    let dir = scratch_dir();
+    let mut queue = Queue::open(dir.join(FILE_NAME));
+    assert_eq!(queue.keep, RECENT);
+    queue.keep = 3;
+    for n in 0..=3 {
+        let op = award(&format!("aw-{n:08}"));
+        queue.add(op.clone()).unwrap();
+        queue.remove_acknowledged(&op, &Ack::Recorded).unwrap();
+    }
+    assert_eq!(queue.acknowledgement(&award("aw-00000000")), None);
+    assert_eq!(
+        queue.acknowledgement(&award("aw-00000001")),
+        Some(&Ack::Recorded)
+    );
 }
 
 #[test]
@@ -333,6 +362,8 @@ fn a_failed_write_changes_nothing_and_leaves_no_temp_file() {
         path: path.clone(),
         state: Ok(vec![award("aw-1111aaaa")]),
         unconfirmed: false,
+        recent: VecDeque::new(),
+        keep: RECENT,
     };
     let err = queue.add(award("aw-2222aaaa")).unwrap_err();
     assert!(matches!(err, QueueError::Io(_)), "{err:?}");

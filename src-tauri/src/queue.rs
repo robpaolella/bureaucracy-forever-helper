@@ -13,6 +13,7 @@
 //! One `Queue` owns its file; writers in the app share it behind a lock.
 
 use serde_json::{json, Map, Value};
+use std::collections::VecDeque;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -23,6 +24,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub const FILE_NAME: &str = "waiting.json";
 
 const FORMAT_VERSION: i64 = 1;
+/// How many of the latest acknowledgements are remembered.
+const RECENT: usize = 1000;
 
 /// How the site acknowledged an operation (ADDON-SPEC 7.1). Only these remove an entry;
 /// `pending` is not an acknowledgement, so it has no value here.
@@ -116,6 +119,11 @@ pub struct Queue {
     state: Result<Vec<Value>, String>,
     /// The last new file was swapped in but its rename couldn't be flushed to disk.
     unconfirmed: bool,
+    /// The latest removed operations and how the site acknowledged them, oldest first, so
+    /// the chat log follower can tell a refusal from a send. Kept in memory only.
+    recent: VecDeque<(Value, Ack)>,
+    /// How many acknowledgements `recent` keeps.
+    keep: usize,
 }
 
 impl Queue {
@@ -128,6 +136,8 @@ impl Queue {
             path,
             state,
             unconfirmed: false,
+            recent: VecDeque::new(),
+            keep: RECENT,
         }
     }
 
@@ -160,8 +170,24 @@ impl Queue {
     /// `_ack`; asking for the acknowledgement means nothing else can remove an entry.
     /// Matching the whole operation, not just its `id`, keeps a reused id's other entry.
     /// Returns whether it was waiting.
-    pub fn remove_acknowledged(&mut self, op: &Value, _ack: &Ack) -> Result<bool, QueueError> {
-        self.remove_with(op, &mut |_| Ok(()))
+    pub fn remove_acknowledged(&mut self, op: &Value, ack: &Ack) -> Result<bool, QueueError> {
+        let removed = self.remove_with(op, &mut |_| Ok(()))?;
+        if removed {
+            if self.recent.len() >= self.keep {
+                self.recent.pop_front();
+            }
+            self.recent.push_back((op.clone(), ack.clone()));
+        }
+        Ok(removed)
+    }
+
+    /// How the site acknowledged `op`, if it was removed lately.
+    pub fn acknowledgement(&self, op: &Value) -> Option<&Ack> {
+        self.recent
+            .iter()
+            .rev()
+            .find(|(o, _)| o == op)
+            .map(|(_, ack)| ack)
     }
 
     fn add_with(&mut self, op: Value, at: &mut AtStep) -> Result<Added, QueueError> {
