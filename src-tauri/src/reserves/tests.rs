@@ -176,7 +176,17 @@ impl Rig {
     }
 
     fn with(raids: RaidsView, timing: Timing, key: bool, known: bool) -> Rig {
-        let source = FakeSource::default();
+        Rig::with_source(raids, timing, key, known, FakeSource::default())
+    }
+
+    /// Starts on a site a test has already set up, so nothing can be fetched before it is.
+    fn with_source(
+        raids: RaidsView,
+        timing: Timing,
+        key: bool,
+        known: bool,
+        source: FakeSource,
+    ) -> Rig {
         let shared_raids = Arc::new(Mutex::new(raids));
         let inbox = scratch_dir().join("Inbox.lua");
         let folder = Arc::new(Mutex::new(inbox.clone()));
@@ -456,14 +466,21 @@ fn a_snapshot_the_writer_refuses_leaves_the_old_file_and_shows_the_error() {
 
 #[test]
 fn a_rate_limit_is_waited_out_as_the_site_asks() {
-    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.failures.lock().unwrap().push(RaidsFailure {
+    let source = FakeSource::default();
+    source.serve("r1", "Molten Core", "Ana");
+    source.failures.lock().unwrap().push(RaidsFailure {
         error: SiteError::Unreachable {
             detail: "it answered 429".into(),
         },
         retry_after: Some(1),
     });
+    let rig = Rig::with_source(
+        view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]),
+        quick(),
+        true,
+        true,
+        source,
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     let calls = rig.source.calls.lock().unwrap();
     assert_eq!(calls.len(), 3, "the refused request, then both documents");
