@@ -194,7 +194,15 @@ fn only_add_on_lines_reach_the_queue_and_no_other_chat_is_kept() {
     keys.sort();
     assert_eq!(
         keys,
-        ["formatVersion", "headHash", "headLength", "log", "offset"]
+        [
+            "formatVersion",
+            "headHash",
+            "headLength",
+            "log",
+            "offset",
+            "tailHash",
+            "tailLength"
+        ]
     );
 }
 
@@ -421,6 +429,84 @@ fn a_replaced_log_is_read_from_its_beginning_even_when_longer() {
     rig.restart();
     rig.pass();
     assert_eq!(rig.ids(), ["aw-6k1m4v8z", "aw-4t1y7g5k"]);
+}
+
+#[test]
+fn a_replaced_log_with_the_same_start_is_read_from_its_beginning() {
+    let mut rig = Rig::new();
+    rig.pass();
+    let start = other_chat().repeat(4);
+    assert!(start.len() as u64 > HEAD);
+    rig.append(&start);
+    rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
+    rig.pass();
+    rig.acknowledge_all();
+    rig.pass();
+    // A new log that begins the same, with a different line where the old one ended.
+    let replaced = format!(
+        "{start}{}{}",
+        award("aw-6k1m4v8z", "Bo Marsh"),
+        award("aw-4t1y7g5k", "Dee Holt")
+    );
+    fs::write(&rig.log, replaced).unwrap();
+    rig.restart();
+    rig.pass();
+    assert_eq!(rig.ids(), ["aw-6k1m4v8z", "aw-4t1y7g5k"]);
+    // The same while running.
+    rig.acknowledge_all();
+    rig.pass();
+    fs::write(
+        &rig.log,
+        format!(
+            "{start}{}{}",
+            award("aw-5r8u2i6o", "Ana Vale"),
+            other_chat()
+        ),
+    )
+    .unwrap();
+    rig.pass();
+    assert_eq!(rig.ids(), ["aw-5r8u2i6o"]);
+}
+
+#[test]
+fn a_line_waiting_when_the_log_is_replaced_is_still_reported_once_sent() {
+    let mut rig = Rig::new();
+    rig.pass();
+    rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
+    rig.pass();
+    fs::write(&rig.log, other_chat()).unwrap();
+    assert!(rig.pass().is_empty());
+    // The new log's position doesn't wait for the old log's line.
+    assert_eq!(rig.saved_offset(), rig.log_len());
+    rig.acknowledge_all();
+    assert_eq!(
+        sent_items(&rig.pass()),
+        [(LineKind::Award, Some("Zoé Brûlé".into()))]
+    );
+    assert!(rig.pass().is_empty());
+}
+
+#[test]
+fn a_refused_line_moves_the_position_but_is_not_reported_as_sent() {
+    let mut rig = Rig::new();
+    rig.pass();
+    rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
+    rig.append(&award("aw-6k1m4v8z", "Bo Marsh"));
+    rig.pass();
+    {
+        let mut queue = rig.queue.lock().unwrap();
+        let ops = queue.operations().unwrap().to_vec();
+        let refused = Ack::Rejected {
+            code: "unknown-sender".into(),
+        };
+        queue.remove_acknowledged(&ops[0], &refused).unwrap();
+        queue.remove_acknowledged(&ops[1], &Ack::Replayed).unwrap();
+    }
+    assert_eq!(
+        sent_items(&rig.pass()),
+        [(LineKind::Award, Some("Bo Marsh".into()))]
+    );
+    assert_eq!(rig.saved_offset(), rig.log_len());
 }
 
 #[test]

@@ -3,11 +3,12 @@
 //!
 //! Every other line is dropped as it is read: nothing from it is stored, queued, logged or
 //! sent. The saved read position (`chatlog.json` in the helper's app data) holds only the
-//! log's path, a byte offset and a hash of the log's first kilobyte, which tells a replaced
-//! log from the same one grown.
+//! log's path, a byte offset, and hashes of the log's first kilobyte and of the kilobyte
+//! before the offset, which tell a replaced log from the same one grown.
 //!
 //! The saved position moves past a line only once the site has acknowledged its operation
-//! (the uploader removes it from the waiting list), so after a crash, a restart or an
+//! (the uploader removes it from the waiting list); a line the site refused moves it too,
+//! but is not reported as sent. So after a crash, a restart or an
 //! offline spell the follower reads again from the oldest line not yet acknowledged. A line
 //! read twice gives the same operation, which the queue holds once and the site answers
 //! `replayed` (ADDON-SPEC 4.2).
@@ -20,7 +21,7 @@
 //! - A missing log does nothing; the log is read in pieces, never whole.
 
 use super::{parse_line_now, KnownRaid, LineResult, NamedRaid, Operation};
-use crate::queue::{Queue, QueueError};
+use crate::queue::{Ack, Queue, QueueError};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::VecDeque;
@@ -41,7 +42,8 @@ const FORMAT_VERSION: i64 = 1;
 /// The most read at once. A chat line is far shorter, so a piece this size with no line end
 /// in it is not chat and is skipped.
 const PIECE: usize = 256 * 1024;
-/// How much of the log's start is hashed to tell a replaced log.
+/// How much of the log's start, and of what comes before the read position, is hashed to
+/// tell a replaced log.
 const HEAD: u64 = 1024;
 
 /// The chat log inside a game version folder.
@@ -53,7 +55,7 @@ pub fn log_in(version_folder: &Path) -> PathBuf {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ChatEvent {
-    /// The site acknowledged a line's operation.
+    /// The site acknowledged a line's operation, other than by refusing it.
     Sent(SentLine),
     /// An add-on line that was not used; nothing from it is kept.
     Ignored { reason: Ignored },
@@ -101,9 +103,11 @@ struct Saved {
     log: String,
     offset: u64,
     head: Head,
+    tail: Head,
 }
 
-/// The length and hash of the log's first bytes.
+/// The length and hash of some of the log's bytes: its first ones, or those just before a
+/// position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct Head {
     len: u64,
@@ -126,7 +130,12 @@ pub struct Follower {
     /// Where the next line starts.
     read_to: u64,
     head: Head,
+    /// The bytes just before `read_to`.
+    tail: Head,
     handed: VecDeque<Handed>,
+    /// Lines handed on from a log since replaced: still reported once acknowledged, but no
+    /// longer holding the position back.
+    carried: Vec<Handed>,
 }
 
 impl Follower {
@@ -139,8 +148,10 @@ impl Follower {
             saved,
             log: None,
             read_to: 0,
-            head: Head { len: 0, hash: 0 },
+            head: Head::EMPTY,
+            tail: Head::EMPTY,
             handed: VecDeque::new(),
+            carried: Vec::new(),
         }
     }
 
@@ -160,23 +171,33 @@ impl Follower {
             self.start(log);
         }
         let mut events = Vec::new();
-        if let Ok(mut file) = File::open(log) {
-            let _ = self.read(&mut file, raids, queue, &mut events);
+        let mut file = File::open(log).ok();
+        if let Some(file) = file.as_mut() {
+            let _ = self.read(file, raids, queue, &mut events);
+            if let Ok(tail) = tail_of(file, self.read_to) {
+                self.tail = tail;
+            }
         }
         self.acknowledge(queue, &mut events);
-        self.save();
+        self.save(file.as_mut());
         events
+    }
+
+    /// Stops holding the position for lines of a log that is gone, still reporting them.
+    fn carry(&mut self) {
+        self.carried.extend(self.handed.drain(..));
     }
 
     /// Starts on `log`: from the saved position if it is for this log, else at its end.
     fn start(&mut self, log: &Path) {
         self.log = Some(log.to_path_buf());
-        self.handed.clear();
+        self.carry();
         let name = log.to_string_lossy();
         match self.saved.as_ref().filter(|s| s.log == name) {
             Some(saved) => {
                 self.read_to = saved.offset;
                 self.head = saved.head;
+                self.tail = saved.tail;
             }
             None => {
                 let mut file = File::open(log).ok();
@@ -188,10 +209,11 @@ impl Follower {
                 self.head = file
                     .as_mut()
                     .and_then(|f| head_of(f, len.min(HEAD)).ok())
-                    .unwrap_or(Head {
-                        len: 0,
-                        hash: hash(&[]),
-                    });
+                    .unwrap_or(Head::EMPTY);
+                self.tail = file
+                    .as_mut()
+                    .and_then(|f| tail_of(f, len).ok())
+                    .unwrap_or(Head::EMPTY);
             }
         }
     }
@@ -206,12 +228,14 @@ impl Follower {
         let len = file.metadata()?.len();
         let same = len >= self.read_to
             && len >= self.head.len
-            && head_of(file, self.head.len)? == self.head;
+            && head_of(file, self.head.len)? == self.head
+            && tail_of(file, self.read_to)? == self.tail;
         if !same {
             // Truncated or replaced: what was handed on stays in the queue and still goes.
             self.read_to = 0;
-            self.handed.clear();
-            self.head = head_of(file, 0)?;
+            self.carry();
+            self.head = Head::EMPTY;
+            self.tail = Head::EMPTY;
         }
         if self.head.len < HEAD && len > self.head.len {
             self.head = head_of(file, len.min(HEAD))?;
@@ -285,34 +309,52 @@ impl Follower {
         true
     }
 
-    /// An operation no longer in the queue was acknowledged by the site.
+    /// An operation no longer in the queue was acknowledged by the site; one it refused is
+    /// shown by the upload's status instead.
     fn acknowledge(&mut self, queue: &Mutex<Queue>, events: &mut Vec<ChatEvent>) {
         let queue = queue.lock().unwrap_or_else(|e| e.into_inner());
         let Ok(ops) = queue.operations() else {
             return;
         };
-        for handed in self.handed.iter_mut().filter(|h| !h.acknowledged) {
+        let waiting = self.carried.iter_mut().chain(self.handed.iter_mut());
+        for handed in waiting.filter(|h| !h.acknowledged) {
             if !ops.contains(&handed.op) {
                 handed.acknowledged = true;
-                events.push(ChatEvent::Sent(handed.sent.clone()));
+                if !matches!(
+                    queue.acknowledgement(&handed.op),
+                    Some(Ack::Rejected { .. })
+                ) {
+                    events.push(ChatEvent::Sent(handed.sent.clone()));
+                }
             }
         }
         drop(queue);
+        self.carried.retain(|h| !h.acknowledged);
         while self.handed.front().is_some_and(|h| h.acknowledged) {
             self.handed.pop_front();
         }
     }
 
     /// Saves the position: the start of the oldest line not yet acknowledged. A failed
-    /// write is tried again next pass.
-    fn save(&mut self) {
+    /// write is tried again next pass, as is one that waits for a missing log.
+    fn save(&mut self, file: Option<&mut File>) {
         let Some(log) = &self.log else {
             return;
         };
+        let offset = self.handed.front().map_or(self.read_to, |h| h.start);
+        let tail = match file {
+            _ if offset == self.read_to => self.tail,
+            Some(file) => match tail_of(file, offset) {
+                Ok(tail) => tail,
+                Err(_) => return,
+            },
+            None => return,
+        };
         let next = Saved {
             log: log.to_string_lossy().into_owned(),
-            offset: self.handed.front().map_or(self.read_to, |h| h.start),
+            offset,
             head: self.head,
+            tail,
         };
         if self.saved.as_ref() == Some(&next) {
             return;
@@ -323,6 +365,8 @@ impl Follower {
             "offset": next.offset,
             "headLength": next.head.len,
             "headHash": next.head.hash,
+            "tailLength": next.tail.len,
+            "tailHash": next.tail.hash,
         })
         .to_string();
         let temp = self.file.with_extension("json.tmp");
@@ -347,11 +391,34 @@ fn load(bytes: &[u8]) -> Option<Saved> {
             len: v["headLength"].as_u64()?,
             hash: v["headHash"].as_u64()?,
         },
+        tail: Head {
+            len: v["tailLength"].as_u64()?,
+            hash: v["tailHash"].as_u64()?,
+        },
     })
 }
 
+impl Head {
+    /// No bytes.
+    const EMPTY: Head = Head {
+        len: 0,
+        hash: 0xcbf2_9ce4_8422_2325,
+    };
+}
+
+/// The log's first `len` bytes.
 fn head_of(file: &mut File, len: u64) -> io::Result<Head> {
-    file.seek(SeekFrom::Start(0))?;
+    bytes_at(file, 0, len)
+}
+
+/// The kilobyte, or less, before `end`.
+fn tail_of(file: &mut File, end: u64) -> io::Result<Head> {
+    let len = end.min(HEAD);
+    bytes_at(file, end - len, len)
+}
+
+fn bytes_at(file: &mut File, start: u64, len: u64) -> io::Result<Head> {
+    file.seek(SeekFrom::Start(start))?;
     let mut bytes = Vec::new();
     file.by_ref().take(len).read_to_end(&mut bytes)?;
     Ok(Head {
