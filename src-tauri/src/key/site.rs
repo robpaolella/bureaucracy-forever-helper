@@ -5,13 +5,20 @@
 
 use super::{Connection, HelperKey, Refusal, Site, SiteError};
 use crate::raids::{Raid, RaidsFailure};
+use crate::throttle::{self, Throttle};
 use serde_json::Value;
 use std::time::Duration;
 
 /// The longest answer read; `/api/helper/me` is a few hundred bytes.
 const MAX_BODY: u64 = 64 * 1024;
 
+/// The longest snapshot or catch-up read: a raid's entry in the inbox may be 200,000 bytes
+/// (7.3), and its JSON is a little longer.
+const MAX_RAID_BODY: u64 = 1024 * 1024;
+
 pub struct SiteClient {
+    /// The budget every request waits its turn on; none for a client in a test.
+    throttle: Option<&'static Throttle>,
     agent: ureq::Agent,
     production: String,
     staging: String,
@@ -19,11 +26,14 @@ pub struct SiteClient {
 
 impl Default for SiteClient {
     fn default() -> Self {
-        SiteClient::with_addresses(
-            Site::Production.address(),
-            Site::Staging.address(),
-            Duration::from_secs(20),
-        )
+        SiteClient {
+            throttle: Some(&throttle::SHARED),
+            ..SiteClient::with_addresses(
+                Site::Production.address(),
+                Site::Staging.address(),
+                Duration::from_secs(20),
+            )
+        }
     }
 }
 
@@ -39,6 +49,7 @@ impl SiteClient {
             .build()
             .into();
         SiteClient {
+            throttle: None,
             agent,
             production: production.to_string(),
             staging: staging.to_string(),
@@ -47,7 +58,7 @@ impl SiteClient {
 
     /// Asks `site` whether it accepts `key`.
     pub fn check(&self, site: Site, key: &HelperKey) -> Result<Connection, SiteError> {
-        let (status, html, body, _) = self.get(site, key, "/api/helper/me")?;
+        let (status, html, body, _) = self.get(site, key, "/api/helper/me", MAX_BODY)?;
         sort(site, status, html, body.as_ref())
     }
 
@@ -55,7 +66,7 @@ impl SiteClient {
     /// Its failures are sorted as `check` sorts them.
     pub fn raids(&self, site: Site, key: &HelperKey) -> Result<Vec<Raid>, RaidsFailure> {
         let (status, html, body, retry_after) = self
-            .get(site, key, "/api/helper/raids")
+            .get(site, key, "/api/helper/raids", MAX_BODY)
             .map_err(RaidsFailure::from)?;
         let error = match (status, body.as_ref().and_then(Raid::parse_list)) {
             (200, Some(raids)) => return Ok(raids),
@@ -67,6 +78,30 @@ impl SiteClient {
         Err(RaidsFailure { error, retry_after })
     }
 
+    /// Asks `site` for one raid's `snapshot` or `catchup` (ADDON-SPEC 7.1) as JSON. Its
+    /// failures are sorted as `raids` sorts them; an answer that isn't a JSON object is
+    /// unreadable.
+    pub fn raid_document(
+        &self,
+        site: Site,
+        key: &HelperKey,
+        raid_id: &str,
+        part: &str,
+    ) -> Result<Value, RaidsFailure> {
+        let path = format!("/api/helper/raids/{}/{part}", path_segment(raid_id));
+        let (status, html, body, retry_after) = self
+            .get(site, key, &path, MAX_RAID_BODY)
+            .map_err(RaidsFailure::from)?;
+        let error = match body {
+            Some(body) if status == 200 && body.is_object() => return Ok(body),
+            _ if status == 200 => {
+                unreachable("it answered 200 with an answer the helper can't read".into())
+            }
+            body => failure(site, status, html, body.as_ref()),
+        };
+        Err(RaidsFailure { error, retry_after })
+    }
+
     /// A `GET` of `path` with the key: the status, whether the answer is a web page, its
     /// body when that is JSON, and its `Retry-After` in seconds when given as a number.
     fn get(
@@ -74,7 +109,9 @@ impl SiteClient {
         site: Site,
         key: &HelperKey,
         path: &str,
+        limit: u64,
     ) -> Result<(u16, bool, Option<Value>, Option<u64>), SiteError> {
+        self.take_turn(site);
         let response = self
             .agent
             .get(format!("{}{path}", self.base(site)))
@@ -95,7 +132,7 @@ impl SiteClient {
         let text = response
             .body_mut()
             .with_config()
-            .limit(MAX_BODY)
+            .limit(limit)
             .read_to_string()
             .map_err(|e| unreachable(format!("its answer couldn't be read: {}", no_answer(&e))))?;
         Ok((
@@ -125,6 +162,7 @@ impl SiteClient {
         key: &HelperKey,
         body: &str,
     ) -> Result<UploadReply, String> {
+        self.take_turn(site);
         let response = self
             .agent
             .post(format!("{}/api/helper/operations", self.base(site)))
@@ -148,12 +186,30 @@ impl SiteClient {
         })
     }
 
+    /// Waits for this request's turn in the key's one request budget.
+    fn take_turn(&self, site: Site) {
+        if let Some(throttle) = self.throttle {
+            throttle.wait(self.base(site));
+        }
+    }
+
     fn base(&self, site: Site) -> &str {
         match site {
             Site::Production => &self.production,
             Site::Staging => &self.staging,
         }
     }
+}
+
+/// `text` made safe to put in a URL path: anything but letters, digits, `-`, `_` and `.` is
+/// percent-encoded.
+fn path_segment(text: &str) -> String {
+    text.bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' => (b as char).to_string(),
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
 }
 
 /// The answer's `Retry-After` in seconds, when given as a number.
@@ -231,4 +287,16 @@ fn no_answer(e: &ureq::Error) -> String {
 
 fn unreachable(detail: String) -> SiteError {
     SiteError::Unreachable { detail }
+}
+
+#[cfg(test)]
+mod throttle_tests {
+    use super::*;
+
+    #[test]
+    fn the_real_client_waits_its_turn_and_a_test_client_does_not() {
+        assert!(SiteClient::default().throttle.is_some());
+        let test = SiteClient::with_addresses("http://a", "http://b", Duration::from_secs(1));
+        assert!(test.throttle.is_none());
+    }
 }

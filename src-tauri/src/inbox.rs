@@ -12,6 +12,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 
 const GLOBAL_NAME: &str = "BureaucracyLootInbox";
 const FORMAT_VERSION: i64 = 1;
@@ -64,6 +65,20 @@ const KEYS: &[&str] = &[
     "written",
 ];
 
+/// Held while the inbox is written and while the add-on folder is swapped by an install, so
+/// a write can't land in the old folder between the installer's copy of the inbox and its
+/// swap, and be lost.
+pub static ADDON_FOLDER_LOCK: Mutex<()> = Mutex::new(());
+
+/// The inbox file inside a game version folder's add-on.
+pub fn path_in(version_folder: &Path) -> PathBuf {
+    version_folder
+        .join("Interface")
+        .join("AddOns")
+        .join(crate::game_folder::ADDON_FOLDER)
+        .join("Inbox.lua")
+}
+
 /// One raid as fetched from the helper API: its snapshot and, once fetched, its catch-up.
 pub struct RaidData {
     pub snapshot: Value,
@@ -83,6 +98,8 @@ pub enum InboxError {
     ReadBackMismatch,
     /// Writing or replacing the file failed.
     Io(io::Error),
+    /// The write was no longer wanted when its turn came.
+    Cancelled,
 }
 
 impl fmt::Display for InboxError {
@@ -107,6 +124,9 @@ impl fmt::Display for InboxError {
                 write!(f, "The reserves couldn't be saved: a safety check failed.")
             }
             InboxError::Io(e) => write!(f, "The reserves couldn't be saved to the add-on: {e}."),
+            InboxError::Cancelled => {
+                write!(f, "The reserves weren't saved: they were out of date.")
+            }
         }
     }
 }
@@ -148,7 +168,22 @@ enum Lua {
 /// Writes the inbox for `raids`, in the given order, to `target`, replacing any old file
 /// whole. `written` is the Unix time stored in the file.
 pub fn write_inbox(target: &Path, raids: &[RaidData], written: i64) -> Result<(), InboxError> {
+    write_inbox_while(target, raids, written, || true)
+}
+
+/// `write_inbox`, but only if `wanted` still says so once the add-on folder is free, so a
+/// write that was overtaken while it waited (for a swap) is dropped, not made.
+pub fn write_inbox_while(
+    target: &Path,
+    raids: &[RaidData],
+    written: i64,
+    wanted: impl Fn() -> bool,
+) -> Result<(), InboxError> {
     let (inbox, bytes) = render(raids, written)?;
+    let _folder = ADDON_FOLDER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    if !wanted() {
+        return Err(InboxError::Cancelled);
+    }
     replace_file(
         target,
         |file| file.write_all(&bytes),
@@ -160,6 +195,81 @@ pub fn write_inbox(target: &Path, raids: &[RaidData], written: i64) -> Result<()
 /// The exact bytes `write_inbox` would write: the same input gives the same bytes.
 pub fn render_inbox(raids: &[RaidData], written: i64) -> Result<Vec<u8>, InboxError> {
     render(raids, written).map(|(_, bytes)| bytes)
+}
+
+/// How the file at `target` stands against what would be written for `raids`.
+#[derive(Debug, PartialEq, Eq)]
+pub enum OnDisk {
+    /// There is no file.
+    Missing,
+    /// The file holds exactly this data, whatever its `written` time.
+    Same,
+    /// The file holds something else, or can't be read as an inbox.
+    Different,
+}
+
+/// Compares the file at `target` with `raids`, ignoring what the helper stamps on every
+/// fetch: the file's `written` time and each snapshot's and catch-up's `generated` time.
+pub fn compare_on_disk(target: &Path, raids: &[RaidData]) -> OnDisk {
+    let Ok(old) = fs::read(target) else {
+        return match target.exists() {
+            true => OnDisk::Different,
+            false => OnDisk::Missing,
+        };
+    };
+    let same = match (parse_inbox(&old), render(raids, 0)) {
+        (Ok(old), Ok((new, _))) => without_times(old) == without_times(new),
+        _ => false,
+    };
+    match same {
+        true => OnDisk::Same,
+        false => OnDisk::Different,
+    }
+}
+
+/// The inbox without its `written` time and each raid's `generated` times.
+fn without_times(inbox: Lua) -> Lua {
+    let named = |key: &Option<Key>, name| *key == Some(Key::Name(name));
+    let Lua::Table(fields) = inbox else {
+        return inbox;
+    };
+    let strip_raid = |raid: Lua| match raid {
+        Lua::Table(parts) => Lua::Table(
+            parts
+                .into_iter()
+                .map(|(key, part)| match part {
+                    Lua::Table(rest) if named(&key, "snapshot") || named(&key, "catchup") => (
+                        key,
+                        Lua::Table(
+                            rest.into_iter()
+                                .filter(|(k, _)| !named(k, "generated"))
+                                .collect(),
+                        ),
+                    ),
+                    part => (key, part),
+                })
+                .collect(),
+        ),
+        other => other,
+    };
+    Lua::Table(
+        fields
+            .into_iter()
+            .filter(|(key, _)| !named(key, "written"))
+            .map(|(key, value)| match value {
+                Lua::Table(raids) if named(&key, "raids") => (
+                    key,
+                    Lua::Table(
+                        raids
+                            .into_iter()
+                            .map(|(k, raid)| (k, strip_raid(raid)))
+                            .collect(),
+                    ),
+                ),
+                value => (key, value),
+            })
+            .collect(),
+    )
 }
 
 /// The inbox as a data tree and as the bytes of the file.

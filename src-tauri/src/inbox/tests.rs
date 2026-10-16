@@ -675,3 +675,81 @@ fn output_loads_in_lua_5_1_as_the_same_data() {
     let ana = rust_dump(&Lua::Str("Ana Vale".into()));
     assert!(lua_dump(&dir.join("Inbox0.lua")).unwrap().contains(&ana));
 }
+
+#[test]
+fn compare_on_disk_ignores_the_written_time_only() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    let raids = [RaidData {
+        snapshot: worked_example(),
+        catchup: Some(sample_catchup()),
+    }];
+    assert_eq!(compare_on_disk(&target, &raids), OnDisk::Missing);
+
+    write_inbox(&target, &raids, 100).unwrap();
+    assert_eq!(compare_on_disk(&target, &raids), OnDisk::Same);
+
+    let other = [RaidData {
+        snapshot: snapshot_with_name("Blackwing Lair"),
+        catchup: Some(sample_catchup()),
+    }];
+    assert_eq!(compare_on_disk(&target, &other), OnDisk::Different);
+    assert_eq!(compare_on_disk(&target, &[]), OnDisk::Different);
+
+    fs::write(&target, "-- not an inbox").unwrap();
+    assert_eq!(compare_on_disk(&target, &raids), OnDisk::Different);
+}
+
+#[test]
+fn a_write_waits_while_the_add_on_folder_is_being_swapped() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    let guard = ADDON_FOLDER_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let writer = {
+        let target = target.clone();
+        std::thread::spawn(move || write_inbox(&target, &[], 1).unwrap())
+    };
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    assert!(!target.exists(), "it wrote while the folder was locked");
+    drop(guard);
+    writer.join().unwrap();
+    assert!(target.exists());
+}
+
+#[test]
+fn a_write_that_is_no_longer_wanted_is_dropped_once_the_folder_is_free() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    let result = write_inbox_while(&target, &[], 1, || false);
+    assert!(matches!(result, Err(InboxError::Cancelled)));
+    assert!(!target.exists());
+}
+
+#[test]
+fn compare_on_disk_ignores_generated_times_too() {
+    let dir = scratch_dir();
+    let target = dir.join("Inbox.lua");
+    let mut older = worked_example();
+    older["generated"] = json!(1);
+    write_inbox(
+        &target,
+        &[RaidData {
+            snapshot: older,
+            catchup: Some(sample_catchup()),
+        }],
+        100,
+    )
+    .unwrap();
+    let now = [RaidData {
+        snapshot: worked_example(),
+        catchup: Some(sample_catchup()),
+    }];
+    assert_eq!(compare_on_disk(&target, &now), OnDisk::Same);
+    let mut other = worked_example();
+    other["reserves"]["16805"][0]["char"] = json!("Someone Else");
+    let changed = [RaidData {
+        snapshot: other,
+        catchup: Some(sample_catchup()),
+    }];
+    assert_eq!(compare_on_disk(&target, &changed), OnDisk::Different);
+}

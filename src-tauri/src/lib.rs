@@ -7,7 +7,9 @@ pub mod key;
 pub mod notify;
 pub mod queue;
 pub mod raids;
+pub mod reserves;
 pub mod savedvars;
+pub mod throttle;
 pub mod tray;
 pub mod updater;
 pub mod upload;
@@ -18,7 +20,8 @@ use commands::Engine;
 use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
 use queue::Queue;
 use raids::{Poller, Timing as RaidsTiming, RAIDS_EVENT};
-use savedvars::watcher::{Timing, Watcher};
+use reserves::{Inputs, Reserves, RESERVES_EVENT};
+use savedvars::watcher::{Event, Timing, Watcher};
 use std::sync::{Arc, Mutex};
 use upload::{Runner, SYNC_STATUS_EVENT};
 
@@ -60,14 +63,37 @@ pub fn run() {
             // The upcoming raids, kept fresh while the window is hidden. #61 shows them;
             // the inbox and chat log work read `Poller::view`.
             let handle = app.handle().clone();
-            app.manage(Poller::start(
+            let raids = Poller::start(
                 engine.clone(),
                 SiteClient::default(),
                 RaidsTiming::default(),
                 move |view| {
                     let _ = handle.emit(RAIDS_EVENT, view);
                 },
-            ));
+            );
+            app.manage(raids.clone());
+            // The reserves for those raids, written into the add-on's inbox when they change.
+            // The game saving its variables (at `/reload`) tells it the officer reloaded.
+            let (handle, remembered) = (app.handle().clone(), Arc::clone(&folders));
+            let reserves = Reserves::start(
+                engine.clone(),
+                Inputs {
+                    source: SiteClient::default(),
+                    raids: move || raids.view(),
+                    target: move || match remembered.remembered() {
+                        game_folder::FolderOutcome::Found(install) => Some(inbox::path_in(
+                            std::path::Path::new(&install.version_folder),
+                        )),
+                        _ => None,
+                    },
+                    now: || chrono::Utc::now().timestamp(),
+                    timing: reserves::Timing::default(),
+                },
+                move |view| {
+                    let _ = handle.emit(RESERVES_EVENT, view);
+                },
+            );
+            app.manage(reserves.clone());
             // The add-on's saved file, read when the game saves it. The status and error
             // display come with the sync window; #60 reads `Watcher::latest`.
             app.manage(Watcher::start(
@@ -79,7 +105,11 @@ pub fn run() {
                 },
                 Arc::clone(&queue),
                 Timing::default(),
-                |_| {},
+                move |event| {
+                    if let Event::Read(reading) = event {
+                        reserves.game_saved(reading.saved_at);
+                    }
+                },
             ));
             app.manage(engine);
             app.manage(queue);
@@ -99,6 +129,7 @@ pub fn run() {
             commands::get_remembered_game_folder,
             commands::get_sync_status,
             commands::get_raids,
+            commands::get_reserves,
             commands::check_for_update,
             commands::install_update,
             commands::restart_after_update,

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AddonProgress, RaidsView, SyncStatus, UpdateProgress } from "./bridge";
+import type { AddonProgress, RaidsView, ReservesView, SyncStatus, UpdateProgress } from "./bridge";
 
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -30,6 +30,8 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("get_sync_status");
     await tauriBridge.raids();
     expect(invoke).toHaveBeenLastCalledWith("get_raids");
+    await tauriBridge.reserves();
+    expect(invoke).toHaveBeenLastCalledWith("get_reserves");
     await tauriBridge.searchFolder();
     expect(invoke).toHaveBeenLastCalledWith("search_game_folder");
     await tauriBridge.checkPickedFolder("/games");
@@ -95,6 +97,23 @@ describe("tauriBridge", () => {
     expect(listen).toHaveBeenCalledWith("raids", expect.any(Function));
     emit({ payload: { state: { kind: "loading" }, raids: [] } });
     expect(heard).toEqual([{ state: { kind: "loading" }, raids: [] }]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("passes on each reserves view from the reserves event until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard: ReservesView[] = [];
+    const unlisten = await tauriBridge.onReserves((view) => heard.push(view));
+    expect(listen).toHaveBeenCalledWith("reserves", expect.any(Function));
+    const view = { state: { kind: "waiting" }, changes: 0, first: false, problem: null };
+    emit({ payload: view });
+    expect(heard).toEqual([view]);
     unlisten();
     expect(stop).toHaveBeenCalled();
   });
