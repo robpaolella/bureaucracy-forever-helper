@@ -597,4 +597,39 @@ describe("live award lines", () => {
     expect(store.get().awardsRaid).toEqual({ id: "r1", name: "Molten Core" });
     expect(trayStatusOf(store.get())).toMatchObject({ sentTonight: 1, secondLine: "Awards going to Molten Core" });
   });
+
+  it("lists lines heard in the same millisecond newest first", async () => {
+    const { store, push } = await liveWindow();
+    vi.spyOn(Date, "now").mockReturnValue(Date.now());
+    push(sent({ itemName: "First" }));
+    push(sent({ itemName: "Second" }));
+    vi.restoreAllMocks();
+    expect(store.get().activity.map((e) => e.strong)).toEqual(["Second", "First"]);
+  });
+
+  it("starts listening before the raids and reserves load", async () => {
+    let listening = false;
+    let raidsAskedAfterListening = false;
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve({ kind: "noKey" })),
+      onChatLog: () => ((listening = true), Promise.resolve(() => {})),
+      onRaids: () => ((raidsAskedAfterListening = listening), Promise.resolve(() => {})),
+      raids: () => new Promise(() => {}),
+    } as unknown as Bridge;
+    void startWindow(document.createElement("div"), bridge);
+    await flush();
+    expect(raidsAskedAfterListening).toBe(true);
+  });
+
+  it("starts the count again at midnight even when no new line comes", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 14, 23, 59));
+    const { store, push } = await liveWindow();
+    push(sent());
+    expect(store.get().sentTonight).toBe(1);
+    vi.setSystemTime(new Date(2026, 9, 15, 0, 5));
+    vi.advanceTimersByTime(60_000);
+    expect(store.get().sentTonight).toBe(0);
+    vi.useRealTimers();
+  });
 });

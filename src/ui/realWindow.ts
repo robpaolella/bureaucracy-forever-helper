@@ -398,6 +398,28 @@ export async function startWindow(
     redraw();
     announce(view);
   };
+  // Lines the follower sent or ignored. Listening starts first, so none is missed while the
+  // raids and reserves load. The count starts again each day, also with no new line.
+  let countDay = Date.now();
+  let lastAt = 0;
+  const newDay = () => {
+    const now = Date.now();
+    if (sameDay(countDay, now)) return;
+    countDay = now;
+    store.set((s) => ({ ...s, sentTonight: 0 }));
+  };
+  setInterval(newDay, 60_000);
+  try {
+    await bridge.onChatLog((event) => {
+      newDay();
+      // Lines heard in the same millisecond still list newest first.
+      lastAt = Math.max(Date.now(), lastAt + 1);
+      const at = lastAt;
+      store.set((s) => applyChatEvent(s, event, at));
+    });
+  } catch {
+    // The chat log is unavailable; the Awards row and Activity keep their last look.
+  }
   let sawEvent = false;
   try {
     await bridge.onRaids((view) => {
@@ -423,18 +445,6 @@ export async function startWindow(
     if (!sawReserves) hear(first);
   } catch {
     // Reserves are unavailable; the Reserves row keeps its last look.
-  }
-  // Lines the follower sent or ignored. The count starts again each day.
-  let countDay = Date.now();
-  try {
-    await bridge.onChatLog((event) => {
-      const at = Date.now();
-      if (!sameDay(countDay, at)) store.set((s) => ({ ...s, sentTonight: 0 }));
-      countDay = at;
-      store.set((s) => applyChatEvent(s, event, at));
-    });
-  } catch {
-    // The chat log is unavailable; the Awards row and Activity keep their last look.
   }
   // The helper's own version and update: progress and the tray's check, a check now, then
   // one every few hours. Each part that fails leaves the rest of the window as it is.
