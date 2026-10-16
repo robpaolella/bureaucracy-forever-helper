@@ -16,8 +16,8 @@ The helper runs on your Mac or Windows PC and sits in the menu bar (Mac) or syst
 
 1. Open the `.dmg` and drag **Bureaucracy Forever Helper** into **Applications**.
 2. Open it from Applications. macOS says it can't verify the app. Click **Done** (or **OK**).
-3. Open **System Settings → Privacy & Security** and scroll down to the Security section. You'll see a note that "Bureaucracy Forever Helper" was blocked. Click **Open Anyway**.
-4. Enter your Mac password or use Touch ID, then click **Open Anyway** once more.
+3. Open **System Settings → Privacy & Security** and scroll down to the Security section. You'll see a note that "Bureaucracy Forever Helper" was blocked. Click **Open Anyway** (the button only stays there for about an hour after your first try, so if it's gone, try opening the app again).
+4. Enter your Mac password (or use Touch ID), then click **OK**. If macOS asks once more whether to open it, choose **Open**.
 
 From then on it opens normally.
 
