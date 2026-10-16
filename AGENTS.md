@@ -18,6 +18,7 @@ System prerequisites:
 - Node and npm.
 - Rust via rustup, with the `clippy` and `rustfmt` components.
 - On Linux, the Tauri libraries: https://v2.tauri.app/start/prerequisites/.
+- `lua5.1` (optional locally; CI requires it for the inbox test).
 - On a Linux machine with no display: `xvfb` (for `xvfb-run`) and `dbus-run-session`. To test the window and tray, also `xdotool x11-apps imagemagick openbox wmctrl`.
 ```
 npm install
@@ -48,6 +49,15 @@ Robert tests from his PC, connected remotely to the VM the agents run on, so he 
 - `src-tauri/tauri.conf.json` app, window and bundle config; `src-tauri/capabilities/` what the front-end may call.
 - `design/` holds designs. The helper's look is `design/2-helper-window/index.html` (approved in #2): its window, tray menu, icons and every state, with screenshots in `screenshots/approved/real-size/`.
 - `work/` multi-session work folders; `backlog.md` follow-up ideas.
+
+## Releases
+The helper ships as installers on GitHub Releases. Convention: /git/maestro/docs/git-workflow.md, Releases.
+- **What is released:** the desktop app for macOS (Apple silicon and Intel) and Windows (x64), as `bureaucracy-forever-helper_<version>_<platform>` files, plus the signed update files and `latest.json` the app's updater reads.
+- **Version rule:** Semantic Versioning from the PRs merged since the last published release: `fix` is a patch, `feat` a minor, `!` or a `BREAKING CHANGE:` footer a major, other types give no release. The first release is 1.0.0. Worked out by `release/plan.ts`.
+- **Where the version is stamped:** at build time by `.github/workflows/release.yml`, passed to `tauri build --config`. It is never committed and never hand-edited; the version in `tauri.conf.json` and `package.json` is a placeholder.
+- **Draft:** after each merge to `main` that calls for a release, the workflow builds the installers and creates or refreshes the one draft release (tag `v<version>`, targeting the built commit) on the repo's Releases page. Only Robert publishes it, after editing its notes if needed; no agent or workflow does. Publishing is also what makes the app offer the update to officers.
+- **Release notes:** every PR body has a `Release note:` line, one plain-English sentence for officers, and a `Release:` line (the bump and the version it makes). `Release note: none` only for non-`feat`/`fix` types. A note starting with `Before you update:` (a breaking change, a restart or a manual step) goes under the "Before you update" heading in the notes with the prefix stripped; others go under "New" and "Fixed". `ship` and the reviewer check these.
+- **Changelog:** the Releases page; there is no `CHANGELOG.md`. The README's Install section links to it.
 
 ## Deploy
 The helper ships as GitHub Releases built by CI (#11, #16). Nothing is hosted and there are no servers, env vars or migrations.
