@@ -22,13 +22,19 @@ function fake(state: {
   gone?: number[];
   publishedOnDelete?: number[];
   failUpload?: string;
+  failRemove?: number;
+  failTagCheckAfterDelete?: boolean;
 }) {
   const calls: string[] = [];
   let next = 99;
   const tags = new Set(state.tags ?? []);
+  let deleted = false;
   const api: Api = {
     drafts: async () => state.drafts ?? [],
-    tagExists: async (tag) => tags.has(tag),
+    tagExists: async (tag) => {
+      if (deleted && state.failTagCheckAfterDelete) throw new Error("GitHub answered 503");
+      return tags.has(tag);
+    },
     isAncestor: async (older, newer) => (state.ancestors ?? []).includes(`${older}>${newer}`),
     releaseState: async (id) =>
       state.gone?.includes(id) ? "gone" : state.published?.includes(id) ? "published" : "draft",
@@ -42,7 +48,9 @@ function fake(state: {
       calls.push(`upload ${id} ${name}`);
     },
     remove: async (id) => {
+      if (id === state.failRemove) throw new Error("GitHub answered 503");
       calls.push(`remove ${id}`);
+      deleted = true;
       const draft = state.drafts?.find((d) => d.id === id);
       if (draft && state.publishedOnDelete?.includes(id)) tags.add(draft.tag);
     },
@@ -130,7 +138,18 @@ describe("create", () => {
   it("puts the release back as a draft when a publish lands just before the delete", async () => {
     const { api, calls } = fake({ drafts: [old(1, "v1.1.1", OLDER)], publishedOnDelete: [1] });
     await expect(create(api, input)).rejects.toThrow("It is back as a draft with the same files and notes");
-    expect(calls.slice(-4)).toEqual(["remove 1", "remove 99", "create v1.1.1 " + OLDER, "upload 100 old-1"]);
+    expect(calls.slice(-4)).toEqual(["remove 1", "create v1.1.1 " + OLDER, "upload 100 old-1", "remove 99"]);
+  });
+
+  it("still puts it back when removing this run's draft fails, and says so", async () => {
+    const { api, calls } = fake({ drafts: [old(1, "v1.1.1", OLDER)], publishedOnDelete: [1], failRemove: 99 });
+    await expect(create(api, input)).rejects.toThrow(/back as a draft.*Also delete the draft this run made, on commit aaaaaaa/);
+    expect(calls.slice(-2)).toEqual(["create v1.1.1 " + OLDER, "upload 100 old-1"]);
+  });
+
+  it("says how to check by hand when it can't tell whether the deleted draft was published", async () => {
+    const { api } = fake({ drafts: [old(1, "v1.1.1", OLDER)], failTagCheckAfterDelete: true });
+    await expect(create(api, input)).rejects.toThrow("couldn't check whether it had just been published");
   });
 
   it("says how to restore it by hand if putting it back fails", async () => {

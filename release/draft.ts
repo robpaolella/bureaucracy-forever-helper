@@ -101,23 +101,43 @@ export async function create(
     // shows up afterwards; its files and notes, saved first, put it back as a draft.
     const saved = await api.files(draft.id);
     await api.remove(draft.id);
-    if (await api.tagExists(draft.tag)) {
-      await api.remove(id);
-      try {
-        await draftWith(api, draft.tag, draft.target, draft.notes, saved);
-      } catch (error) {
-        throw new Error(
-          `${draft.tag} was published just as this run replaced its draft, so the release was deleted, ` +
-            `and putting it back as a draft failed (${error}). Its tag is kept: draft a release on the tag ` +
-            `${draft.tag} on GitHub with the files from the workflow run that built it, and publish it.`,
-          { cause: error },
-        );
-      }
+    const byHand =
+      `Its tag is kept: draft a release on the tag ${draft.tag} on GitHub with the files from the ` +
+      "workflow run that built it, and publish it.";
+    let published: boolean;
+    try {
+      published = await api.tagExists(draft.tag);
+    } catch (error) {
       throw new Error(
-        `${draft.tag} was published just as this run replaced its draft. It is back as a draft with ` +
-          "the same files and notes: publish it again on GitHub.",
+        `Deleted the draft ${draft.tag} but couldn't check whether it had just been published. If the ` +
+          `Releases page has no ${draft.tag} but the tag exists, it was. ${byHand}`,
+        { cause: error },
       );
     }
+    if (!published) continue;
+    // Restore first, so a failure to clean up this run's draft can't stop it.
+    let restoreError: unknown;
+    let cleanupError: unknown;
+    try {
+      await draftWith(api, draft.tag, draft.target, draft.notes, saved);
+    } catch (error) {
+      restoreError = error;
+    }
+    // This run's draft was planned before that publish, so it is out of date.
+    try {
+      await api.remove(id);
+    } catch (error) {
+      cleanupError = error;
+    }
+    const outcome = restoreError
+      ? `The release was deleted, and putting it back as a draft failed (${restoreError}). ${byHand}`
+      : "It is back as a draft with the same files and notes: publish it again on GitHub.";
+    const cleanup = cleanupError
+      ? ` Also delete the draft this run made, on commit ${input.head.slice(0, 7)}: removing it failed (${cleanupError}).`
+      : "";
+    throw new Error(`${draft.tag} was published just as this run replaced its draft. ${outcome}${cleanup}`, {
+      cause: restoreError ?? cleanupError,
+    });
   }
   console.log(`Draft ${tag} is ready for Robert to publish.`);
   return "created";
