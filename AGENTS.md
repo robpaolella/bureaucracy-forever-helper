@@ -25,6 +25,12 @@ npm run tauri dev       # opens the app; the front-end is served on http://local
 ```
 Without a display, run it as `dbus-run-session xvfb-run -a npm run tauri dev`. Without a D-Bus session the app starts but shows no window.
 
+Native screenshots of the tray, its menu and a notification: the VM has no tray host or notification daemon, and needs no sudo for them.
+- In a new empty temp folder outside any worktree, `apt-get download stalonetray dunst`, unpack each with `dpkg -x`, and run them from there. Nothing is installed. (`stalonetray` is the XEmbed tray libayatana-appindicator falls back to when no StatusNotifier watcher runs; `dunst` shows notifications.)
+- Inside `dbus-run-session xvfb-run`, start openbox, then stalonetray and dunst, then the app. Capture the tray, the open menu and the notification (for example with `import -window root`).
+- A notification needs a throwaway local trigger, never committed (#73 set a status and called `notify::raise` 35 seconds in). With dunst's defaults a left click only dismisses a notice; a middle click fires its action.
+- Afterwards stop everything you started and delete the temp folder.
+
 ## Previews
 Previews: keep until merge
 
@@ -67,7 +73,7 @@ src-tauri/capabilities/**
 ## Watch out for
 - The window only appears under xvfb inside `dbus-run-session xvfb-run …`.
 - Closing the window hides it; only the tray's Quit exits.
-- The tray icon is still a placeholder blue square; the approved design (#2) replaces it with the guild's column mark and a status dot.
+- The tray icon is the guild's column mark with a status dot (#73); the VM's light theme shows only the light-bar icon, so dark-bar, macOS and Windows rendering wait for a release build.
 
 ## Reference material
 `ADDON-SPEC.md` in the site repo (robpaolella/bureaucracy-forever; tracked in its #271) is the contract for the data the add-on, helper and site exchange. Change the format there, not here.
