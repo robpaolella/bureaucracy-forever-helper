@@ -51,6 +51,9 @@
 .card.tone-warn { border-color:var(--warn-line); background:var(--warn-wash); }
 .card.tone-stop { border-color:var(--stop-line); background:var(--stop-wash); }
 .card.tone-info { border-color:var(--teal-line); background:var(--teal-wash); }
+/* Progress */
+.track-bar { height:6px; border-radius:999px; background:var(--ink-700); overflow:hidden; }
+.track-bar > span { display:block; width:0; height:100%; background:var(--teal); border-radius:999px; }
 /* Toggle */
 .toggle { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .toggle label { min-height:44px; display:flex; align-items:center; font-size:14px; color:var(--fg-2); }

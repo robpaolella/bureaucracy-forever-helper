@@ -3,6 +3,7 @@
 // src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs, `ReservesView` in src-tauri/src/reserves.rs,
 // the update outcomes in src-tauri/src/updater.rs, the add-on update outcomes in
 // src-tauri/src/addon_update.rs, and `TrayStatus` and `Notice` in tray.rs and notify.rs.
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { open } from "@tauri-apps/plugin-dialog";
@@ -181,6 +182,9 @@ export interface UpdateProgress {
 /** The event that carries download progress (`PROGRESS_EVENT` in updater.rs). */
 const UPDATE_PROGRESS_EVENT = "update-progress";
 
+/** The event the tray's "Check for updates" sends (`CHECK_EVENT` in tray.rs). */
+const TRAY_CHECK_EVENT = "tray-check-for-updates";
+
 /** Why an add-on check or install failed; the wording is in `message`. The old add-on and its
  * inbox are always left as they were. */
 export type AddonFailure =
@@ -269,6 +273,12 @@ export interface Bridge {
   restartAfterUpdate(): Promise<RestartOutcome>;
   /** Calls `listener` with download progress; resolves to a function that stops it. */
   onUpdateProgress(listener: (progress: UpdateProgress) => void): Promise<() => void>;
+  /** Opens what's new in the update the last check found, in the browser. */
+  openUpdateNotes(): Promise<void>;
+  /** Calls `listener` each time the tray's "Check for updates" is chosen; resolves to a function that stops it. */
+  onTrayCheck(listener: () => void): Promise<() => void>;
+  /** The installed helper's version, such as "0.2.1". */
+  helperVersion(): Promise<string>;
   /** Compares the add-on in a game version folder with the latest version the site names.
    * Downloads nothing. */
   checkAddon(versionFolder: string): Promise<AddonCheck>;
@@ -308,6 +318,9 @@ export const tauriBridge: Bridge = {
   restartAfterUpdate: () => invoke("restart_after_update"),
   onUpdateProgress: (listener) =>
     listen<UpdateProgress>(UPDATE_PROGRESS_EVENT, (event) => listener(event.payload)),
+  openUpdateNotes: () => invoke("open_update_notes"),
+  onTrayCheck: (listener) => listen(TRAY_CHECK_EVENT, () => listener()),
+  helperVersion: () => getVersion(),
   checkAddon: (versionFolder) => invoke("check_addon_update", { folder: versionFolder }),
   installAddon: (versionFolder) => invoke("install_addon", { folder: versionFolder }),
   onAddonProgress: (listener) =>

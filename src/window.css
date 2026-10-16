@@ -52,3 +52,8 @@ html, body { width: 420px; height: 640px; overflow: hidden; }
 .found-title { font-weight:600; }
 .folder-choices { border:0; padding:0; margin:0; }
 .folder-choices legend { margin-bottom:10px; color:var(--fg); }
+
+/* The helper update card */
+.card-title { font-weight:600; font-size:15px; }
+.card details summary { line-height:44px; cursor:pointer; }
+.card details ul { margin:6px 0 0; padding-left:18px; }
