@@ -89,6 +89,54 @@ fn the_file_time_and_the_selection_fields_are_passed_on() {
 }
 
 #[test]
+fn pending_site_voids_are_ignored_but_still_subject_to_parser_limits() {
+    let voids = r#"
+        BureaucracyForeverDB = {
+            ["siteVoids"] = {
+                ["aw-1111aaaa"] = { ["raid"] = "r1", ["env"] = "live", ["at"] = 123 },
+                ["aw-2222bbbb"] = { ["raid"] = "r2", ["env"] = "live", ["reason"] = "pending", ["at"] = 456 },
+            },
+            ["activeRaid"] = "r1",
+            ["ops"] = { ["r1"] = { { ["id"] = "aw-1111aaaa" } } },
+            ["awards"] = { ["r1"] = { { ["key"] = "aw-1111aaaa" } } },
+            ["noRaid"] = { { ["id"] = "cf-2222bbbb" } },
+            ["noRaidOps"] = { { ["id"] = "vd-3333cccc" } },
+        }
+    "#;
+    let with_voids = read(voids).unwrap();
+    let stripped_voids = voids.replace(
+        r#"["siteVoids"] = {
+                ["aw-1111aaaa"] = { ["raid"] = "r1", ["env"] = "live", ["at"] = 123 },
+                ["aw-2222bbbb"] = { ["raid"] = "r2", ["env"] = "live", ["reason"] = "pending", ["at"] = 456 },
+            },"#,
+        "",
+    );
+    assert_ne!(voids, stripped_voids, "comparison must remove siteVoids");
+    let without_voids = read(&stripped_voids).unwrap();
+    assert_eq!(with_voids, without_voids);
+
+    for reading in [&with_voids, &without_voids] {
+        let dir = scratch_dir();
+        let queue = open_queue(&dir);
+        let result = hand_off(&queue, reading);
+        assert_eq!(result.queued, 1);
+        assert_eq!(waiting_ids(&queue), ["aw-1111aaaa"]);
+    }
+
+    assert!(read(r#"BureaucracyForeverDB = { ["siteVoids"] = {} }"#).is_ok());
+    let too_long = format!(
+        r#"BureaucracyForeverDB = {{ ["siteVoids"] = {{ ["k"] = {{ ["reason"] = "{}" }} }} }}"#,
+        "x".repeat(1001)
+    );
+    assert!(refused(&too_long).contains("longer than"));
+    let too_deep = format!(
+        r#"BureaucracyForeverDB = {{ ["siteVoids"] = {{ ["k"] = {{ ["x"] = {} }} }} }}"#,
+        "{".repeat(6) + &"}".repeat(6)
+    );
+    assert!(refused(&too_deep).contains("deeper"));
+}
+
+#[test]
 fn a_file_missing_any_of_the_four_lists_reads_it_as_empty() {
     let reading = read("BureaucracyForeverDB = {\n}\n").unwrap();
     assert!(reading.operations.is_empty() && reading.awards.is_empty());
