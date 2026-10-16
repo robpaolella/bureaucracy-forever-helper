@@ -2,9 +2,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, KeyOutcome, Raid, RaidsView, ReservesView } from "../bridge";
+import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidsView, ReservesView } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
+import { trayStatusOf } from "./tray";
 import { applyRaids, initialState, reservesRow, startWindow } from "./realWindow";
 
 const accepted: KeyOutcome = {
@@ -527,5 +528,73 @@ describe("reserves in the window", () => {
     pushRaids({ state: { kind: "empty" }, raids: [] });
     expect(store.get().chain.reserves.word).toBe("No raids soon");
     expect(store.get().status.title).toBe("No raids coming up");
+  });
+});
+
+describe("live award lines", () => {
+  const sent = (over: Partial<ChatEvent & { kind: "sent" }> = {}): ChatEvent => ({
+    kind: "sent", line: "award", item: 1, itemName: "Earthshaker", character: "Aldric", boss: "Magmadar",
+    raid: "r1", raidName: "Molten Core", at: 1, ...over,
+  });
+
+  async function liveWindow() {
+    let push: (e: ChatEvent) => void = () => {};
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+      onChatLog: (l: (e: ChatEvent) => void) => ((push = l), Promise.resolve(() => {})),
+    } as unknown as Bridge;
+    const root = document.createElement("div");
+    const store = await startWindow(root, bridge);
+    return { root, store, push: (e: ChatEvent) => push(e) };
+  }
+
+  it("shows a sent award as an Activity line and counts it", async () => {
+    const { store, push } = await liveWindow();
+    push(sent());
+    push(sent({ itemName: "Striker’s Mark", character: "Thessaly" }));
+    const [newest, older] = store.get().activity;
+    expect(newest).toMatchObject({ tone: "ok", kind: "Sent", strong: "Striker’s Mark", text: "to Thessaly", meta: "Magmadar" });
+    expect(older?.strong).toBe("Earthshaker");
+    expect(store.get().sentTonight).toBe(2);
+  });
+
+  it("counts replacements, and keeps only the last 50 lines", async () => {
+    const { store, push } = await liveWindow();
+    for (let i = 0; i < 55; i++) push(sent({ line: i % 2 ? "replacement" : "award" }));
+    expect(store.get().activity).toHaveLength(50);
+    expect(store.get().sentTonight).toBe(55);
+  });
+
+  it("shows ignored lines in amber, in Robert's words, and the next good line still shows", async () => {
+    const { store, push } = await liveWindow();
+    push({ kind: "ignored", reason: "malformed" });
+    push({ kind: "ignored", reason: "newerVersion" });
+    push(sent());
+    const [good, newer, bad] = store.get().activity;
+    expect(good?.kind).toBe("Sent");
+    expect(newer).toMatchObject({ tone: "warn", kind: "Ignored", text: "a loot line from a newer version. Update the helper to read it." });
+    expect(bad).toMatchObject({ tone: "warn", text: "a loot line the helper couldn’t read. Nothing was recorded from it." });
+    expect(store.get().sentTonight).toBe(1);
+  });
+
+  it("adds no line and no count for an undo", async () => {
+    const { store, push } = await liveWindow();
+    push(sent({ line: "undo", character: null, boss: null }));
+    expect(store.get().activity).toEqual([]);
+    expect(store.get().sentTonight).toBe(0);
+    expect(store.get().chain.awards.word).toBe("Not yet");
+  });
+
+  it("reads Sending, Going to <raid> and the caption, keeps the raid for #60, and tells the tray", async () => {
+    const { root, store, push } = await liveWindow();
+    push(sent());
+    const awards = root.querySelectorAll(".chain li")[4]!;
+    expect(awards.querySelector(".pill")?.textContent).toBe("Sending");
+    expect(awards.textContent).toContain("Going to Molten Core");
+    expect(awards.textContent).toContain("Picked in game. Change it on the add-on’s Sync tab.");
+    expect(store.get().awardsRaid).toEqual({ id: "r1", name: "Molten Core" });
+    expect(trayStatusOf(store.get())).toMatchObject({ sentTonight: 1, secondLine: "Awards going to Molten Core" });
   });
 });

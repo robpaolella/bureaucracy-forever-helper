@@ -1,6 +1,6 @@
 // The activity log: today's events, newest first, at most the last 50 (design: "Today,
 // newest first. The last 50 are kept."). Feature issues add events; the window lists them.
-import type { ReservesView } from "../bridge";
+import type { ChatEvent, ReservesView } from "../bridge";
 import { GUILD_TIMEZONE } from "../guild";
 import type { Tone } from "./components";
 
@@ -57,6 +57,25 @@ export function reservesEvent(view: ReservesView, at: number): ActivityEvent | u
     return { at, tone: "ok", kind: "Reserves written", text: `for ${nameList(state.raids)}. Type /reload in game.` };
   }
   return undefined;
+}
+
+const IGNORED_TEXT = {
+  malformed: "a loot line the helper couldn’t read. Nothing was recorded from it.",
+  newerVersion: "a loot line from a newer version. Update the helper to read it.",
+} as const;
+
+/** The line for a chat log event: sent awards and replacements, and ignored lines. An undo has none. */
+export function chatEvent(event: ChatEvent, at: number): ActivityEvent | undefined {
+  if (event.kind === "ignored") return { at, tone: "warn", kind: "Ignored", text: IGNORED_TEXT[event.reason] };
+  if (event.line === "undo") return undefined;
+  return {
+    at,
+    tone: "ok",
+    kind: "Sent",
+    strong: event.itemName ?? "An item",
+    text: event.character ? `to ${event.character}` : undefined,
+    meta: event.boss ?? undefined,
+  };
 }
 
 export interface ActivityLog {

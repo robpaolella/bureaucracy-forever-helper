@@ -1,10 +1,10 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, FolderOutcome, KeyOutcome, RaidsView, ReservesView } from "../bridge";
+import type { Bridge, ChatEvent, FolderOutcome, KeyOutcome, RaidsView, ReservesView } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
-import { addEvent, nameList, raidStart, reservesEvent } from "./activity";
+import { addEvent, chatEvent, nameList, raidStart, reservesEvent } from "./activity";
 import type { ChainRow } from "./chain";
 import { el } from "./components";
 import { trayStatusOf } from "./tray";
@@ -170,6 +170,35 @@ export function applyFolderDone(state: AppState, versionFolder: string): AppStat
     folder: undefined,
     gamePath: versionFolder,
     chain: { ...state.chain, folder: { tone: "ok", word: "Found", detail: shortPath(versionFolder) } },
+  };
+}
+
+const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString();
+
+/**
+ * Shows a line the chat log follower sent or ignored: an Activity line, and for a sent award
+ * or replacement the Awards row, the raid it went to and the day's count. An undo shows
+ * nothing.
+ */
+export function applyChatEvent(state: AppState, event: ChatEvent, at: number): AppState {
+  const line = chatEvent(event, at);
+  if (!line) return state;
+  const next = { ...state, activity: addEvent(state.activity, line, at) };
+  if (event.kind !== "sent") return next;
+  return {
+    ...next,
+    sentTonight: state.sentTonight + 1,
+    awardsRaid: { id: event.raid, name: event.raidName },
+    awardsLine: `Awards going to ${event.raidName}`,
+    chain: {
+      ...state.chain,
+      awards: {
+        tone: "ok",
+        word: "Sending",
+        detail: `Going to ${event.raidName}`,
+        under: [el("p", "caption", ["Picked in game. Change it on the add-on’s Sync tab."])],
+      },
+    },
   };
 }
 
@@ -394,6 +423,18 @@ export async function startWindow(
     if (!sawReserves) hear(first);
   } catch {
     // Reserves are unavailable; the Reserves row keeps its last look.
+  }
+  // Lines the follower sent or ignored. The count starts again each day.
+  let countDay = Date.now();
+  try {
+    await bridge.onChatLog((event) => {
+      const at = Date.now();
+      if (!sameDay(countDay, at)) store.set((s) => ({ ...s, sentTonight: 0 }));
+      countDay = at;
+      store.set((s) => applyChatEvent(s, event, at));
+    });
+  } catch {
+    // The chat log is unavailable; the Awards row and Activity keep their last look.
   }
   // The helper's own version and update: progress and the tray's check, a check now, then
   // one every few hours. Each part that fails leaves the rest of the window as it is.
