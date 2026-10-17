@@ -17,6 +17,8 @@ export interface AppState {
   sentTonight: number;
   /** The tray's second line, finished ("Awards going to Molten Core"); #60 supplies it. */
   awardsLine?: string;
+  /** The raid the latest handled award went to, for the Awards row's caption (#60). */
+  awardsRaid?: { id: string; name: string };
   staging?: boolean;
   /** Set while the first-run setup is showing in place of the main screen. */
   setup?: { key: KeyStep };
