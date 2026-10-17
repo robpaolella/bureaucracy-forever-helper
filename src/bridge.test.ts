@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AddonProgress, ChatEvent, RaidsView, ReservesView, SyncStatus, UpdateProgress } from "./bridge";
+import type { AddonProgress, ChatEvent, RaidChoice, RaidsView, ReservesView, SyncStatus, UpdateProgress } from "./bridge";
 
 const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({ invoke }));
@@ -35,6 +35,8 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("get_raids");
     await tauriBridge.reserves();
     expect(invoke).toHaveBeenLastCalledWith("get_reserves");
+    await tauriBridge.raidChoice();
+    expect(invoke).toHaveBeenLastCalledWith("get_raid_choice");
     await tauriBridge.searchFolder();
     expect(invoke).toHaveBeenLastCalledWith("search_game_folder");
     await tauriBridge.checkPickedFolder("/games");
@@ -104,6 +106,23 @@ describe("tauriBridge", () => {
     expect(listen).toHaveBeenCalledWith("raids", expect.any(Function));
     emit({ payload: { state: { kind: "loading" }, raids: [] } });
     expect(heard).toEqual([{ state: { kind: "loading" }, raids: [] }]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("passes on each raid choice from the raid-choice event until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard: RaidChoice[] = [];
+    const unlisten = await tauriBridge.onRaidChoice((choice) => heard.push(choice));
+    expect(listen).toHaveBeenCalledWith("raid-choice", expect.any(Function));
+    const choice = { activeBy: "chosen", activeRaid: "r1", chosenBy: "Aldric", savedAt: 1_792_005_000 };
+    emit({ payload: choice });
+    expect(heard).toEqual([choice]);
     unlisten();
     expect(stop).toHaveBeenCalled();
   });
