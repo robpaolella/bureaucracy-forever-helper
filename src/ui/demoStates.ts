@@ -6,6 +6,7 @@ import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
 import type { FolderStep } from "./folder";
 import { applyRaids } from "./realWindow";
+import { addonFailedEvent, addonRow, addonUpdatedEvent, type AddonUpdate } from "./addonUpdate";
 import { updateFailedEvent, type HelperUpdate } from "./update";
 
 export interface DemoState {
@@ -147,6 +148,14 @@ const helperUpdate = (update: HelperUpdate, extra: ActivityEvent[] = []): DemoSt
   const activity = [...extra.map((e) => ({ ...e, at: new Date().setHours(20, 20, 0, 0) })), ...app.activity];
   return { app: { ...app, update, helperVersion: "0.2.1", activity } };
 };
+/** The ready window with the Add-on row in an update's state, as in the design's `addon-*` states. */
+const addonUpdate = (update: AddonUpdate, installed: string, extra?: ActivityEvent): DemoState => {
+  const { app } = ready();
+  const inert = { install() {}, later() {}, notes() {} };
+  const chain = { ...app.chain, addon: addonRow(app.chain.addon, update, installed, inert) };
+  const activity = extra ? [{ ...extra, at: new Date().setHours(20, 26, 0, 0) }, ...app.activity] : app.activity;
+  return { app: { ...app, chain, activity } };
+};
 const wrote: ActivityEvent = { at: 0, tone: "ok", kind: "Reserves written", text: "for Molten Core and Blackwing Lair. Type /reload in game." };
 const joined: ActivityEvent = { at: 0, tone: "ok", kind: "Connected", text: "to the guild site." };
 
@@ -174,6 +183,10 @@ export const demoStates: Record<string, DemoState> = {
   "helper-update-failed": helperUpdate({ phase: "failed", version: "0.3.0", reason: "badSignature" }, [
     updateFailedEvent("badSignature", "0.2.1", 0),
   ]),
+  "addon-update": addonUpdate({ phase: "available", version: "1.4.0", note: null }, "1.3.2"),
+  "addon-installing": addonUpdate({ phase: "installing", version: "1.4.0", percent: 70 }, "1.3.2"),
+  "addon-updated": addonUpdate({ phase: "updated", version: "1.4.0", note: "It loads the next time you type /reload or start the game." }, "1.4.0", addonUpdatedEvent("1.4.0", 0)),
+  "addon-rolled-back": addonUpdate({ phase: "failed", version: "1.4.0", kept: "1.3.2" }, "1.3.2", addonFailedEvent("1.3.2", 0)),
   reload: written({ state: { kind: "reload", raids: both, changed: ["Molten Core"] }, changes: 2, first: false, problem: null }, [
     { at: 0, tone: "warn", kind: "Reserves changed", text: "for Molten Core. Type /reload in game." },
     wrote,
@@ -188,6 +201,7 @@ export const demoStates: Record<string, DemoState> = {
       sentTonight: 0,
       gamePath: `${MAC}/_classic_`,
       helperVersion: "0.2.1",
+      addonVersion: "1.3.2",
     },
   },
   offline: {
@@ -235,6 +249,7 @@ export const demoStates: Record<string, DemoState> = {
     phase: "noAddon",
     message: "World of Warcraft is here, but the Bureaucracy Forever add-on isn’t installed.",
     path: `${WIN}\\_classic_`,
+    versionFolders: [`${WIN}\\_classic_`],
   }),
   "folder-gone": folderStep({
     phase: "gone",

@@ -157,6 +157,7 @@ pub fn run() {
             updater::open_update_notes,
             commands::check_addon_update,
             commands::install_addon,
+            addon_update::open_addon_notes,
             tray::set_tray_status,
             notify::raise_notification,
         ])

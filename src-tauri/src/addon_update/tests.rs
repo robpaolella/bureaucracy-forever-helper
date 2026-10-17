@@ -537,3 +537,14 @@ fn the_swap_waits_for_an_inbox_write_in_progress() {
     assert_eq!(swap.join().unwrap(), Ok(()));
     assert!(files(&folder)["BureaucracyForever/Core.lua"].contains("new"));
 }
+
+#[test]
+fn the_notes_page_is_the_release_of_that_version_and_nothing_else() {
+    assert_eq!(
+        release_page("1.4.0").as_deref(),
+        Some("https://github.com/robpaolella/bureaucracy-forever-addon/releases/tag/v1.4.0")
+    );
+    assert_eq!(release_page(""), None);
+    assert_eq!(release_page("1.4.0/../../x"), None);
+    assert_eq!(release_page("1.4.0?x=y"), None);
+}

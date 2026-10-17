@@ -3,6 +3,7 @@
 // design (design/2-helper-window/index.html); styles live in window.css.
 import wordmark from "../assets/wordmark.png";
 import { ACTIVITY_RECENT, formatTime, guildTime, showSeeAll, zoneName, type ActivityEvent } from "./activity";
+import type { AddonUpdate } from "./addonUpdate";
 import { ROW_NAMES, ROW_ORDER, firstBroken, type ChainRow, type ChainState, type RowId } from "./chain";
 import { button, el, field, pill, type Child, type Tone } from "./components";
 import { folderBody, type FolderActions, type FolderStep } from "./folder";
@@ -30,6 +31,10 @@ export interface AppState {
   folderBusy?: boolean;
   /** The installed helper's version, such as "0.2.1". */
   helperVersion?: string;
+  /** The add-on version in the game folder, such as "1.3.2". */
+  addonVersion?: string;
+  /** A newer add-on, or an install of one, shown in the Add-on row. */
+  addon?: AddonUpdate;
   /** A newer helper, shown in a card under the chain. */
   update?: HelperUpdate;
   /** A check for updates the officer asked for in Settings or the tray. */

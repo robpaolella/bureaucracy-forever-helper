@@ -48,6 +48,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     checkAddon: unused,
     installAddon: unused,
     onAddonProgress: unused,
+    openAddonNotes: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: unused,
   };

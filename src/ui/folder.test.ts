@@ -56,6 +56,7 @@ function fake(folder: Folder = {}): Bridge {
     checkAddon: unused,
     installAddon: unused,
     onAddonProgress: unused,
+    openAddonNotes: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: unused,
     searchFolder: vi.fn(() => Promise.resolve(nothing)),
@@ -123,12 +124,18 @@ describe("step 2: the game folder", () => {
 
   it.each<[string, FolderOutcome, string, string[]]>([
     ["not found", { kind: "notFound", message: NOT_FOUND }, NOT_FOUND, ["Choose folder…"]],
-    ["no add-on", { kind: "noAddon", message: NO_ADDON, path: WOW }, NO_ADDON, ["Choose a different folder"]],
+    ["no add-on", { kind: "noAddon", message: NO_ADDON, path: WOW, versionFolders: [] }, NO_ADDON, ["Choose a different folder"]],
   ])("shows %s with the engine's words", async (_name, outcome, message, buttons) => {
     const { root } = await open({ searchFolder: () => Promise.resolve(outcome) });
     expect(body(root).textContent).toContain(message);
     expect(body(root).querySelector("[role=alert]")).not.toBeNull();
     expect(labels(root)).toEqual(buttons);
+  });
+
+  it("offers Install the add-on when the game has one version", async () => {
+    const outcome: FolderOutcome = { kind: "noAddon", message: NO_ADDON, path: WOW, versionFolders: [`${WOW}\\_classic_`] };
+    const { root } = await open({ searchFolder: () => Promise.resolve(outcome) });
+    expect(labels(root)).toEqual(["Install the add-on", "Choose a different folder"]);
   });
 
   it("shows the remembered folder's absence with its path, never replacing it by a search", async () => {

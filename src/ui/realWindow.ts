@@ -4,6 +4,7 @@
 import type { Bridge, ChatEvent, FolderOutcome, KeyOutcome, RaidsView, ReservesView } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
+import { addonRow, addonSwitchSection, addonUpdates } from "./addonUpdate";
 import { addEvent, chatEvent, nameList, raidStart, reservesEvent } from "./activity";
 import type { ChainRow } from "./chain";
 import { el } from "./components";
@@ -119,6 +120,7 @@ const EMPTY_KEY_MESSAGE = "Paste your helper key.";
 const MALFORMED_KEY_MESSAGE = "That doesn’t look like a helper key. Copy it again from the officer area.";
 const FAILED_CHECK_MESSAGE = "The helper couldn’t check your key. Try again.";
 const FAILED_FOLDER_MESSAGE = "The helper couldn’t check that folder. Try again.";
+const FAILED_INSTALL_MESSAGE = "The helper couldn’t install the add-on. Try again.";
 
 /** Why `key` can't be a helper key, or nothing if it can. */
 export function keyShapeError(key: string): string | undefined {
@@ -208,6 +210,8 @@ export async function startWindow(
   bridge: Bridge,
   store: Store<AppState> = createStore(initialState),
 ): Promise<Store<AppState>> {
+  const addon = addonUpdates(store, bridge, (s) => addonRow(s.chain.addon, s.addon, s.addonVersion, addon));
+
   /** Runs one key check and shows its result. `pasted` stays in the field if it fails. */
   async function check(run: () => Promise<KeyOutcome>, pasted: string, stored: boolean): Promise<void> {
     let outcome: KeyOutcome;
@@ -251,7 +255,10 @@ export async function startWindow(
     try {
       const outcome = await ask(() => bridge.rememberVersion(versionFolder));
       if (!outcome) return failed(FAILED_FOLDER_MESSAGE, versionFolder);
-      if (outcome.kind === "found") return store.set((s) => applyFolderDone(s, outcome.versionFolder));
+      if (outcome.kind === "found") {
+        store.set((s) => applyFolderDone(s, outcome.versionFolder));
+        return void addon.check();
+      }
       if (outcome.kind === "settingsFailed") return failed(outcome.message, versionFolder);
       show(stepFor(outcome));
     } finally {
@@ -270,11 +277,42 @@ export async function startWindow(
   async function startFolder(): Promise<void> {
     show({ phase: "searching" });
     const remembered = await ask(() => bridge.rememberedFolder());
-    if (remembered?.kind === "found") return store.set((s) => applyFolderDone(s, remembered.versionFolder));
+    if (remembered?.kind === "found") {
+      store.set((s) => applyFolderDone(s, remembered.versionFolder));
+      return void addon.check();
+    }
     if (remembered?.kind === "gone" || remembered?.kind === "noAddon") return show(stepFor(remembered));
     const searched = await ask(() => bridge.searchFolder());
     if (!searched) return show({ phase: "notFound", message: FAILED_FOLDER_MESSAGE });
     show(stepFor(searched));
+  }
+
+  /** "Install the add-on" on the folder step: installs into the one game version, then moves on. */
+  async function installAddon(): Promise<void> {
+    const { folder, folderBusy } = store.get();
+    const target = folder?.versionFolders?.length === 1 ? folder.versionFolders[0] : undefined;
+    if (!target || folderBusy) return;
+    working(true);
+    patch({ error: undefined });
+    let installed = false;
+    try {
+      let message = FAILED_INSTALL_MESSAGE;
+      try {
+        const checked = await bridge.checkAddon(target);
+        if (checked.kind === "failed") message = checked.message;
+        else {
+          const result = await bridge.installAddon(target);
+          if (result.kind === "installed") installed = true;
+          else if (result.kind === "notInstalled") message = result.message;
+        }
+      } catch {
+        // The Rust side failed outright; the step says so and offers the button again.
+      }
+      if (!installed) return failed(message);
+    } finally {
+      working(false);
+    }
+    await confirm(target);
   }
 
   async function choose(): Promise<void> {
@@ -310,6 +348,7 @@ export async function startWindow(
       if (install) void confirm(install.versionFolder);
     },
     choose: () => void choose(),
+    installAddon: () => void installAddon(),
     select: (selected) => patch({ selected }),
   };
 
@@ -346,7 +385,8 @@ export async function startWindow(
       const s = store.get();
       return [
         gameFolderSection(s.gamePath, s.folder, actions, s.folderBusy),
-        versionsSection(s.helperVersion, s.updateCheck, s.update?.phase === "installing", checkAsked),
+        addonSwitchSection(),
+        versionsSection(s.helperVersion, s.updateCheck, s.update?.phase === "installing", checkAsked, s.addonVersion),
       ];
     },
     onConnect: connect,
@@ -451,6 +491,8 @@ export async function startWindow(
   bridge.helperVersion().then((helperVersion) => store.set((s) => ({ ...s, helperVersion })), () => {});
   bridge.onUpdateProgress(updates.progress).catch(() => {});
   bridge.onTrayCheck(checkAsked).catch(() => {});
+  bridge.onAddonProgress(addon.progress).catch(() => {});
+  setInterval(() => void addon.check(), UPDATE_CHECK_EVERY);
   void updates.check(false);
   setInterval(() => void updates.check(false), UPDATE_CHECK_EVERY);
   try {

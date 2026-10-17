@@ -12,6 +12,8 @@ export interface FolderStep {
   /** Shown above the buttons when the last try failed, such as a settings file that couldn't be saved. */
   error?: string;
   installs?: Install[];
+  /** For `noAddon`: the game versions the add-on can be installed into. */
+  versionFolders?: string[];
   /** The chosen card when there are several. */
   selected?: number;
   /** Set while a folder is being saved or checked, so buttons can't be pressed twice. */
@@ -24,6 +26,8 @@ export interface FolderActions {
   /** "Continue" with the chosen game version. */
   continueWith(): void;
   choose(): void;
+  /** "Install the add-on" into the game version that has none. */
+  installAddon(): void;
   select(index: number): void;
 }
 
@@ -39,6 +43,7 @@ export function stepFor(outcome: FolderOutcome, picked?: string): FolderStep | u
     case "notGame":
       return { phase: "notGame", message: outcome.message, path: picked };
     case "noAddon":
+      return { phase: "noAddon", message: outcome.message, path: outcome.path, versionFolders: outcome.versionFolders };
     case "gone":
       return { phase: outcome.kind, message: outcome.message, path: outcome.path };
     default:
@@ -121,8 +126,17 @@ export function folderBody(step: FolderStep, actions: FolderActions): Node[] {
     case "notGame":
       return [alertCard(notice("stop", step.message, step.path)), ...failure, el("div", "row", [pick("Choose folder…")])];
     case "noAddon":
-      // The design's "Install the add-on" button comes with #49.
-      return [alertCard(notice("warn", step.message, step.path)), ...failure, el("div", "row", [pick("Choose a different folder", false)])];
+      // With several game versions it isn't clear which one the officer plays, so only a single one is offered.
+      return [
+        alertCard(notice("warn", step.message, step.path)),
+        ...failure,
+        el("div", "row", [
+          ...(step.versionFolders?.length === 1
+            ? [button({ label: "Install the add-on", loading: busy, onClick: actions.installAddon })]
+            : []),
+          pick("Choose a different folder", false),
+        ]),
+      ];
     case "gone":
       return [alertCard(notice("warn", step.message, step.path)), ...failure, el("div", "row", [pick("Choose folder…")])];
   }
