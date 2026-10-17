@@ -102,6 +102,8 @@ describe("raidChoiceLine", () => {
       expect(line({ choice: choice({ activeBy }) })).toBeNull();
     }
     expect(line({ choice: null })).toBeNull();
+    expect(line({ choice: choice({ savedAt: 0 }), now: 0 })).toBeNull();
+    expect(line({ choice: choice({ savedAt: 0 }) })).toBeNull();
     expect(line({ choice: choice({ savedAt: Number.NaN }) })).toBeNull();
   });
 
@@ -112,7 +114,7 @@ describe("raidChoiceLine", () => {
       pill: "Sending",
       detail: "Going to Molten Core",
     });
-    expect(l.caption).toMatch(/^Chosen by Aldric, as of your last \/reload/);
+    expect(l.caption).toBe(`Chosen by Aldric, as of your last /reload, ${TIME}. Change it on the add-on's Sync tab.`);
     expect(l.trayLine).toBe("Awards going to Molten Core");
     expect(
       line({ awardsRaid: { id: "r1" }, choice: choice({ chosenBy: null }) })!

@@ -49,7 +49,8 @@ export function raidChoiceLine({
   awardsRaid,
   now,
 }: RaidChoiceInput): RaidChoiceLine | null {
-  if (!choice || !Number.isFinite(choice.savedAt)) return null;
+  // 0 is the reader's "no file time".
+  if (!choice || !Number.isFinite(choice.savedAt) || choice.savedAt <= 0) return null;
   const savedMs = choice.savedAt * 1000;
   if (now - savedMs > CHOICE_MAX_AGE_MS) return null;
   const asOf = `as of your last /reload, ${formatTime(savedMs)} ${zoneName(savedMs)}`;
