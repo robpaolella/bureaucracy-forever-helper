@@ -18,6 +18,7 @@
 //! it and hands the result on from a thread of its own, so a busy queue never makes the
 //! reader miss a change.
 
+pub mod choice;
 mod lua;
 pub mod watcher;
 

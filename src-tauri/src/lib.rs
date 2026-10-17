@@ -22,6 +22,7 @@ use key::{KeyEngine, SiteClient, SystemStore, SETTINGS_FILE};
 use queue::Queue;
 use raids::{Poller, Timing as RaidsTiming, RAIDS_EVENT};
 use reserves::{Inputs, Reserves, RESERVES_EVENT};
+use savedvars::choice::{Choices, RAID_CHOICE_EVENT};
 use savedvars::watcher::{Event, Timing, Watcher};
 use std::sync::{Arc, Mutex};
 use upload::{Runner, SYNC_STATUS_EVENT};
@@ -116,7 +117,9 @@ pub fn run() {
                 },
             ));
             // The add-on's saved file, read when the game saves it. The status and error
-            // display come with the sync window; #60 reads `Watcher::latest`.
+            // display come with the sync window. How the raid was chosen goes to the window.
+            let (handle, choices) = (app.handle().clone(), Arc::new(Choices::default()));
+            app.manage(choices.clone());
             app.manage(Watcher::start(
                 move || match folders.remembered() {
                     game_folder::FolderOutcome::Found(install) => {
@@ -129,6 +132,9 @@ pub fn run() {
                 move |event| {
                     if let Event::Read(reading) = event {
                         reserves.game_saved(reading.saved_at);
+                        if let Some(choice) = choices.record(&reading) {
+                            let _ = handle.emit(RAID_CHOICE_EVENT, choice);
+                        }
                     }
                 },
             ));
@@ -151,6 +157,7 @@ pub fn run() {
             commands::get_sync_status,
             commands::get_raids,
             commands::get_reserves,
+            commands::get_raid_choice,
             commands::check_for_update,
             commands::install_update,
             commands::restart_after_update,

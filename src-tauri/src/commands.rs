@@ -21,6 +21,7 @@ use crate::key::{
 };
 use crate::raids::{Poller, RaidsView};
 use crate::reserves::{Reserves, ReservesView};
+use crate::savedvars::choice::{Choices, RaidChoice};
 use crate::updater::{self, CheckOutcome, InstallOutcome, RestartOutcome, Updates};
 use crate::upload::{Runner, SyncStatus};
 use serde::Serialize;
@@ -332,6 +333,13 @@ pub fn get_raids(raids: tauri::State<'_, Poller>) -> RaidsView {
 #[tauri::command]
 pub fn get_reserves(reserves: tauri::State<'_, Reserves>) -> ReservesView {
     reserves.view()
+}
+
+/// How the raid was chosen, per the newest saved file, or null before any is read; each
+/// later change comes as a `raid-choice` event.
+#[tauri::command]
+pub fn get_raid_choice(choices: tauri::State<'_, Arc<Choices>>) -> Option<RaidChoice> {
+    choices.current()
 }
 
 #[tauri::command]
