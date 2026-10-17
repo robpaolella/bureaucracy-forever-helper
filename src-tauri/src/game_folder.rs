@@ -60,6 +60,9 @@ pub enum FolderOutcome {
     NoAddon {
         message: &'static str,
         path: String,
+        /// The game versions in it, which the add-on can be installed into.
+        #[serde(rename = "versionFolders")]
+        version_folders: Vec<String>,
     },
     /// The remembered folder is no longer there.
     Gone {
@@ -217,6 +220,7 @@ pub fn check(folder: &Path) -> FolderOutcome {
     outcome(installs).unwrap_or_else(|| FolderOutcome::NoAddon {
         message: NO_ADDON,
         path: text(folder),
+        version_folders: versions.iter().map(|v| text(v)).collect(),
     })
 }
 
@@ -229,17 +233,22 @@ pub fn search(places: &[PathBuf]) -> FolderOutcome {
         match check(place) {
             FolderOutcome::Found(one) => installs.push(one),
             FolderOutcome::Several { installs: more } => installs.extend(more),
-            FolderOutcome::NoAddon { path, .. } => {
-                game_without_addon.get_or_insert(path);
+            FolderOutcome::NoAddon {
+                path,
+                version_folders,
+                ..
+            } => {
+                game_without_addon.get_or_insert((path, version_folders));
             }
             _ => {}
         }
     }
     installs.dedup_by(|a, b| a.version_folder == b.version_folder);
     outcome(installs).unwrap_or(match game_without_addon {
-        Some(path) => FolderOutcome::NoAddon {
+        Some((path, version_folders)) => FolderOutcome::NoAddon {
             message: NO_ADDON,
             path,
+            version_folders,
         },
         None => FolderOutcome::NotFound { message: NOT_FOUND },
     })
@@ -258,6 +267,7 @@ pub fn recheck(version_folder: &Path) -> FolderOutcome {
         None => FolderOutcome::NoAddon {
             message: NO_ADDON,
             path: version_folder.parent().map_or_else(String::new, text),
+            version_folders: vec![text(version_folder)],
         },
     }
 }

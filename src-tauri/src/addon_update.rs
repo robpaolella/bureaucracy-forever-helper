@@ -25,6 +25,9 @@ pub const PROGRESS_EVENT: &str = "addon-progress";
 /// A release's address is this followed by its tag, `v<version>`.
 const RELEASES: &str =
     "https://api.github.com/repos/robpaolella/bureaucracy-forever-addon/releases/tags/v";
+/// A release's page is this followed by its tag, `v<version>`.
+const RELEASE_PAGE: &str =
+    "https://github.com/robpaolella/bureaucracy-forever-addon/releases/tag/v";
 const MAX_RELEASE: u64 = 1024 * 1024;
 const MAX_ZIP: u64 = 20 * 1024 * 1024;
 
@@ -322,6 +325,26 @@ impl AddonUpdates {
             },
         }
     }
+}
+
+/// The page with what's new in `version`; None unless it looks like a version, so the window
+/// can't open any other address.
+pub fn release_page(version: &str) -> Option<String> {
+    let looks_like_a_version = !version.is_empty()
+        && version
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '+'));
+    looks_like_a_version.then(|| format!("{RELEASE_PAGE}{version}"))
+}
+
+/// Opens what's new in the add-on `version` in the browser.
+#[tauri::command]
+pub fn open_addon_notes(app: tauri::AppHandle, version: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let url = release_page(&version).ok_or("That isn't an add-on version.")?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

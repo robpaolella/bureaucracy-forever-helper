@@ -90,7 +90,8 @@ fn a_game_folder_without_the_addon_says_so() {
         check(&folder),
         FolderOutcome::NoAddon {
             message: NO_ADDON,
-            path: text(&folder)
+            path: text(&folder),
+            version_folders: vec![text(&folder.join("_retail_"))]
         }
     );
 }
@@ -185,7 +186,8 @@ fn a_search_adds_up_versions_across_places_and_finds_a_game_without_the_addon() 
         search(&[root.join("nope"), bare.clone()]),
         FolderOutcome::NoAddon {
             message: NO_ADDON,
-            path: text(&bare)
+            path: text(&bare),
+            version_folders: vec![text(&bare.join("_retail_"))]
         }
     );
     assert_eq!(kind(&search(&[bare, a])), "found");

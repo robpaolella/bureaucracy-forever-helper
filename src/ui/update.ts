@@ -128,12 +128,12 @@ export function updateCard(update: HelperUpdate, current: string | undefined, ac
 }
 
 /** Settings → Versions: the helper's version and "Check for updates". */
-export function versionsSection(current: string | undefined, check: UpdateCheck | undefined, busy: boolean, onCheck: () => void): HTMLElement {
+export function versionsSection(current: string | undefined, check: UpdateCheck | undefined, busy: boolean, onCheck: () => void, addon?: string): HTMLElement {
   const checking = Boolean(check?.checking);
   const body: Child[] = [
     el("h3", "th", ["Versions"]),
     el("div", "row", [
-      el("span", "small tabular", [current ? `Helper ${current}` : "Helper"]),
+      el("span", "small tabular", [`${current ? `Helper ${current}` : "Helper"}${addon ? ` · Add-on ${addon}` : ""}`]),
       el("span", "spacer"),
       button({
         label: checking ? "Checking…" : "Check for updates",

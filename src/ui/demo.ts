@@ -1,6 +1,7 @@
 // Test-only demo page: each shared piece in its states, to compare with the approved
 // design. main.ts loads this only in a dev build (see demoEnabled), so a release build
 // carries none of it. `?demo` shows the shared pieces; `?demo=<state>` shows a window screen.
+import { addonSwitchSection } from "./addonUpdate";
 import { mountApp } from "./app";
 import { gameFolderSection } from "./folder";
 import { versionsSection } from "./update";
@@ -32,7 +33,7 @@ function text(className: string, value: string): HTMLElement {
   return p;
 }
 
-const inert = { use() {}, continueWith() {}, choose() {}, select() {} };
+const inert = { use() {}, continueWith() {}, choose() {}, installAddon() {}, select() {} };
 
 export function renderDemo(root: HTMLElement, name = ""): void {
   const state = demoStates[name];
@@ -40,7 +41,7 @@ export function renderDemo(root: HTMLElement, name = ""): void {
     mountApp(root, {
       getState: () => state.app,
       view: state.view,
-      settingsSections: () => [gameFolderSection(state.app.gamePath, undefined, inert), versionsSection(state.app.helperVersion, undefined, false, () => {})],
+      settingsSections: () => [gameFolderSection(state.app.gamePath, undefined, inert), addonSwitchSection(), versionsSection(state.app.helperVersion, undefined, false, () => {}, state.app.addonVersion)],
       folderActions: inert,
       updateActions: { install() {}, later() {}, notes() {} },
     });
