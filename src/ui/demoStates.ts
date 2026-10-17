@@ -1,12 +1,13 @@
 // Sample window states for the test-only demo page, named as in the approved design
 // (design/2-helper-window/index.html). Every name is invented.
-import type { ReservesView } from "../bridge";
+import type { ReservesView, SyncStatus } from "../bridge";
 import type { ActivityEvent } from "./activity";
 import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
 import type { FolderStep } from "./folder";
 import { applyRaids } from "./realWindow";
 import { addonFailedEvent, addonRow, addonUpdatedEvent, type AddonUpdate } from "./addonUpdate";
+import { withSync } from "./sync";
 import { updateFailedEvent, type HelperUpdate } from "./update";
 
 export interface DemoState {
@@ -121,6 +122,21 @@ const folderStep = (folder: FolderStep): DemoState => ({
   },
 });
 
+/** A working window with `sync` on top, drawn by the real sync code (the design's sync states). */
+const syncing = (sync: SyncStatus, list: ActivityEvent[], sent: number): DemoState => {
+  const base: AppState = {
+    status: { tone: "ok", word: "Ready", title: "Ready for tonight" },
+    chain: working,
+    activity: list.map((e, i) => ({ ...e, at: Date.now() - i * 4 * MIN })),
+    sentTonight: sent,
+    gamePath: `${MAC}/_classic_`,
+    helperVersion: "0.2.1",
+    addonVersion: "1.3.2",
+  };
+  const inert = { addKey() {}, openLootLog() {} };
+  return { app: withSync(base, sync, inert, new Map([[19019, "Bindings of the Windseeker"]])) };
+};
+
 /** The window with raids listed and `reserves` written, drawn by the real window code. */
 const written = (reserves: ReservesView, list: ActivityEvent[], minutes: number[]): DemoState => {
   const at = (h: number, m: number) => new Date().setHours(h, m, 0, 0);
@@ -224,6 +240,26 @@ export const demoStates: Record<string, DemoState> = {
       sentTonight: 9,
     },
   },
+  refused: syncing(
+    { kind: "refused", otherSite: 0, records: [{ id: "a", item: 19019, character: "Thessaly Ward", code: "x" }] },
+    [{ at: 0, tone: "stop", kind: "Refused", strong: "Bindings of the Windseeker", text: "to Thessaly Ward. Check it on the loot log." }],
+    11,
+  ),
+  revoked: syncing(
+    { kind: "keyStopped" },
+    [{ at: 0, tone: "stop", kind: "Key refused", text: "by the guild site. Awards are kept." }],
+    6,
+  ),
+  "site-off": syncing(
+    { kind: "siteOff" },
+    [{ at: 0, tone: "stop", kind: "Switched off", text: "The guild site isn’t accepting the helper. Awards are kept." }],
+    0,
+  ),
+  "queue-damaged": syncing(
+    { kind: "queueDamaged", problem: "x" },
+    [{ at: 0, tone: "stop", kind: "Stopped", text: "The waiting list is damaged. Nothing was deleted." }],
+    7,
+  ),
   "folder-searching": folderStep({ phase: "searching" }),
   "folder-found": folderStep({ phase: "found", path: `${MAC}/_classic_` }),
   "folder-several": folderStep({

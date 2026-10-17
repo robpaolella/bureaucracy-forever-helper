@@ -1,13 +1,14 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, ChatEvent, FolderOutcome, KeyOutcome, RaidsView, ReservesView } from "../bridge";
+import type { Bridge, ChatEvent, FolderOutcome, KeyOutcome, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
 import { addonRow, addonSwitchSection, addonUpdates } from "./addonUpdate";
 import { addEvent, chatEvent, nameList, raidStart, reservesEvent } from "./activity";
 import type { ChainRow } from "./chain";
 import { el } from "./components";
+import { syncNews, withSync, type SyncActions, type Told } from "./sync";
 import { trayStatusOf } from "./tray";
 import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
 import { helperUpdates, versionsSection } from "./update";
@@ -222,7 +223,11 @@ export async function startWindow(
       outcome = { kind: "unreachable", message: FAILED_CHECK_MESSAGE };
     }
     store.set((s) => applyKeyOutcome(s, outcome, pasted, stored));
-    if (outcome.kind === "accepted") await startFolder();
+    if (outcome.kind === "accepted") {
+      // A new key ends a "key refused" status; ask for the status that follows it.
+      bridge.syncStatus().then((status) => hearSync(status), () => {});
+      await startFolder();
+    }
   }
 
   /** Runs a folder call; undefined if the Rust side failed outright. */
@@ -373,6 +378,18 @@ export async function startWindow(
     void check(() => bridge.connect(key), key, stored);
   }
 
+  // The sync status sits on top of the state: the window and the tray show `shown()`.
+  let sync: SyncStatus | undefined;
+  const itemNames = new Map<number, string>();
+  const syncActions: SyncActions = {
+    // "Add a new key" opens the key step; a new key replaces the refused one.
+    addKey: () => store.set((s) => applyKeyOutcome(s, { kind: "noKey" })),
+    // Pointed at the bridge when it can open the site's loot log (the raid page, from the
+    // Awards row's raid, else the calendar).
+    openLootLog: () => {},
+  };
+  const shown = () => withSync(store.get(), sync, syncActions, itemNames);
+
   const updates = helperUpdates(store, bridge);
   /** The officer's own check, from Settings or the tray: its answer shows in Settings. */
   const checkAsked = () => {
@@ -380,7 +397,7 @@ export async function startWindow(
     void updates.check(true);
   };
   const app = mountApp(root, {
-    getState: store.get,
+    getState: shown,
     settingsSections: () => {
       const s = store.get();
       return [
@@ -397,7 +414,7 @@ export async function startWindow(
   // The tray shows the same status as the window; it is told only when that changes.
   let told = "";
   const tellTray = () => {
-    const status = trayStatusOf(store.get());
+    const status = trayStatusOf(shown());
     const next = JSON.stringify(status);
     if (next === told) return;
     told = next;
@@ -455,6 +472,7 @@ export async function startWindow(
       // Lines heard in the same millisecond still list newest first.
       lastAt = Math.max(Date.now(), lastAt + 1);
       const at = lastAt;
+      if (event.kind === "sent" && event.item !== null && event.itemName) itemNames.set(event.item, event.itemName);
       store.set((s) => applyChatEvent(s, event, at));
     });
   } catch {
@@ -495,12 +513,47 @@ export async function startWindow(
   setInterval(() => void addon.check(), UPDATE_CHECK_EVERY);
   void updates.check(false);
   setInterval(() => void updates.check(false), UPDATE_CHECK_EVERY);
-  try {
-    const outcome = await bridge.checkStored();
-    store.set((s) => applyKeyOutcome(s, outcome, "", outcome.kind !== "noKey"));
-    if (outcome.kind === "accepted") await startFolder();
-  } catch {
-    // The Rust side failed outright: the window stays as it is, never blank.
+  // The upload's status: each problem shows once in Activity and, where the officer must act,
+  // as one system notice. A saved key that can't be checked at startup shows as offline.
+  const heard: Told = { refused: new Set() };
+  let startupOffline = false;
+  const hearSync = (status: SyncStatus) => {
+    sync = status;
+    const news = syncNews(heard, status, itemNames, Date.now());
+    store.set((s) => ({ ...s, activity: news.events.reduce((all, e) => addEvent(all, e, e.at), s.activity) }));
+    // A notice that can't be raised leaves the headline, rows and Activity line to say it.
+    if (news.notice) bridge.notify(news.notice).catch(() => {});
+    if (startupOffline && status.kind !== "offline") {
+      startupOffline = false;
+      void verifyStored();
+    }
+  };
+  async function verifyStored(): Promise<void> {
+    try {
+      const outcome = await bridge.checkStored();
+      if (outcome.kind === "unreachable") {
+        // A connected helper that can't reach the site yet: offline, not the key step.
+        startupOffline = true;
+        if (sync?.kind !== "offline") hearSync({ kind: "offline", waiting: 0 });
+        return await startFolder();
+      }
+      store.set((s) => applyKeyOutcome(s, outcome, "", outcome.kind !== "noKey"));
+      if (outcome.kind === "accepted") await startFolder();
+    } catch {
+      // The Rust side failed outright: the window stays as it is, never blank.
+    }
   }
+  let sawSync = false;
+  try {
+    await bridge.onSyncStatus((status) => {
+      sawSync = true;
+      hearSync(status);
+    });
+    const first = await bridge.syncStatus();
+    if (!sawSync) hearSync(first);
+  } catch {
+    // The sync status is unavailable; the window shows no sync problem.
+  }
+  await verifyStored();
   return store;
 }
