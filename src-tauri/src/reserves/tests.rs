@@ -187,8 +187,36 @@ impl Rig {
         known: bool,
         source: FakeSource,
     ) -> Rig {
+        Rig::build(raids, timing, key, known, source, None)
+    }
+
+    /// Starts on a set-up site with a file from an earlier run already in the game folder.
+    fn with_old_file(raids: RaidsView, source: FakeSource, old: &[u8]) -> Rig {
+        Rig::build(raids, quick(), true, true, source, Some(old))
+    }
+
+    /// Starts on a site that serves these raids (id, name, reserve), set up before the thread runs.
+    fn serving(raids: RaidsView, served: &[(&str, &str, &str)]) -> Rig {
+        let source = FakeSource::default();
+        for (id, name, reserve) in served {
+            source.serve(id, name, reserve);
+        }
+        Rig::with_source(raids, quick(), true, true, source)
+    }
+
+    fn build(
+        raids: RaidsView,
+        timing: Timing,
+        key: bool,
+        known: bool,
+        source: FakeSource,
+        old: Option<&[u8]>,
+    ) -> Rig {
         let shared_raids = Arc::new(Mutex::new(raids));
         let inbox = scratch_dir().join("Inbox.lua");
+        if let Some(old) = old {
+            fs::write(&inbox, old).unwrap();
+        }
         let folder = Arc::new(Mutex::new(inbox.clone()));
         let now = Arc::new(AtomicI64::new(WRITTEN));
         let events: Arc<Mutex<Vec<ReservesView>>> = Arc::default();
@@ -274,9 +302,10 @@ fn expected(rig: &Rig, ids: &[(&str, &str, &str)], written: i64) -> Vec<u8> {
 
 #[test]
 fn several_raids_reach_the_writer_in_the_lists_order() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     assert_eq!(
         rig.file().unwrap(),
@@ -314,9 +343,10 @@ fn no_raids_writes_an_inbox_with_none() {
 
 #[test]
 fn the_first_write_is_in_the_game_and_a_change_asks_for_a_reload() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("the first write", |v| v.changes == 1);
     let view = rig.reserves.view();
     assert_eq!(
@@ -351,9 +381,10 @@ fn the_first_write_is_in_the_game_and_a_change_asks_for_a_reload() {
 
 #[test]
 fn an_unchanged_result_writes_nothing_and_says_nothing() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     let first = rig.file().unwrap();
     let events = rig.events.lock().unwrap().len();
@@ -369,7 +400,6 @@ fn an_unchanged_result_writes_nothing_and_says_nothing() {
 
 #[test]
 fn a_file_from_an_earlier_run_that_is_still_right_is_left_alone_and_in_the_game() {
-    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
     // Written at another time, as a run before this one would have left it.
     let old = inbox::render_inbox(
         &[RaidData {
@@ -379,8 +409,13 @@ fn a_file_from_an_earlier_run_that_is_still_right_is_left_alone_and_in_the_game(
         5,
     )
     .unwrap();
-    fs::write(&rig.inbox, &old).unwrap();
-    rig.source.serve("r1", "Molten Core", "Ana");
+    let source = FakeSource::default();
+    source.serve("r1", "Molten Core", "Ana");
+    let rig = Rig::with_old_file(
+        view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]),
+        source,
+        &old,
+    );
     rig.wait_for("in the game", |v| {
         matches!(v.state, ReservesState::InGame { .. })
     });
@@ -395,13 +430,13 @@ fn a_file_from_an_earlier_run_that_is_still_right_is_left_alone_and_in_the_game(
 
 #[test]
 fn a_file_from_an_earlier_run_that_differs_asks_for_a_reload() {
-    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
-    fs::write(
-        &rig.inbox,
-        "BureaucracyLootInbox = {formatVersion=1,written=5,raids={}}\n",
-    )
-    .unwrap();
-    rig.source.serve("r1", "Molten Core", "Ana");
+    let source = FakeSource::default();
+    source.serve("r1", "Molten Core", "Ana");
+    let rig = Rig::with_old_file(
+        view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]),
+        source,
+        b"BureaucracyLootInbox = {formatVersion=1,written=5,raids={}}\n",
+    );
     rig.wait_for("a reload prompt", |v| {
         matches!(v.state, ReservesState::Reload { .. })
     });
@@ -410,9 +445,10 @@ fn a_file_from_an_earlier_run_that_differs_asks_for_a_reload() {
 
 #[test]
 fn a_failed_fetch_leaves_the_old_file_and_says_nothing() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     let first = rig.file().unwrap();
     let events = rig.events.lock().unwrap().len();
@@ -438,9 +474,10 @@ fn a_failed_fetch_leaves_the_old_file_and_says_nothing() {
 
 #[test]
 fn a_snapshot_the_writer_refuses_leaves_the_old_file_and_shows_the_error() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     let first = rig.file().unwrap();
 
@@ -536,10 +573,11 @@ fn requests_stay_within_the_sites_limit_for_three_raids() {
         RaidsState::Fresh,
         vec![raid("r1", "A"), raid("r2", "B"), raid("r3", "C")],
     );
-    let rig = Rig::with(raids, quick, true, true);
+    let source = FakeSource::default();
     for id in ["r1", "r2", "r3"] {
-        rig.source.serve(id, id, "Ana");
+        source.serve(id, id, "Ana");
     }
+    let rig = Rig::with_source(raids, quick, true, true, source);
     rig.wait_for("a write", |v| v.changes == 1);
     let calls = rig.source.calls.lock().unwrap();
     assert!(calls.len() >= 6);
@@ -576,9 +614,10 @@ fn nothing_is_requested_without_a_key_a_folder_or_a_known_list() {
 
 #[test]
 fn the_reload_prompt_ends_when_the_game_saves_after_the_write() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     rig.now.store(2_000, Ordering::SeqCst);
     rig.source.serve("r1", "Molten Core", "Cy");
@@ -601,9 +640,10 @@ fn the_reload_prompt_ends_when_the_game_saves_after_the_write() {
 
 #[test]
 fn a_restart_forgets_what_was_written_but_not_how_many_notices_were_counted() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     rig.reserves.restart();
     assert_eq!(rig.reserves.view().state, ReservesState::Waiting);
@@ -617,16 +657,22 @@ fn a_restart_forgets_what_was_written_but_not_how_many_notices_were_counted() {
 
 #[test]
 fn the_last_snapshots_raids_and_bosses_are_known_until_a_restart() {
-    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
-    assert!(rig.reserves.known_raids().is_none());
     let mut snap = snapshot("r1", "Molten Core", "Ana");
     snap["env"] = json!("staging");
     snap["bosses"] = json!([
         { "id": "lb_lucifron", "name": "Lucifron", "trash": false, "items": [16805] },
         { "id": "lb_trash", "name": "Trash", "trash": true, "items": [] }
     ]);
-    rig.source.set("r1", Part::Snapshot, Ok(snap));
-    rig.source.set("r1", Part::Catchup, Ok(catchup("r1")));
+    let source = FakeSource::default();
+    source.set("r1", Part::Snapshot, Ok(snap));
+    source.set("r1", Part::Catchup, Ok(catchup("r1")));
+    let rig = Rig::with_source(
+        view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]),
+        quick(),
+        true,
+        true,
+        source,
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     let known = rig.reserves.known_raids().unwrap();
     assert_eq!(known.len(), 1);
@@ -749,9 +795,10 @@ fn the_site_client_asks_for_each_document_with_the_key_and_reads_big_ones() {
 
 #[test]
 fn a_new_generated_time_alone_is_not_a_change() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     let first = rig.file().unwrap();
     let events = rig.events.lock().unwrap().len();
@@ -782,7 +829,6 @@ fn a_new_generated_time_alone_is_not_a_change() {
 
 #[test]
 fn a_file_from_an_earlier_run_differing_only_in_generated_is_still_right() {
-    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
     let mut older = snapshot("r1", "Molten Core", "Ana");
     older["generated"] = json!(1);
     let old = inbox::render_inbox(
@@ -793,8 +839,13 @@ fn a_file_from_an_earlier_run_differing_only_in_generated_is_still_right() {
         5,
     )
     .unwrap();
-    fs::write(&rig.inbox, &old).unwrap();
-    rig.source.serve("r1", "Molten Core", "Ana");
+    let source = FakeSource::default();
+    source.serve("r1", "Molten Core", "Ana");
+    let rig = Rig::with_old_file(
+        view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]),
+        source,
+        &old,
+    );
     rig.wait_for("in the game", |v| {
         matches!(v.state, ReservesState::InGame { .. })
     });
@@ -805,9 +856,16 @@ fn a_file_from_an_earlier_run_differing_only_in_generated_is_still_right() {
 
 #[test]
 fn an_answer_that_arrives_after_a_restart_is_never_written() {
-    let rig = Rig::start(view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]));
-    rig.source.serve("r1", "Molten Core", "Ana");
-    *rig.source.slow_catchup.lock().unwrap() = Duration::from_millis(400);
+    let source = FakeSource::default();
+    source.serve("r1", "Molten Core", "Ana");
+    *source.slow_catchup.lock().unwrap() = Duration::from_millis(400);
+    let rig = Rig::with_source(
+        view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")]),
+        quick(),
+        true,
+        true,
+        source,
+    );
     rig.wait_for("the catch-up request", |_| rig.source.calls().len() >= 2);
     // The key or site changes while the last answer is on its way; the new key's passes find
     // nothing to fetch.
@@ -820,9 +878,10 @@ fn an_answer_that_arrives_after_a_restart_is_never_written() {
 
 #[test]
 fn a_new_game_folder_gets_the_reserves_even_when_nothing_changed() {
-    let rig = Rig::start(two_raids());
-    rig.source.serve("r1", "Molten Core", "Ana");
-    rig.source.serve("r2", "Blackwing Lair", "Bo");
+    let rig = Rig::serving(
+        two_raids(),
+        &[("r1", "Molten Core", "Ana"), ("r2", "Blackwing Lair", "Bo")],
+    );
     rig.wait_for("a write", |v| v.changes == 1);
     let other = scratch_dir().join("Inbox.lua");
     *rig.folder.lock().unwrap() = other.clone();
