@@ -5,6 +5,7 @@ import { createStore } from "../state";
 import { addonRow, addonSwitchSection, addonUpdates, autoUpdateOn } from "./addonUpdate";
 import { mountApp } from "./app";
 import { initialState, startWindow } from "./realWindow";
+import { versionsSection } from "./update";
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const checked = (latest: string, installed: string | null, note: string | null = null): AddonCheck => ({
@@ -296,5 +297,13 @@ describe("the first install, from the folder step", () => {
   it("offers no button when it isn't clear which game version to use", async () => {
     const { root } = await setup(noAddon([`${WOW}/_classic_`, `${WOW}/_retail_`]));
     expect([...root.querySelectorAll("button")].map((b) => b.textContent)).not.toContain("Install the add-on");
+  });
+});
+
+describe("Settings versions line", () => {
+  it("names the add-on version beside the helper's, once it is known", () => {
+    const line = (addon?: string) => versionsSection("0.2.1", undefined, false, () => {}, addon).querySelector(".small")?.textContent;
+    expect(line()).toBe("Helper 0.2.1");
+    expect(line("1.3.2")).toBe("Helper 0.2.1 · Add-on 1.3.2");
   });
 });

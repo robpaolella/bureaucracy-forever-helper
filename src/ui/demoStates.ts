@@ -185,7 +185,7 @@ export const demoStates: Record<string, DemoState> = {
   ]),
   "addon-update": addonUpdate({ phase: "available", version: "1.4.0", note: null }, "1.3.2"),
   "addon-installing": addonUpdate({ phase: "installing", version: "1.4.0", percent: 70 }, "1.3.2"),
-  "addon-updated": addonUpdate({ phase: "updated", version: "1.4.0", note: null }, "1.4.0", addonUpdatedEvent("1.4.0", 0)),
+  "addon-updated": addonUpdate({ phase: "updated", version: "1.4.0", note: "It loads the next time you type /reload or start the game." }, "1.4.0", addonUpdatedEvent("1.4.0", 0)),
   "addon-rolled-back": addonUpdate({ phase: "failed", version: "1.4.0", kept: "1.3.2" }, "1.3.2", addonFailedEvent("1.3.2", 0)),
   reload: written({ state: { kind: "reload", raids: both, changed: ["Molten Core"] }, changes: 2, first: false, problem: null }, [
     { at: 0, tone: "warn", kind: "Reserves changed", text: "for Molten Core. Type /reload in game." },
