@@ -27,7 +27,7 @@ function fakeBridge(engine: { check?: () => Promise<AddonCheck>; install?: () =>
   const unused = () => Promise.reject(new Error("not used"));
   return {
     connect: unused, checkStored: unused, removeKey: unused, staging: unused, setStaging: unused, syncStatus: unused,
-    onSyncStatus: unused, raids: unused, onRaids: unused, reserves: unused, onReserves: unused, onChatLog: unused,
+    onSyncStatus: unused, raids: unused, onRaids: unused, raidChoice: unused, onRaidChoice: unused, reserves: unused, onReserves: unused, onChatLog: unused,
     searchFolder: unused, checkPickedFolder: unused, rememberVersion: unused, rememberedFolder: unused, pickFolder: unused,
     checkForUpdate: unused, installUpdate: unused, restartAfterUpdate: unused, onUpdateProgress: unused,
     openUpdateNotes: unused, onTrayCheck: unused, helperVersion: unused,

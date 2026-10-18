@@ -21,6 +21,8 @@ function fakeEngine(engine: { check?: () => Promise<CheckOutcome>; install?: () 
     onSyncStatus: unused,
     raids: unused,
     onRaids: unused,
+    raidChoice: unused,
+    onRaidChoice: unused,
     reserves: unused,
     onReserves: unused,
     onChatLog: unused,

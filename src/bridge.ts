@@ -1,6 +1,6 @@
 // The only place the front-end calls Tauri. Everything else takes a `Bridge`, so tests
 // can hand it a fake. The result shapes mirror `KeyOutcome` and `ChangeOutcome` in
-// src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs, `ReservesView` in src-tauri/src/reserves.rs,
+// src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs, `ReservesView` in src-tauri/src/reserves.rs, `RaidChoice` in src-tauri/src/savedvars/choice.rs,
 // the update outcomes in src-tauri/src/updater.rs, the add-on update outcomes in
 // src-tauri/src/addon_update.rs, `TrayStatus` and `Notice` in tray.rs and notify.rs, and
 // `ChatEvent` in src-tauri/src/chatlog/follower.rs.
@@ -143,6 +143,19 @@ export interface ReservesView {
 /** The event that carries each new reserves view (`RESERVES_EVENT` in reserves.rs). */
 const RESERVES_EVENT = "reserves";
 
+/** How the raid was chosen, from the newest saved file (`RaidChoice` in savedvars/choice.rs).
+ * Values are as the add-on saved them; `activeBy` is normally `none`, `chosen` or `off`. */
+export interface RaidChoice {
+  activeBy: string | null;
+  activeRaid: string | null;
+  chosenBy: string | null;
+  /** When the game saved the file, Unix seconds. */
+  savedAt: number;
+}
+
+/** The event that carries each new raid choice (`RAID_CHOICE_EVENT` in savedvars/choice.rs). */
+const RAID_CHOICE_EVENT = "raid-choice";
+
 /** Why an update check or install failed; the wording is in `message`. Any failure leaves the
  * installed version working. */
 export type UpdateFailure =
@@ -275,6 +288,8 @@ export interface Bridge {
   raids(): Promise<RaidsView>;
   /** How the reserves stand in the game now. */
   reserves(): Promise<ReservesView>;
+  /** How the raid was chosen now; null until the game has saved the add-on's file. */
+  raidChoice(): Promise<RaidChoice | null>;
   /** Looks in the usual places for the game. */
   searchFolder(): Promise<FolderOutcome>;
   /** Checks a folder the officer picked. */
@@ -290,6 +305,8 @@ export interface Bridge {
   onRaids(listener: (view: RaidsView) => void): Promise<() => void>;
   /** Calls `listener` with every later reserves view; resolves to a function that stops it. */
   onReserves(listener: (view: ReservesView) => void): Promise<() => void>;
+  /** Calls `listener` with every later raid choice; resolves to a function that stops it. */
+  onRaidChoice(listener: (choice: RaidChoice) => void): Promise<() => void>;
   /** Calls `listener` with each line the chat log follower sent or ignored; resolves to a function that stops it. */
   onChatLog(listener: (event: ChatEvent) => void): Promise<() => void>;
   /** Asks GitHub for a newer helper. Downloads and installs nothing. */
@@ -332,6 +349,7 @@ export const tauriBridge: Bridge = {
   syncStatus: () => invoke("get_sync_status"),
   raids: () => invoke("get_raids"),
   reserves: () => invoke("get_reserves"),
+  raidChoice: () => invoke("get_raid_choice"),
   searchFolder: () => invoke("search_game_folder"),
   checkPickedFolder: (folder) => invoke("check_picked_game_folder", { folder }),
   rememberVersion: (versionFolder) => invoke("remember_game_version", { folder: versionFolder }),
@@ -343,6 +361,7 @@ export const tauriBridge: Bridge = {
   onSyncStatus: (listener) => listen<SyncStatus>(SYNC_STATUS_EVENT, (event) => listener(event.payload)),
   onRaids: (listener) => listen<RaidsView>(RAIDS_EVENT, (event) => listener(event.payload)),
   onReserves: (listener) => listen<ReservesView>(RESERVES_EVENT, (event) => listener(event.payload)),
+  onRaidChoice: (listener) => listen<RaidChoice>(RAID_CHOICE_EVENT, (event) => listener(event.payload)),
   onChatLog: (listener) => listen<ChatEvent>(CHAT_LOG_EVENT, (event) => listener(event.payload)),
   checkForUpdate: () => invoke("check_for_update"),
   installUpdate: () => invoke("install_update"),
