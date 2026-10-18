@@ -67,6 +67,10 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("install_addon", { folder: "/games/_retail_" });
     await tauriBridge.openAddonNotes("1.4.0");
     expect(invoke).toHaveBeenLastCalledWith("open_addon_notes", { version: "1.4.0" });
+    await tauriBridge.openLootLog("r1");
+    expect(invoke).toHaveBeenLastCalledWith("open_loot_log", { raid: "r1" });
+    await tauriBridge.openLootLog();
+    expect(invoke).toHaveBeenLastCalledWith("open_loot_log", { raid: null });
   });
 
   it("opens the native picker for one folder and gives back its path, or null when cancelled", async () => {

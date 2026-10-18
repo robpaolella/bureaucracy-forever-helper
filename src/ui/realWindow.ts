@@ -384,9 +384,8 @@ export async function startWindow(
   const syncActions: SyncActions = {
     // "Add a new key" opens the key step; a new key replaces the refused one.
     addKey: () => store.set((s) => applyKeyOutcome(s, { kind: "noKey" })),
-    // Pointed at the bridge when it can open the site's loot log (the raid page, from the
-    // Awards row's raid, else the calendar).
-    openLootLog: () => {},
+    // The loot log on the page of the raid awards last went to, else the site's calendar.
+    openLootLog: () => void bridge.openLootLog(store.get().awardsRaid?.id).catch(() => {}),
   };
   const shown = () => withSync(store.get(), sync, syncActions, itemNames);
 

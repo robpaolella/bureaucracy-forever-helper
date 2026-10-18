@@ -51,6 +51,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     installAddon: unused,
     onAddonProgress: unused,
     openAddonNotes: unused,
+    openLootLog: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: unused,
   };
@@ -722,6 +723,7 @@ describe("the sync states", () => {
       rememberedFolder: () =>
         Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
       notify: vi.fn(() => Promise.resolve()),
+      openLootLog: vi.fn(() => Promise.resolve()),
     } as Bridge;
     const root = document.createElement("div");
     await startWindow(root, bridge);
@@ -737,6 +739,8 @@ describe("the sync states", () => {
       headline: "The site refused 1 award",
       detail: "Check Thunderfury on the loot log.",
     });
+    awards(root).querySelector("button")!.click();
+    expect(bridge.openLootLog).toHaveBeenCalledWith("r1");
   });
 
   it("a revoked key: stopped, 'Add a new key' opens the key step, one notice", async () => {
