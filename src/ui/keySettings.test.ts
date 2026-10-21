@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, ChangeOutcome, KeyOutcome, SyncStatus } from "../bridge";
+import type { Bridge, ChangeOutcome, KeyOutcome, LoginOutcome, SyncStatus } from "../bridge";
 import { keySection, stagingSection, storeName } from "./keySettings";
 import { startWindow } from "./realWindow";
 
@@ -27,7 +27,7 @@ function bridgeWith(over: Partial<Bridge> = {}): Bridge {
     setStaging: vi.fn(() => Promise.resolve(done)),
     syncStatus: unused,
     clearRefused: unused,
-    onWindowVisible: unused,
+    onWindowVisible: unused, windowVisible: unused, startAtLogin: unused, setStartAtLogin: unused, finishLoginSetup: unused,
     searchFolder: unused,
     checkPickedFolder: unused,
     rememberVersion: unused,
@@ -299,5 +299,93 @@ describe("Open the officer area", () => {
     const link = [...root.querySelectorAll("a")].find((a) => a.textContent === "Open the officer area")!;
     link.click();
     expect(bridge.openOfficerArea).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("Settings → Start the helper when the computer starts", () => {
+  const REFUSAL =
+    "Your computer didn’t allow that change, so the helper won’t start by itself. Check your computer’s startup settings and try again.";
+  const login = (root: HTMLElement) => root.querySelector<HTMLButtonElement>("#login")!;
+  const refused = (on: boolean): LoginOutcome => ({ kind: "refused", message: REFUSAL, on });
+
+  it("shows the switch with the designed label and the system's state, without a hint line", async () => {
+    const root = await settings(bridgeWith({ startAtLogin: () => Promise.resolve(true) }));
+    expect(root.querySelector('label[for="login"]')?.textContent).toBe("Start the helper when the computer starts");
+    expect(login(root).getAttribute("aria-checked")).toBe("true");
+    expect(login(root).closest("section")?.querySelector(".caption")).toBeNull();
+    expect(login(root).closest("section")?.querySelector("#auto-addon")).not.toBeNull();
+  });
+
+  it("is off when the system has it off", async () => {
+    const root = await settings(bridgeWith({ startAtLogin: () => Promise.resolve(false) }));
+    expect(login(root).getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("turning it off and on calls the change, and shows the state the system answers with", async () => {
+    const setStartAtLogin = vi.fn((on: boolean) => Promise.resolve<LoginOutcome>({ kind: "done", on }));
+    const root = await settings(bridgeWith({ startAtLogin: () => Promise.resolve(true), setStartAtLogin }));
+    login(root).click();
+    await flush();
+    expect(setStartAtLogin).toHaveBeenLastCalledWith(false);
+    expect(login(root).getAttribute("aria-checked")).toBe("false");
+    login(root).click();
+    await flush();
+    expect(setStartAtLogin).toHaveBeenLastCalledWith(true);
+    expect(login(root).getAttribute("aria-checked")).toBe("true");
+    expect(root.textContent).not.toContain(REFUSAL);
+  });
+
+  it("a refused change shows the message under the switch and the switch keeps its real state", async () => {
+    const root = await settings(
+      bridgeWith({ startAtLogin: () => Promise.resolve(false), setStartAtLogin: () => Promise.resolve(refused(false)) }),
+    );
+    login(root).click();
+    await flush();
+    expect(login(root).getAttribute("aria-checked")).toBe("false");
+    const note = login(root).closest(".toggle")!.nextElementSibling!;
+    expect(note.textContent).toBe(REFUSAL);
+    expect(note.getAttribute("role")).toBe("alert");
+  });
+
+  it("the message goes when a later change works", async () => {
+    const setStartAtLogin = vi
+      .fn<(on: boolean) => Promise<LoginOutcome>>()
+      .mockResolvedValueOnce(refused(false))
+      .mockResolvedValueOnce({ kind: "done", on: true });
+    const root = await settings(bridgeWith({ startAtLogin: () => Promise.resolve(false), setStartAtLogin }));
+    login(root).click();
+    await flush();
+    login(root).click();
+    await flush();
+    expect(root.textContent).not.toContain(REFUSAL);
+    expect(login(root).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("a call that fails outright gives the same message and the real state", async () => {
+    const root = await settings(
+      bridgeWith({ startAtLogin: () => Promise.resolve(false), setStartAtLogin: () => Promise.reject(new Error("boom")) }),
+    );
+    login(root).click();
+    await flush();
+    expect(root.textContent).toContain(REFUSAL);
+    expect(login(root).getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("finishing setup asks the helper once the key and game folder are both done, and shows its answer", async () => {
+    const finishLoginSetup = vi.fn(() => Promise.resolve<LoginOutcome>({ kind: "done", on: true }));
+    const root = await settings(bridgeWith({ startAtLogin: () => Promise.resolve(false), finishLoginSetup }));
+    await flush();
+    expect(finishLoginSetup).toHaveBeenCalledTimes(1);
+    expect(login(root).getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("does not ask while the key is not accepted", async () => {
+    const finishLoginSetup = vi.fn(() => Promise.resolve<LoginOutcome>({ kind: "done", on: true }));
+    await startWindow(
+      document.createElement("div"),
+      bridgeWith({ checkStored: () => Promise.resolve<KeyOutcome>({ kind: "noKey" }), finishLoginSetup }),
+    );
+    await flush();
+    expect(finishLoginSetup).not.toHaveBeenCalled();
   });
 });

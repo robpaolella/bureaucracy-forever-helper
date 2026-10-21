@@ -27,6 +27,14 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("remove_stored_key");
     await tauriBridge.staging();
     expect(invoke).toHaveBeenLastCalledWith("get_staging");
+    await tauriBridge.windowVisible();
+    expect(invoke).toHaveBeenLastCalledWith("is_window_visible");
+    await tauriBridge.startAtLogin();
+    expect(invoke).toHaveBeenLastCalledWith("get_start_at_login");
+    await tauriBridge.setStartAtLogin(false);
+    expect(invoke).toHaveBeenLastCalledWith("set_start_at_login", { on: false });
+    await tauriBridge.finishLoginSetup();
+    expect(invoke).toHaveBeenLastCalledWith("finish_login_setup");
     await tauriBridge.setStaging(true);
     expect(invoke).toHaveBeenLastCalledWith("set_staging_site", { on: true });
     await tauriBridge.syncStatus();

@@ -29,7 +29,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     setStaging: unused,
     syncStatus: unused,
     clearRefused: unused,
-    onWindowVisible: unused,
+    onWindowVisible: unused, windowVisible: unused, startAtLogin: unused, setStartAtLogin: unused, finishLoginSetup: unused,
     searchFolder: unused,
     checkPickedFolder: unused,
     rememberVersion: unused,
@@ -780,7 +780,7 @@ describe("the sync states", () => {
   describe("clearing a refusal once the window has shown it", () => {
     let setShown: (visible: boolean) => void = () => {};
     const visibility = (state: "visible" | "hidden") => setShown(state === "visible");
-    async function shownWindow() {
+    async function shownWindow(over: Partial<Bridge> = {}) {
       const clearRefused = vi.fn(() => Promise.resolve());
       let push: (s: SyncStatus) => void = () => {};
       const notify = vi.fn(() => Promise.resolve());
@@ -794,6 +794,7 @@ describe("the sync states", () => {
         notify,
         clearRefused,
         openLootLog: vi.fn(() => Promise.resolve()),
+        ...over,
       } as Bridge;
       const root = document.createElement("div");
       const store = await startWindow(root, bridge);
@@ -809,6 +810,17 @@ describe("the sync states", () => {
       push({ kind: "idle", otherSite: 0 });
       expect(awards(root).querySelector(".pill")?.textContent).not.toContain("refused");
       expect(store.get().activity.filter((a) => a.kind === "Refused")).toHaveLength(2);
+    });
+
+    it("a helper started at login has a hidden window, so a refusal that arrives first is not cleared as seen", async () => {
+      const { push, clearRefused, bridge } = await shownWindow({ windowVisible: () => Promise.resolve(false) });
+      expect(bridge.windowVisible).toBeDefined();
+      push(refused(1));
+      visibility("hidden");
+      expect(clearRefused).not.toHaveBeenCalled();
+      visibility("visible");
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledWith(["r0"]);
     });
 
     it("closing the window after it displayed a refusal clears it, once", async () => {

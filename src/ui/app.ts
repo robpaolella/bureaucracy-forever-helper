@@ -46,6 +46,10 @@ export interface AppState {
   addonVersion?: string;
   /** A newer add-on, or an install of one, shown in the Add-on row. */
   addon?: AddonUpdate;
+  /** The helper starts when the computer starts, as the system has it. */
+  startAtLogin?: boolean;
+  /** A change to starting at login is under way, or the system refused it (shown under the switch). */
+  login?: { busy: boolean; error?: string };
   /** A newer helper, shown in a card under the chain. */
   update?: HelperUpdate;
   /** A check for updates the officer asked for in Settings or the tray. */
