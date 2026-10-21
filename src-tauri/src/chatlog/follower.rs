@@ -162,11 +162,15 @@ impl Follower {
     /// One pass: reads the lines `log` gained, hands their operations to `queue`, and
     /// reports what the site acknowledged since. Nothing is read without a log or before
     /// the raids are known, since a line naming a raid not yet known would be lost.
+    ///
+    /// An item's name goes to `early` before its operation enters the queue, so the window
+    /// has it before the site can refuse the award; every other event is returned.
     pub fn pass(
         &mut self,
         log: Option<&Path>,
         raids: Option<&[NamedRaid]>,
         queue: &Mutex<Queue>,
+        early: &mut dyn FnMut(ChatEvent),
     ) -> Vec<ChatEvent> {
         let (Some(log), Some(raids)) = (log, raids) else {
             return Vec::new();
@@ -177,7 +181,7 @@ impl Follower {
         let mut events = Vec::new();
         let mut file = File::open(log).ok();
         if let Some(file) = file.as_mut() {
-            let _ = self.read(file, raids, queue, &mut events);
+            let _ = self.read(file, raids, queue, &mut events, early);
             if let Ok(tail) = tail_of(file, self.read_to) {
                 self.tail = tail;
             }
@@ -228,6 +232,7 @@ impl Follower {
         raids: &[NamedRaid],
         queue: &Mutex<Queue>,
         events: &mut Vec<ChatEvent>,
+        early: &mut dyn FnMut(ChatEvent),
     ) -> io::Result<()> {
         let len = file.metadata()?.len();
         let same = len >= self.read_to
@@ -259,7 +264,7 @@ impl Follower {
             };
             for line in piece[..=last].split_inclusive(|&b| b == b'\n') {
                 let text = String::from_utf8_lossy(line);
-                if !self.line(&text, &known, raids, queue, events) {
+                if !self.line(&text, &known, raids, queue, events, early) {
                     return Ok(());
                 }
                 self.read_to += line.len() as u64;
@@ -276,6 +281,7 @@ impl Follower {
         raids: &[NamedRaid],
         queue: &Mutex<Queue>,
         events: &mut Vec<ChatEvent>,
+        early: &mut dyn FnMut(ChatEvent),
     ) -> bool {
         let op = match parse_line_now(text, known) {
             LineResult::NotOurs => return true,
@@ -294,6 +300,13 @@ impl Follower {
             LineResult::Operation(op) => op,
         };
         let value = op.to_json();
+        let sent = sent_line(&op, text, raids);
+        if let (Some(item), Some(item_name)) = (sent.item, &sent.item_name) {
+            early(ChatEvent::ItemName {
+                item,
+                item_name: item_name.clone(),
+            });
+        }
         let added = queue
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -303,13 +316,6 @@ impl Follower {
             // The parser checks every id, so this can't happen; the line is dropped.
             Err(QueueError::BadOperation { .. }) => return true,
             Err(_) => return false,
-        }
-        let sent = sent_line(&op, text, raids);
-        if let (Some(item), Some(item_name)) = (sent.item, &sent.item_name) {
-            events.push(ChatEvent::ItemName {
-                item,
-                item_name: item_name.clone(),
-            });
         }
         self.handed.push_back(Handed {
             start: self.read_to,
@@ -511,7 +517,10 @@ impl Tail {
         let (stop, stop_rx) = mpsc::channel();
         let thread = std::thread::spawn(move || loop {
             let log = version_folder().map(|f| log_in(&f));
-            for event in follower.pass(log.as_deref(), raids().as_deref(), &queue) {
+            let events = follower.pass(log.as_deref(), raids().as_deref(), &queue, &mut |e| {
+                on_event(&e)
+            });
+            for event in events {
                 on_event(&event);
             }
             match stop_rx.recv_timeout(poll) {
