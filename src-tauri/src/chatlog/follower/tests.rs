@@ -760,7 +760,7 @@ fn the_tail_follows_the_log_in_the_game_folder() {
         queue.remove_acknowledged(&op, &Ack::Recorded).unwrap();
     }
     for _ in 0..200 {
-        if !events.lock().unwrap().is_empty() {
+        if !sent_items(&events.lock().unwrap()).is_empty() {
             break;
         }
         std::thread::sleep(Duration::from_millis(10));
