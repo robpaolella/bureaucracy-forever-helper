@@ -457,7 +457,10 @@ export async function startWindow(
     // "Add a new key" opens the key step; a new key replaces the refused one.
     addKey: () => store.set((s) => applyKeyOutcome(s, { kind: "noKey" })),
     // The loot log on the page of the raid awards last went to, else the site's calendar.
-    openLootLog: () => void bridge.openLootLog(store.get().awardsRaid?.id).catch(() => {}),
+    openLootLog: () => {
+      void bridge.openLootLog(store.get().awardsRaid?.id).catch(() => {});
+      clearShown();
+    },
   };
   const shown = () => withSync(store.get(), sync, syncActions, itemNames);
 
@@ -598,8 +601,24 @@ export async function startWindow(
   // as one system notice. A saved key that can't be checked at startup shows as offline.
   const heard: Told = { refused: new Set() };
   let startupOffline = false;
+  // Refused records the window has displayed, by id. They clear once the officer opens the
+  // loot log or the window is closed; the Activity line stays. One that arrives while the
+  // window is hidden is only counted as displayed when it is next shown.
+  const displayed = new Set<string>();
+  const showing = () => document.visibilityState !== "hidden";
+  const markDisplayed = () => {
+    if (sync?.kind === "refused" && showing()) sync.records.forEach((r) => displayed.add(r.id));
+  };
+  function clearShown(): void {
+    if (displayed.size === 0) return;
+    const ids = [...displayed];
+    displayed.clear();
+    bridge.clearRefused(ids).catch(() => {});
+  }
+  document.addEventListener("visibilitychange", () => (showing() ? markDisplayed() : clearShown()));
   const hearSync = (status: SyncStatus) => {
     sync = status;
+    markDisplayed();
     const news = syncNews(heard, status, itemNames, Date.now());
     store.set((s) => ({ ...s, activity: news.events.reduce((all, e) => addEvent(all, e, e.at), s.activity) }));
     // A notice that can't be raised leaves the headline, rows and Activity line to say it.

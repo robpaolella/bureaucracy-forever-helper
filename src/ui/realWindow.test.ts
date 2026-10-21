@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
@@ -27,6 +27,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     staging: unused,
     setStaging: unused,
     syncStatus: unused,
+    clearRefused: unused,
     searchFolder: unused,
     checkPickedFolder: unused,
     rememberVersion: unused,
@@ -742,6 +743,65 @@ describe("the sync states", () => {
     });
     awards(root).querySelector("button")!.click();
     expect(bridge.openLootLog).toHaveBeenCalledWith("r1");
+  });
+
+  describe("clearing a refusal once the window has shown it", () => {
+    const visibility = (state: "visible" | "hidden") => {
+      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    };
+    async function shownWindow() {
+      const made = await connected();
+      const clearRefused = vi.fn(() => Promise.resolve());
+      Object.assign(made.bridge, { clearRefused, openLootLog: vi.fn(() => Promise.resolve()) });
+      return { ...made, clearRefused };
+    }
+    afterEach(() => visibility("visible"));
+
+    it("clicking Open the loot log clears the records it showed; the Activity line stays", async () => {
+      const { root, store, push, clearRefused } = await shownWindow();
+      push(refused(2));
+      awards(root).querySelector("button")!.click();
+      expect(clearRefused).toHaveBeenCalledTimes(1);
+      expect(clearRefused).toHaveBeenCalledWith(["r0", "r1"]);
+      push({ kind: "idle", otherSite: 0 });
+      expect(awards(root).querySelector(".pill")?.textContent).not.toContain("refused");
+      expect(store.get().activity.filter((a) => a.kind === "Refused")).toHaveLength(2);
+    });
+
+    it("closing the window after it displayed a refusal clears it, once", async () => {
+      const { push, clearRefused } = await shownWindow();
+      push(refused(1));
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledWith(["r0"]);
+      push({ kind: "idle", otherSite: 0 });
+      visibility("visible");
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledTimes(1);
+    });
+
+    it("a refusal that arrives while the window is hidden is cleared only after it was shown", async () => {
+      const { root, push, clearRefused } = await shownWindow();
+      visibility("hidden");
+      push(refused(1));
+      expect(clearRefused).not.toHaveBeenCalled();
+      visibility("visible");
+      expect(awards(root).querySelector(".pill")?.textContent).toBe("1 refused");
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledWith(["r0"]);
+    });
+
+    it("a refusal after the clearing shows again with its own notice", async () => {
+      const { push, notify, clearRefused } = await shownWindow();
+      push(refused(1));
+      visibility("hidden");
+      push({ kind: "idle", otherSite: 0 });
+      visibility("visible");
+      push({ kind: "refused", otherSite: 0, records: [{ id: "r9", item: null, character: null, code: "x" }] });
+      expect(notify).toHaveBeenCalledTimes(2);
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenLastCalledWith(["r9"]);
+    });
   });
 
   it("a revoked key: stopped, 'Add a new key' opens the key step, one notice", async () => {

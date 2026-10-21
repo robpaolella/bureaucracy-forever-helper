@@ -284,6 +284,8 @@ export interface Bridge {
   staging(): Promise<boolean>;
   setStaging(on: boolean): Promise<ChangeOutcome>;
   syncStatus(): Promise<SyncStatus>;
+  /** Tells the helper the window has shown these refused records (by id), so they stop counting. */
+  clearRefused(ids: string[]): Promise<void>;
   /** The upcoming raids and how the list stands now. */
   raids(): Promise<RaidsView>;
   /** How the reserves stand in the game now. */
@@ -351,6 +353,7 @@ export const tauriBridge: Bridge = {
   staging: () => invoke("get_staging"),
   setStaging: (on) => invoke("set_staging_site", { on }),
   syncStatus: () => invoke("get_sync_status"),
+  clearRefused: (ids) => invoke("clear_refused", { ids }),
   raids: () => invoke("get_raids"),
   reserves: () => invoke("get_reserves"),
   raidChoice: () => invoke("get_raid_choice"),

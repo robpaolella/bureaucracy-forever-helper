@@ -31,6 +31,8 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("set_staging_site", { on: true });
     await tauriBridge.syncStatus();
     expect(invoke).toHaveBeenLastCalledWith("get_sync_status");
+    await tauriBridge.clearRefused(["aw-1"]);
+    expect(invoke).toHaveBeenLastCalledWith("clear_refused", { ids: ["aw-1"] });
     await tauriBridge.raids();
     expect(invoke).toHaveBeenLastCalledWith("get_raids");
     await tauriBridge.reserves();

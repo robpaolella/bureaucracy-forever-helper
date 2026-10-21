@@ -156,6 +156,7 @@ pub fn run() {
             commands::remember_game_version,
             commands::get_remembered_game_folder,
             commands::get_sync_status,
+            commands::clear_refused,
             commands::get_raids,
             commands::get_reserves,
             commands::get_raid_choice,

@@ -323,6 +323,12 @@ pub fn get_sync_status(runner: tauri::State<'_, Runner>) -> SyncStatus {
     runner.status()
 }
 
+/// The window has shown these refused records (by id); they stop counting in the status.
+#[tauri::command]
+pub fn clear_refused(runner: tauri::State<'_, Runner>, ids: Vec<String>) {
+    runner.clear_refused(ids);
+}
+
 /// The upcoming raids and how the list stands now; each later change comes as a `raids` event.
 #[tauri::command]
 pub fn get_raids(raids: tauri::State<'_, Poller>) -> RaidsView {
