@@ -57,6 +57,10 @@ pub fn log_in(version_folder: &Path) -> PathBuf {
 pub enum ChatEvent {
     /// The site acknowledged a line's operation, other than by refusing it.
     Sent(SentLine),
+    /// A handed line's item name, reported as soon as the line is handed on, so the window
+    /// can name the item if the site refuses the award. It is not a sent award.
+    #[serde(rename_all = "camelCase")]
+    ItemName { item: u32, item_name: String },
     /// An add-on line that was not used; nothing from it is kept.
     Ignored { reason: Ignored },
 }
@@ -300,10 +304,17 @@ impl Follower {
             Err(QueueError::BadOperation { .. }) => return true,
             Err(_) => return false,
         }
+        let sent = sent_line(&op, text, raids);
+        if let (Some(item), Some(item_name)) = (sent.item, &sent.item_name) {
+            events.push(ChatEvent::ItemName {
+                item,
+                item_name: item_name.clone(),
+            });
+        }
         self.handed.push_back(Handed {
             start: self.read_to,
             op: value,
-            sent: sent_line(&op, text, raids),
+            sent,
             acknowledged: false,
         });
         true

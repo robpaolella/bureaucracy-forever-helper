@@ -746,6 +746,36 @@ describe("the sync states", () => {
     expect(bridge.openLootLog).toHaveBeenCalledWith("r1");
   });
 
+  it("refused: names a first award's item from the name reported when its line was handed on", async () => {
+    let chat: (e: ChatEvent) => void = () => {};
+    let push: (s: SyncStatus) => void = () => {};
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      onChatLog: (l: (e: ChatEvent) => void) => ((chat = l), Promise.resolve(() => {})),
+      syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+      onSyncStatus: (l: (s: SyncStatus) => void) => ((push = l), Promise.resolve(() => {})),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+      notify: vi.fn(() => Promise.resolve()),
+    } as Bridge;
+    const root = document.createElement("div");
+    const store = await startWindow(root, bridge);
+    const activityBefore = store.get().activity.length;
+    chat({ kind: "itemName", item: 19019, itemName: "Thunderfury" });
+    // Naming an item early is not a sent award.
+    expect(store.get().sentTonight).toBe(0);
+    expect(store.get().activity).toHaveLength(activityBefore);
+    push(refused(1));
+    expect(awards(root).querySelector(".msg")?.textContent).toBe(
+      "Thunderfury to Thessaly Ward wasn’t recorded. Check it on the loot log. Other awards are still sending.",
+    );
+    expect(bridge.notify).toHaveBeenCalledWith({
+      headline: "The site refused 1 award",
+      detail: "Check Thunderfury on the loot log.",
+    });
+    expect(store.get().sentTonight).toBe(0);
+  });
+
   describe("clearing a refusal once the window has shown it", () => {
     let setShown: (visible: boolean) => void = () => {};
     const visibility = (state: "visible" | "hidden") => setShown(state === "visible");

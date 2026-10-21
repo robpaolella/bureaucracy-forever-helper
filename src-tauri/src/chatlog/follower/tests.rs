@@ -155,7 +155,7 @@ fn sent_items(events: &[ChatEvent]) -> Vec<(LineKind, Option<String>)> {
         .iter()
         .filter_map(|e| match e {
             ChatEvent::Sent(s) => Some((s.line, s.character.clone())),
-            ChatEvent::Ignored { .. } => None,
+            ChatEvent::Ignored { .. } | ChatEvent::ItemName { .. } => None,
         })
         .collect()
 }
@@ -171,7 +171,11 @@ fn only_add_on_lines_reach_the_queue_and_no_other_chat_is_kept() {
     rig.append(&replacement("rp-3n7b5x0c", "aw-9d2f6h1j", "aw-6k1m4v8z"));
     let events = rig.pass();
     assert_eq!(rig.ids(), ["aw-9d2f6h1j", "vd-2s9t4w7y", "rp-3n7b5x0c"]);
-    assert!(events.is_empty(), "{events:?}");
+    // Handing the lines on only names their item; nothing is sent yet.
+    assert!(sent_items(&events).is_empty(), "{events:?}");
+    assert!(events
+        .iter()
+        .all(|e| matches!(e, ChatEvent::ItemName { .. })));
     rig.acknowledge_all();
     rig.pass();
     // Nothing the helper saved holds any other chat.
@@ -353,6 +357,8 @@ fn offline_then_back_loses_and_doubles_nothing() {
     rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
     rig.append(&award("aw-6k1m4v8z", "Bo Marsh"));
     // The site can't be reached: nothing is acknowledged, pass after pass.
+    // The first pass only names their items.
+    assert_eq!(rig.pass().len(), 2);
     for _ in 0..3 {
         assert!(rig.pass().is_empty());
     }
@@ -557,6 +563,10 @@ fn malformed_and_newer_lines_are_ignored_and_the_next_line_still_goes() {
             },
             ChatEvent::Ignored {
                 reason: Ignored::NewerVersion
+            },
+            ChatEvent::ItemName {
+                item: 16805,
+                item_name: "Felheart Gloves".into()
             }
         ]
     );
@@ -570,6 +580,35 @@ fn malformed_and_newer_lines_are_ignored_and_the_next_line_still_goes() {
 }
 
 #[test]
+fn a_handed_line_reports_its_item_name_before_the_site_answers() {
+    let mut rig = Rig::new();
+    rig.pass();
+    rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
+    let events = rig.pass();
+    assert_eq!(
+        events,
+        [ChatEvent::ItemName {
+            item: 16805,
+            item_name: "Felheart Gloves".into()
+        }]
+    );
+    assert_eq!(
+        serde_json::to_value(&events[0]).unwrap(),
+        json!({ "kind": "itemName", "item": 16805, "itemName": "Felheart Gloves" })
+    );
+    // A refusal still reports nothing further.
+    {
+        let mut queue = rig.queue.lock().unwrap();
+        let ops = queue.operations().unwrap().to_vec();
+        let refused = Ack::Rejected {
+            code: "unknown-sender".into(),
+        };
+        queue.remove_acknowledged(&ops[0], &refused).unwrap();
+    }
+    assert!(rig.pass().is_empty());
+}
+
+#[test]
 fn a_sent_line_carries_what_the_window_shows() {
     let mut rig = Rig::new();
     rig.pass();
@@ -578,7 +617,7 @@ fn a_sent_line_carries_what_the_window_shows() {
     rig.append(&replacement("rp-3n7b5x0c", "aw-9d2f6h1j", "aw-6k1m4v8z"));
     rig.pass();
     rig.acknowledge_all();
-    let events = rig.pass();
+    let events: Vec<_> = rig.pass();
     let ChatEvent::Sent(first) = &events[0] else {
         panic!("{events:?}");
     };
