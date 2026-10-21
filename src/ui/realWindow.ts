@@ -481,6 +481,8 @@ export async function startWindow(
 
   /** Both setup steps are done: the first time, the helper adds the login item. */
   const finishLoginSetup = () => {
+    // Only with an accepted key: a key that couldn't be checked yet doesn't count.
+    if (store.get().chain.site.tone !== "ok") return;
     bridge.finishLoginSetup().then(hearLogin, () => {});
   };
 

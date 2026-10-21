@@ -63,18 +63,21 @@ pub fn current(item: &impl LoginItem) -> bool {
     item.is_enabled().unwrap_or(false)
 }
 
-/// Turns the login item on or off and remembers the choice.
+/// Turns the login item on or off and remembers the choice. The choice is saved first: if it
+/// can't be, nothing changes, so setup never turns back on what the officer turned off.
 pub fn change(item: &impl LoginItem, settings_path: &Path, on: bool) -> LoginOutcome {
+    let refused = |item: &_| LoginOutcome::Refused {
+        message: REFUSED,
+        on: current(item),
+    };
+    if settings::write_start_at_login(settings_path, on).is_err() {
+        return refused(item);
+    }
     if item.set(on).is_err() {
         // The choice was made even if the system refused it, so setup doesn't try again.
         let _ = settings::write_start_at_login(settings_path, false);
-        return LoginOutcome::Refused {
-            message: REFUSED,
-            on: current(item),
-        };
+        return refused(item);
     }
-    // A choice that can't be remembered only means setup may offer the default once more.
-    let _ = settings::write_start_at_login(settings_path, on);
     LoginOutcome::Done { on: current(item) }
 }
 

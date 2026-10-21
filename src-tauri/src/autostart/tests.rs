@@ -119,3 +119,20 @@ fn the_choice_keeps_the_other_settings() {
         Some("/games/wow/_retail_")
     );
 }
+
+#[test]
+fn a_choice_that_cannot_be_saved_changes_nothing() {
+    let item = Fake::new(true);
+    let unwritable = std::env::temp_dir()
+        .join(format!("bf-autostart-{}-missing", std::process::id()))
+        .join("no-such-folder")
+        .join("settings.json");
+    assert_eq!(
+        change(&item, &unwritable, false),
+        LoginOutcome::Refused {
+            message: REFUSED,
+            on: true
+        }
+    );
+    assert!(item.on.get());
+}

@@ -379,6 +379,16 @@ describe("Settings → Start the helper when the computer starts", () => {
     expect(login(root).getAttribute("aria-checked")).toBe("true");
   });
 
+  it("does not ask when the key could not be checked yet, even with a remembered folder", async () => {
+    const finishLoginSetup = vi.fn(() => Promise.resolve<LoginOutcome>({ kind: "done", on: true }));
+    await startWindow(
+      document.createElement("div"),
+      bridgeWith({ checkStored: () => Promise.resolve<KeyOutcome>({ kind: "unreachable", message: "offline" }), finishLoginSetup }),
+    );
+    await flush();
+    expect(finishLoginSetup).not.toHaveBeenCalled();
+  });
+
   it("does not ask while the key is not accepted", async () => {
     const finishLoginSetup = vi.fn(() => Promise.resolve<LoginOutcome>({ kind: "done", on: true }));
     await startWindow(
