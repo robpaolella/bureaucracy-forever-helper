@@ -58,6 +58,7 @@
 .toggle { display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .toggle label { min-height:44px; display:flex; align-items:center; font-size:14px; color:var(--fg-2); }
 .switch { width:44px; height:44px; display:flex; align-items:center; background:none; border:0; padding:0; cursor:pointer; border-radius:var(--r-control); }
+.switch:disabled { cursor:default; opacity:.5; }
 .switch .track { display:flex; align-items:center; width:44px; height:24px; border-radius:999px; padding:3px; border:1px solid var(--line-strong); background:var(--ink-700); justify-content:flex-start; }
 .switch .knob { width:18px; height:18px; border-radius:50%; background:var(--fg-3); display:block; }
 .switch[aria-checked="true"] .track { justify-content:flex-end; background:var(--teal-dim); border-color:var(--teal-dim); }

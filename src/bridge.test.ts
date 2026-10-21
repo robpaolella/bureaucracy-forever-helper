@@ -71,6 +71,8 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("open_loot_log", { raid: "r1" });
     await tauriBridge.openLootLog();
     expect(invoke).toHaveBeenLastCalledWith("open_loot_log", { raid: null });
+    await tauriBridge.openOfficerArea();
+    expect(invoke).toHaveBeenLastCalledWith("open_officer_area");
   });
 
   it("opens the native picker for one folder and gives back its path, or null when cancelled", async () => {

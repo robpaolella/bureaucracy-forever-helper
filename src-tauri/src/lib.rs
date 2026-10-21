@@ -167,6 +167,7 @@ pub fn run() {
             commands::install_addon,
             addon_update::open_addon_notes,
             site_link::open_loot_log,
+            site_link::open_officer_area,
             tray::set_tray_status,
             notify::raise_notification,
         ])

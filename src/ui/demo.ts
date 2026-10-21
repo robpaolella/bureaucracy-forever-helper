@@ -4,6 +4,7 @@
 import { addonSwitchSection } from "./addonUpdate";
 import { mountApp } from "./app";
 import { gameFolderSection } from "./folder";
+import { keySection, stagingSection } from "./keySettings";
 import { versionsSection } from "./update";
 import { demoStates } from "./demoStates";
 import { button, card, choice, field, link, pill, switchControl, tag } from "./components";
@@ -34,6 +35,7 @@ function text(className: string, value: string): HTMLElement {
 }
 
 const inert = { use() {}, continueWith() {}, choose() {}, installAddon() {}, select() {} };
+const keyInert = { replace() {}, remove() {}, add() {}, setStaging() {} };
 
 export function renderDemo(root: HTMLElement, name = ""): void {
   const state = demoStates[name];
@@ -41,7 +43,7 @@ export function renderDemo(root: HTMLElement, name = ""): void {
     mountApp(root, {
       getState: () => state.app,
       view: state.view,
-      settingsSections: () => [gameFolderSection(state.app.gamePath, undefined, inert), addonSwitchSection(), versionsSection(state.app.helperVersion, undefined, false, () => {}, state.app.addonVersion)],
+      settingsSections: () => [stagingSection(Boolean(state.app.staging), undefined, keyInert), keySection(true, true, undefined, keyInert), gameFolderSection(state.app.gamePath, undefined, inert), addonSwitchSection(), versionsSection(state.app.helperVersion, undefined, false, () => {}, state.app.addonVersion)],
       folderActions: inert,
       updateActions: { install() {}, later() {}, notes() {} },
     });

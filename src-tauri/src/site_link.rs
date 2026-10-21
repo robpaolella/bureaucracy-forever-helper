@@ -1,4 +1,5 @@
-//! Opens the loot log on the guild site from the window's "Open the loot log" button.
+//! Opens pages on the guild site from the window: the loot log ("Open the loot log") and the
+//! officer area's key page ("Open the officer area").
 
 use crate::commands::{staging, Engine};
 use crate::key::Site;
@@ -17,6 +18,11 @@ pub fn loot_log_url(site: Site, raid: Option<&str>) -> Option<String> {
             plain.then(|| format!("{base}/members/calendar/{id}#raid-loot"))
         }
     }
+}
+
+/// The page where helper keys are made, in the officer area of `site`.
+pub fn officer_area_url(site: Site) -> String {
+    format!("{}/officers/addon", site.address())
 }
 
 /// Opens the loot log of `raid` (the calendar if none) on the site the helper is using.
@@ -38,9 +44,38 @@ pub fn open_loot_log(
         .map_err(|e| e.to_string())
 }
 
+/// Opens the officer area's key page on the site the helper is using.
+#[tauri::command]
+pub fn open_officer_area(
+    app: tauri::AppHandle,
+    engine: tauri::State<'_, Engine>,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let site = if staging(&engine) {
+        Site::Staging
+    } else {
+        Site::Production
+    };
+    app.opener()
+        .open_url(officer_area_url(site), None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_officer_area_is_the_key_page_of_the_current_site() {
+        assert_eq!(
+            officer_area_url(Site::Production),
+            "https://www.bureauguild.com/officers/addon"
+        );
+        assert_eq!(
+            officer_area_url(Site::Staging),
+            "https://staging.bureauguild.com/officers/addon"
+        );
+    }
 
     #[test]
     fn opens_the_raid_page_loot_log_on_the_current_site() {

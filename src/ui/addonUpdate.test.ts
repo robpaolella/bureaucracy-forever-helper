@@ -35,6 +35,7 @@ function fakeBridge(engine: { check?: () => Promise<AddonCheck>; install?: () =>
     installAddon: vi.fn(engine.install ?? (() => Promise.resolve<AddonInstall>({ kind: "installed", version: "1.4.0" }))),
     openAddonNotes: vi.fn(() => Promise.resolve()),
     openLootLog: vi.fn(() => Promise.resolve()),
+    openOfficerArea: vi.fn(() => Promise.resolve()),
     onAddonProgress: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: vi.fn(() => Promise.resolve()),

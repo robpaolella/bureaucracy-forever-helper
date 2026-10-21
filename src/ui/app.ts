@@ -5,7 +5,8 @@ import wordmark from "../assets/wordmark.png";
 import { ACTIVITY_RECENT, formatTime, guildTime, showSeeAll, zoneName, type ActivityEvent } from "./activity";
 import type { AddonUpdate } from "./addonUpdate";
 import { ROW_NAMES, ROW_ORDER, firstBroken, type ChainRow, type ChainState, type RowId } from "./chain";
-import { button, el, field, pill, type Child, type Tone } from "./components";
+import { button, el, field, link, pill, type Child, type Tone } from "./components";
+import type { KeyPanel } from "./keySettings";
 import { folderBody, type FolderActions, type FolderStep } from "./folder";
 import { updateCard, type HelperUpdate, type UpdateActions, type UpdateCheck } from "./update";
 
@@ -20,7 +21,12 @@ export interface AppState {
   awardsLine?: string;
   /** The raid the latest handled award went to, for the Awards row's caption (#60). */
   awardsRaid?: { id: string; name: string };
+  /** The staging site is in use: the band shows at the top of every screen. */
   staging?: boolean;
+  /** A key is saved for the current site. */
+  keyStored?: boolean;
+  /** A key removal or site switch is running, or failed (Settings). */
+  keyPanel?: KeyPanel;
   /** Set while the first-run setup is showing in place of the main screen. */
   setup?: { key: KeyStep };
   /** The game folder step: in the setup chain, or under Settings → Game folder. */
@@ -51,6 +57,10 @@ export interface KeyStep {
   action?: string;
   /** A key is already saved, so an empty field with "Try again" checks it again. */
   stored?: boolean;
+  /** The step was opened from Settings (or staging is on), so a "Back" link returns there and changes nothing. */
+  back?: boolean;
+  /** Replace key: the saved key stays and keeps the window connected until the new one is accepted. */
+  replacing?: boolean;
 }
 
 export interface AppOptions {
@@ -61,6 +71,10 @@ export interface AppOptions {
   view?: View;
   /** Called with the pasted key when the setup screen's button (or Enter) is pressed. */
   onConnect?: (value: string) => void;
+  /** Called by the key step's "Back" link. */
+  onBack?: () => void;
+  /** Called by "Open the officer area" on the key step. */
+  onOpenOfficerArea?: () => void;
   /** What the buttons on the game folder step do. */
   folderActions?: FolderActions;
   /** What the update card's buttons and link do; without them no card is shown. */
@@ -147,6 +161,13 @@ function activityList(events: ActivityEvent[]): HTMLElement {
   );
 }
 
+/** The permanent band that says the staging site is in use. */
+function stagingBand(): HTMLElement {
+  const band = el("div", "staging-band", ["Staging site"]);
+  band.setAttribute("role", "status");
+  return band;
+}
+
 export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): void; show(view: View): void } {
   let view: View = options.view ?? "main";
   const go = (next: View) => {
@@ -167,13 +188,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
       more.addEventListener("click", () => go("activity"));
       head.append(more);
     }
-    const pieces: Node[] = [];
-    if (s.staging) {
-      const band = el("div", "staging-band", ["Staging site"]);
-      band.setAttribute("role", "status");
-      pieces.push(band);
-    }
-    pieces.push(
+    return [
       header(gear(() => go("settings"))),
       el("main", "win-body", [
         el("div", "row status", [el("h1", "title-sm", [s.status.title]), pill(s.status.tone, s.status.word)]),
@@ -181,8 +196,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
         ...helperUpdateCard(s),
         el("section", "stack tight", [head, activityList(recent)]),
       ]),
-    );
-    return pieces;
+    ];
   }
 
   /** The helper's update card, under the chain; setup shows it too, so an update can't wait on a key. */
@@ -213,7 +227,8 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
     const go = key.checking
       ? button({ label: "Checking…", loading: true })
       : button({ label: key.action ?? "Connect", onClick: connect });
-    return [input, el("div", "row", [go])];
+    const officerArea = link({ label: "Open the officer area", onClick: () => options.onOpenOfficerArea?.() });
+    return [input, el("div", "row", [go, el("span", "spacer"), officerArea])];
   }
 
   /** Step 2: opens with the folder screens once the key is in. */
@@ -227,7 +242,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
 
   /** The first-run chain, in the design's setup wording. */
   function setupChain(s: AppState, key: KeyStep): ChainState {
-    const keyOpen = s.chain.site.tone !== "ok";
+    const keyOpen = s.chain.site.tone !== "ok" || Boolean(key.replacing);
     const next = (detail: string): ChainRow => ({ tone: "closed", word: "Next", detail });
     return {
       site: keyOpen
@@ -241,8 +256,14 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
   }
 
   function setupScreen(s: AppState, key: KeyStep): Node[] {
+    let left: Node = el("span");
+    if (key.back || s.staging) {
+      const goBack = back("Back", () => options.onBack?.());
+      goBack.disabled = key.checking;
+      left = goBack;
+    }
     return [
-      header(el("span")),
+      header(left),
       el("main", "win-body", [
         el("h1", "title-sm", ["Connect the helper"]),
         el("p", "small lede", ["Two steps, once. After that the helper runs by itself."]),
@@ -285,8 +306,8 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
         : view === "activity"
           ? activityScreen(s)
           : mainScreen(s);
-    root.replaceChildren(...screen);
-    if (setup && s.chain.site.tone !== "ok" && !setup.key.checking) root.querySelector<HTMLInputElement>("#key")?.focus();
+    root.replaceChildren(...(s.staging ? [stagingBand()] : []), ...screen);
+    if (setup && (s.chain.site.tone !== "ok" || setup.key.replacing) && !setup.key.checking) root.querySelector<HTMLInputElement>("#key")?.focus();
   }
 
   render();

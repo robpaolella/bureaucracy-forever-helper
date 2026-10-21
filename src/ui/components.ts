@@ -155,6 +155,8 @@ export interface SwitchOptions {
   id: string;
   label: string;
   checked?: boolean;
+  /** Can't be flipped, such as while the change it makes is still running. */
+  disabled?: boolean;
   onChange?: (checked: boolean) => void;
 }
 
@@ -166,6 +168,7 @@ export function switchControl(o: SwitchOptions): HTMLElement {
   sw.type = "button";
   sw.setAttribute("role", "switch");
   sw.setAttribute("aria-checked", String(Boolean(o.checked)));
+  sw.disabled = Boolean(o.disabled);
   sw.addEventListener("click", () => {
     const next = sw.getAttribute("aria-checked") !== "true";
     sw.setAttribute("aria-checked", String(next));
