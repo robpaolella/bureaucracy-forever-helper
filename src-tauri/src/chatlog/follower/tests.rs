@@ -91,9 +91,16 @@ impl Rig {
         }
     }
 
+    /// What one pass reports: item names as they were announced, then the rest.
     fn pass(&mut self) -> Vec<ChatEvent> {
-        self.follower
-            .pass(Some(&self.log), Some(&raids()), &self.queue)
+        let mut events = Vec::new();
+        let rest = self
+            .follower
+            .pass(Some(&self.log), Some(&raids()), &self.queue, &mut |e| {
+                events.push(e)
+            });
+        events.extend(rest);
+        events
     }
 
     fn append(&self, text: &str) {
@@ -155,7 +162,7 @@ fn sent_items(events: &[ChatEvent]) -> Vec<(LineKind, Option<String>)> {
         .iter()
         .filter_map(|e| match e {
             ChatEvent::Sent(s) => Some((s.line, s.character.clone())),
-            ChatEvent::Ignored { .. } => None,
+            ChatEvent::Ignored { .. } | ChatEvent::ItemName { .. } => None,
         })
         .collect()
 }
@@ -171,7 +178,11 @@ fn only_add_on_lines_reach_the_queue_and_no_other_chat_is_kept() {
     rig.append(&replacement("rp-3n7b5x0c", "aw-9d2f6h1j", "aw-6k1m4v8z"));
     let events = rig.pass();
     assert_eq!(rig.ids(), ["aw-9d2f6h1j", "vd-2s9t4w7y", "rp-3n7b5x0c"]);
-    assert!(events.is_empty(), "{events:?}");
+    // Handing the lines on only names their item; nothing is sent yet.
+    assert!(sent_items(&events).is_empty(), "{events:?}");
+    assert!(events
+        .iter()
+        .all(|e| matches!(e, ChatEvent::ItemName { .. })));
     rig.acknowledge_all();
     rig.pass();
     // Nothing the helper saved holds any other chat.
@@ -292,10 +303,13 @@ fn nothing_is_read_before_the_raids_are_known_or_without_a_log() {
     rig.pass();
     rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
     let log = rig.log.clone();
-    assert!(rig.follower.pass(Some(&log), None, &rig.queue).is_empty());
     assert!(rig
         .follower
-        .pass(None, Some(&raids()), &rig.queue)
+        .pass(Some(&log), None, &rig.queue, &mut |_| {})
+        .is_empty());
+    assert!(rig
+        .follower
+        .pass(None, Some(&raids()), &rig.queue, &mut |_| {})
         .is_empty());
     assert!(rig.ids().is_empty());
     rig.pass();
@@ -353,6 +367,8 @@ fn offline_then_back_loses_and_doubles_nothing() {
     rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
     rig.append(&award("aw-6k1m4v8z", "Bo Marsh"));
     // The site can't be reached: nothing is acknowledged, pass after pass.
+    // The first pass only names their items.
+    assert_eq!(rig.pass().len(), 2);
     for _ in 0..3 {
         assert!(rig.pass().is_empty());
     }
@@ -552,12 +568,16 @@ fn malformed_and_newer_lines_are_ignored_and_the_next_line_still_goes() {
     assert_eq!(
         events,
         [
+            ChatEvent::ItemName {
+                item: 16805,
+                item_name: "Felheart Gloves".into()
+            },
             ChatEvent::Ignored {
                 reason: Ignored::Malformed
             },
             ChatEvent::Ignored {
                 reason: Ignored::NewerVersion
-            }
+            },
         ]
     );
     assert_eq!(rig.ids(), ["aw-6k1m4v8z"]);
@@ -570,6 +590,51 @@ fn malformed_and_newer_lines_are_ignored_and_the_next_line_still_goes() {
 }
 
 #[test]
+fn a_handed_line_reports_its_item_name_before_the_site_answers() {
+    let mut rig = Rig::new();
+    rig.pass();
+    rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
+    let events = rig.pass();
+    assert_eq!(
+        events,
+        [ChatEvent::ItemName {
+            item: 16805,
+            item_name: "Felheart Gloves".into()
+        }]
+    );
+    assert_eq!(
+        serde_json::to_value(&events[0]).unwrap(),
+        json!({ "kind": "itemName", "item": 16805, "itemName": "Felheart Gloves" })
+    );
+    // A refusal still reports nothing further.
+    {
+        let mut queue = rig.queue.lock().unwrap();
+        let ops = queue.operations().unwrap().to_vec();
+        let refused = Ack::Rejected {
+            code: "unknown-sender".into(),
+        };
+        queue.remove_acknowledged(&ops[0], &refused).unwrap();
+    }
+    assert!(rig.pass().is_empty());
+}
+
+#[test]
+fn an_item_name_is_announced_before_its_operation_can_be_refused() {
+    let mut rig = Rig::new();
+    rig.pass();
+    rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
+    let queue = &rig.queue;
+    let mut waiting_when_named = None;
+    rig.follower
+        .pass(Some(&rig.log), Some(&raids()), queue, &mut |e| {
+            assert!(matches!(e, ChatEvent::ItemName { .. }));
+            waiting_when_named = Some(queue.lock().unwrap().operations().unwrap().len());
+        });
+    assert_eq!(waiting_when_named, Some(0));
+    assert_eq!(rig.ids(), ["aw-9d2f6h1j"]);
+}
+
+#[test]
 fn a_sent_line_carries_what_the_window_shows() {
     let mut rig = Rig::new();
     rig.pass();
@@ -578,7 +643,7 @@ fn a_sent_line_carries_what_the_window_shows() {
     rig.append(&replacement("rp-3n7b5x0c", "aw-9d2f6h1j", "aw-6k1m4v8z"));
     rig.pass();
     rig.acknowledge_all();
-    let events = rig.pass();
+    let events: Vec<_> = rig.pass();
     let ChatEvent::Sent(first) = &events[0] else {
         panic!("{events:?}");
     };
@@ -646,7 +711,8 @@ fn a_line_the_queue_cant_take_is_read_again_once_it_can() {
     fs::write(rig.dir.join("waiting.json"), "not a list").unwrap();
     rig.queue.lock().unwrap().reload();
     rig.append(&award("aw-9d2f6h1j", "Zoé Brûlé"));
-    assert!(rig.pass().is_empty());
+    // The name is announced each try; nothing is sent.
+    assert!(sent_items(&rig.pass()).is_empty());
     assert_eq!(rig.saved_offset(), 0);
     fs::remove_file(rig.dir.join("waiting.json")).unwrap();
     rig.queue.lock().unwrap().reload();
@@ -694,7 +760,7 @@ fn the_tail_follows_the_log_in_the_game_folder() {
         queue.remove_acknowledged(&op, &Ack::Recorded).unwrap();
     }
     for _ in 0..200 {
-        if !events.lock().unwrap().is_empty() {
+        if !sent_items(&events.lock().unwrap()).is_empty() {
             break;
         }
         std::thread::sleep(Duration::from_millis(10));

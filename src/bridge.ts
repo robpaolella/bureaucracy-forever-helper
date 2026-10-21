@@ -253,9 +253,13 @@ export interface SentLine {
   at: number;
 }
 
-/** What the chat log follower reports: a sent line, or an add-on line it couldn't use. */
+/**
+ * What the chat log follower reports: a sent line, an item's name as its line is handed on
+ * (before the site answers, so it is not a sent award), or an add-on line it couldn't use.
+ */
 export type ChatEvent =
   | ({ kind: "sent" } & SentLine)
+  | { kind: "itemName"; item: number; itemName: string }
   | { kind: "ignored"; reason: "malformed" | "newerVersion" };
 
 /** The event that carries each chat log event (`CHAT_LOG_EVENT` in chatlog/follower.rs). */

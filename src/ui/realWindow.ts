@@ -556,7 +556,9 @@ export async function startWindow(
       // Lines heard in the same millisecond still list newest first.
       lastAt = Math.max(Date.now(), lastAt + 1);
       const at = lastAt;
-      if (event.kind === "sent" && event.item !== null && event.itemName) itemNames.set(event.item, event.itemName);
+      if ((event.kind === "sent" || event.kind === "itemName") && event.item !== null && event.itemName) {
+        itemNames.set(event.item, event.itemName);
+      }
       store.set((s) => applyChatEvent(s, event, at));
     });
   } catch {

@@ -67,7 +67,7 @@ const IGNORED_TEXT = {
 /** The line for a chat log event: sent awards and replacements, and ignored lines. An undo has none. */
 export function chatEvent(event: ChatEvent, at: number): ActivityEvent | undefined {
   if (event.kind === "ignored") return { at, tone: "warn", kind: "Ignored", text: IGNORED_TEXT[event.reason] };
-  if (event.line === "undo") return undefined;
+  if (event.kind === "itemName" || event.line === "undo") return undefined;
   return {
     at,
     tone: "ok",
