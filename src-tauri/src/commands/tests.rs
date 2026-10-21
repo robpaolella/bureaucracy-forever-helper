@@ -252,12 +252,18 @@ fn removing_a_key_removes_it_and_reports_a_store_failure() {
 
 #[test]
 fn removing_a_key_keeps_the_awards_waiting_to_send() {
-    let queue_path = settings_path().with_file_name("queue.json");
+    let settings = settings_path();
+    let queue_path = settings.with_file_name("waiting.json");
     let award = json!({ "id": "award-0001", "type": "award" });
     let mut queue = crate::queue::Queue::open(&queue_path);
     queue.add(award.clone()).unwrap();
 
-    let engine = production("http://127.0.0.1:1", FakeStore::with_key());
+    let client = SiteClient::with_addresses(
+        "http://127.0.0.1:1",
+        "http://127.0.0.1:1",
+        Duration::from_secs(5),
+    );
+    let engine = Engine::new(KeyEngine::open(settings, FakeStore::with_key(), client));
     assert_eq!(remove_key(&engine), ChangeOutcome::Done);
 
     let reopened = crate::queue::Queue::open(&queue_path);

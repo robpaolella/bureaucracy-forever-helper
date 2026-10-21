@@ -143,17 +143,18 @@ const written = (
   list: ActivityEvent[],
   minutes: number[],
   names = ["Molten Core", "Blackwing Lair"],
+  hour = 20,
 ): DemoState => {
   const at = (h: number, m: number) => new Date().setHours(h, m, 0, 0);
   const startsAt = (h: number, m: number) => Math.floor(new Date().setHours(h, m, 0, 0) / 1000);
   const raids = names.map((name, i) => ({
-    id: `r${i}`, code: "c", name, startsAt: startsAt(21 + i * 2, i * 30), durationMin: 180, instance: null, hasLootTable: true,
+    id: `r${i}`, code: "c", name, startsAt: startsAt(hour + 1 + i * 2, i * 30), durationMin: 180, instance: null, hasLootTable: true,
   }));
   const state = applyRaids(
     {
       status: { tone: "ok", word: "Connected", title: "Connected to the guild site" },
       chain: { ...working, awards: { tone: "closed", word: "None yet", detail: "They send as they’re handed out" } },
-      activity: list.map((e, i) => ({ ...e, at: at(20, minutes[i] ?? 0) })),
+      activity: list.map((e, i) => ({ ...e, at: at(hour, minutes[i] ?? 0) })),
       sentTonight: 0,
     },
     { state: { kind: "fresh" }, raids },
@@ -209,6 +210,7 @@ export const demoStates: Record<string, DemoState> = {
         ],
         [2, 1],
         ["Practice: Ragefire Chasm"],
+        19,
       ).app,
       staging: true,
     },
