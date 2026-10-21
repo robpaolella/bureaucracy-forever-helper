@@ -9,6 +9,7 @@ pub mod queue;
 pub mod raids;
 pub mod reserves;
 pub mod savedvars;
+pub mod site_link;
 pub mod throttle;
 pub mod tray;
 pub mod updater;
@@ -165,6 +166,7 @@ pub fn run() {
             commands::check_addon_update,
             commands::install_addon,
             addon_update::open_addon_notes,
+            site_link::open_loot_log,
             tray::set_tray_status,
             notify::raise_notification,
         ])

@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidsView, ReservesView } from "../bridge";
+import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
 import { trayStatusOf } from "./tray";
@@ -51,6 +51,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     installAddon: unused,
     onAddonProgress: unused,
     openAddonNotes: unused,
+    openLootLog: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: unused,
   };
@@ -275,17 +276,25 @@ describe("the key step", () => {
     root.remove();
   });
 
-  it("asks the site again, without a new paste, when a saved key couldn't be checked", async () => {
+  it("shows a connected helper's unreachable site as offline, not the key step, and checks again once sending resumes", async () => {
     const answers: KeyOutcome[] = [{ kind: "unreachable", message: "offline" }, accepted];
-    const bridge = fakeBridge(() => Promise.resolve(answers.shift()!));
+    let push: (s: SyncStatus) => void = () => {};
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(answers.shift()!)),
+      syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+      onSyncStatus: (l: (s: SyncStatus) => void) => ((push = l), Promise.resolve(() => {})),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+    } as Bridge;
     const root = document.createElement("div");
     await startWindow(root, bridge);
-    expect(note(root)?.textContent).toBe("offline");
-    button(root).dispatchEvent(new MouseEvent("click"));
+    expect(root.querySelector("#key")).toBeNull();
+    expect(siteRow(root)).toContain("Can’t reach the guild site");
+    expect(root.querySelector(".status")?.textContent).toContain("Offline");
+    push({ kind: "idle", otherSite: 0 });
     await flush();
     expect(bridge.checkStored).toHaveBeenCalledTimes(2);
-    expect(bridge.connect).not.toHaveBeenCalled();
-    expect(root.querySelector(".chain li")?.textContent).toContain("Connected as Aldric Vane");
+    expect(siteRow(root)).toContain("Connected as Aldric Vane");
   });
 });
 
@@ -634,5 +643,143 @@ describe("live award lines", () => {
     vi.advanceTimersByTime(60_000);
     expect(store.get().sentTonight).toBe(0);
     vi.useRealTimers();
+  });
+});
+
+describe("the sync states", () => {
+  const site = (root: HTMLElement) => root.querySelectorAll<HTMLElement>(".chain li")[0]!;
+  const awards = (root: HTMLElement) => root.querySelectorAll<HTMLElement>(".chain li")[4]!;
+  const refused = (n: number): SyncStatus => ({
+    kind: "refused",
+    otherSite: 0,
+    records: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, item: 19019, character: "Thessaly Ward", code: "x" })),
+  });
+
+  async function connected() {
+    let push: (s: SyncStatus) => void = () => {};
+    const notify = vi.fn(() => Promise.resolve());
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+      onSyncStatus: (l: (s: SyncStatus) => void) => ((push = l), Promise.resolve(() => {})),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+      notify,
+    } as Bridge;
+    const root = document.createElement("div");
+    const store = await startWindow(root, bridge);
+    return { root, store, push, notify, bridge };
+  }
+
+  it("offline: the title, the opened Guild site row and one notice, not repeated on retries", async () => {
+    const { root, push, notify } = await connected();
+    push({ kind: "offline", waiting: 4 });
+    expect(root.querySelector(".status")?.textContent).toContain("Offline: 4 awards waiting");
+    expect(site(root).className).toContain("link-open");
+    expect(site(root).querySelector(".msg")?.textContent).toBe(
+      "They’ll send when you’re back online. Nothing is lost. The game still has its reserves.",
+    );
+    expect(awards(root).textContent).toContain("Waiting");
+    push({ kind: "offline", waiting: 5 });
+    push({ kind: "offline", waiting: 5 });
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith({
+      headline: "Offline: 4 awards waiting",
+      detail: "They’ll send when you’re back online.",
+    });
+    push({ kind: "idle", otherSite: 0 });
+    expect(root.querySelector(".status")?.textContent).not.toContain("Offline");
+    push({ kind: "offline", waiting: 1 });
+    expect(notify).toHaveBeenCalledTimes(2);
+  });
+
+  it("refused: the Awards row, the button, an Activity line and one notice per record", async () => {
+    const { root, store, push, notify } = await connected();
+    push(refused(1));
+    expect(awards(root).querySelector(".pill")?.textContent).toBe("1 refused");
+    expect(awards(root).querySelector(".msg")?.textContent).toBe(
+      "An award to Thessaly Ward wasn’t recorded. Check it on the loot log. Other awards are still sending.",
+    );
+    expect(awards(root).querySelector("button")?.textContent).toBe("Open the loot log");
+    expect(awards(root).querySelector(".under")).toBeNull();
+    expect(root.querySelector(".status")?.textContent).toContain("The site refused 1 award");
+    expect(store.get().activity[0]).toMatchObject({ tone: "stop", kind: "Refused" });
+    push(refused(1));
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith({ headline: "The site refused 1 award", detail: "Check the loot log." });
+    push(refused(2));
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(awards(root).querySelector(".pill")?.textContent).toBe("2 refused");
+  });
+
+  it("refused: names the item once the chat log has shown it", async () => {
+    let chat: (e: ChatEvent) => void = () => {};
+    let push: (s: SyncStatus) => void = () => {};
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      onChatLog: (l: (e: ChatEvent) => void) => ((chat = l), Promise.resolve(() => {})),
+      syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+      onSyncStatus: (l: (s: SyncStatus) => void) => ((push = l), Promise.resolve(() => {})),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+      notify: vi.fn(() => Promise.resolve()),
+      openLootLog: vi.fn(() => Promise.resolve()),
+    } as Bridge;
+    const root = document.createElement("div");
+    await startWindow(root, bridge);
+    chat({
+      kind: "sent", line: "award", item: 19019, itemName: "Thunderfury", character: "Thessaly Ward",
+      boss: "Garr", raid: "r1", raidName: "Molten Core", at: 1,
+    });
+    push(refused(1));
+    expect(awards(root).querySelector(".msg")?.textContent).toBe(
+      "Thunderfury to Thessaly Ward wasn’t recorded. Check it on the loot log. Other awards are still sending.",
+    );
+    expect(bridge.notify).toHaveBeenCalledWith({
+      headline: "The site refused 1 award",
+      detail: "Check Thunderfury on the loot log.",
+    });
+    awards(root).querySelector("button")!.click();
+    expect(bridge.openLootLog).toHaveBeenCalledWith("r1");
+  });
+
+  it("a revoked key: stopped, 'Add a new key' opens the key step, one notice", async () => {
+    const { root, push, notify } = await connected();
+    push({ kind: "keyStopped" });
+    push({ kind: "keyStopped" });
+    expect(root.querySelector(".status")?.textContent).toContain("Your helper key no longer works");
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith({
+      headline: "Your helper key no longer works",
+      detail: "Add a new key to keep sending awards.",
+    });
+    const add = site(root).querySelector("button")!;
+    expect(add.textContent).toBe("Add a new key");
+    add.click();
+    expect(root.querySelector("#key")).not.toBeNull();
+  });
+
+  it("the site switched off: stopped, no button, no notice", async () => {
+    const { root, push, notify } = await connected();
+    push({ kind: "siteOff" });
+    expect(root.querySelector(".status")?.textContent).toContain("The site has the helper switched off");
+    expect(site(root).querySelector("button")).toBeNull();
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("a damaged queue: 'Sending has stopped', and nothing on screen to act on", async () => {
+    const { root, push } = await connected();
+    push({ kind: "queueDamaged", problem: "x" });
+    expect(root.querySelector(".status")?.textContent).toContain("Sending has stopped");
+    expect(awards(root).querySelector(".msg")?.textContent).toContain("Nothing was deleted.");
+    expect(root.querySelectorAll(".chain button")).toHaveLength(0);
+  });
+
+  it("the tray follows the problem's headline", async () => {
+    const { push, bridge } = await connected();
+    const tray = vi.fn(() => Promise.resolve());
+    bridge.setTrayStatus = tray;
+    push({ kind: "offline", waiting: 2 });
+    expect(tray).toHaveBeenLastCalledWith(expect.objectContaining({ tone: "stop", word: "Offline" }));
   });
 });

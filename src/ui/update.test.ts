@@ -49,6 +49,7 @@ function fakeEngine(engine: { check?: () => Promise<CheckOutcome>; install?: () 
     installAddon: unused,
     onAddonProgress: unused,
     openAddonNotes: unused,
+    openLootLog: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: vi.fn(() => Promise.resolve()),
   };

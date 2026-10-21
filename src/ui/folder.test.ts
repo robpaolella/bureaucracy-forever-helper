@@ -59,6 +59,7 @@ function fake(folder: Folder = {}): Bridge {
     installAddon: unused,
     onAddonProgress: unused,
     openAddonNotes: unused,
+    openLootLog: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: unused,
     searchFolder: vi.fn(() => Promise.resolve(nothing)),
