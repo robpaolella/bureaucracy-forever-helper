@@ -57,3 +57,6 @@ html, body { width: 420px; height: 640px; overflow: hidden; }
 .card-title { font-weight:600; font-size:15px; }
 .card details summary { line-height:44px; cursor:pointer; }
 .card details ul { margin:6px 0 0; padding-left:18px; }
+
+/* Settings section headings sit tight on their controls, as in the design. */
+.stack > h3.th { margin:0; }

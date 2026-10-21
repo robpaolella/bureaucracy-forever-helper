@@ -60,6 +60,7 @@ function fake(folder: Folder = {}): Bridge {
     onAddonProgress: unused,
     openAddonNotes: unused,
     openLootLog: unused,
+    openOfficerArea: unused,
     setTrayStatus: () => Promise.resolve(),
     notify: unused,
     searchFolder: vi.fn(() => Promise.resolve(nothing)),
@@ -206,7 +207,8 @@ describe("Settings → Game folder", () => {
     opened.root.querySelector<HTMLButtonElement>("[aria-label=Settings]")!.click();
     return opened;
   }
-  const section = (root: HTMLElement) => root.querySelector("section.stack")!;
+  const section = (root: HTMLElement) =>
+    [...root.querySelectorAll("section.stack")].find((s) => s.textContent?.startsWith("Game folder"))!;
 
   it("shows the remembered path with a Change folder button", async () => {
     const { root } = await settings({});
@@ -242,7 +244,8 @@ describe("Settings → Game folder", () => {
 });
 
 describe("Settings → Game folder, when things go wrong", () => {
-  const section = (root: HTMLElement) => root.querySelector("section.stack")!;
+  const section = (root: HTMLElement) =>
+    [...root.querySelectorAll("section.stack")].find((s) => s.textContent?.startsWith("Game folder"))!;
   async function settings(folder: Folder) {
     const opened = await open({ rememberedFolder: () => Promise.resolve(found("_retail_")), ...folder });
     opened.root.querySelector<HTMLButtonElement>("[aria-label=Settings]")!.click();

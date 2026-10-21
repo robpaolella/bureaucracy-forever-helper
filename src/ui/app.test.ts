@@ -95,6 +95,20 @@ describe("main screen", () => {
   });
 });
 
+describe("the staging band", () => {
+  it("shows at the top of every screen while staging is on, and on none when it is off", () => {
+    for (const staging of [true, false]) {
+      const root = document.createElement("div");
+      mountApp(root, { getState: () => ({ ...state(), staging }) });
+      const bands = () => root.querySelectorAll(".staging-band").length;
+      expect(bands()).toBe(staging ? 1 : 0);
+      (root.querySelector('[aria-label="Settings"]') as HTMLElement).click();
+      expect(bands()).toBe(staging ? 1 : 0);
+      if (staging) expect(root.firstElementChild?.textContent).toBe("Staging site");
+    }
+  });
+});
+
 describe("settings", () => {
   it("opens from the gear, shows the sections, and Done returns", () => {
     const root = document.createElement("div");

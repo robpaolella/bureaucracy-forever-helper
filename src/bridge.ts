@@ -334,6 +334,8 @@ export interface Bridge {
   openAddonNotes(version: string): Promise<void>;
   /** Opens the loot log on the guild site, on the page of `raid` when given, in the browser. */
   openLootLog(raid?: string): Promise<void>;
+  /** Opens the page where keys are made, in the officer area of the site the helper uses now. */
+  openOfficerArea(): Promise<void>;
   /** Calls `listener` with add-on install progress; resolves to a function that stops it. */
   onAddonProgress(listener: (progress: AddonProgress) => void): Promise<() => void>;
   /** Shows the tray its new status: icon dot, menu and hover text. */
@@ -377,6 +379,7 @@ export const tauriBridge: Bridge = {
   installAddon: (versionFolder) => invoke("install_addon", { folder: versionFolder }),
   openAddonNotes: (version) => invoke("open_addon_notes", { version }),
   openLootLog: (raid) => invoke("open_loot_log", { raid: raid ?? null }),
+  openOfficerArea: () => invoke("open_officer_area"),
   onAddonProgress: (listener) =>
     listen<AddonProgress>(ADDON_PROGRESS_EVENT, (event) => listener(event.payload)),
   setTrayStatus: (status) => invoke("set_tray_status", { status }),

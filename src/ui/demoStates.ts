@@ -194,6 +194,7 @@ export const demoStates: Record<string, DemoState> = {
     },
   },
   ready: ready(),
+  staging: { app: { ...ready().app, staging: true } },
   "helper-update": helperUpdate({ phase: "available", version: "0.3.0" }),
   "helper-installing": helperUpdate({ phase: "installing", version: "0.3.0", percent: 45 }),
   "helper-update-failed": helperUpdate({ phase: "failed", version: "0.3.0", reason: "badSignature" }, [

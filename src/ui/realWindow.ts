@@ -1,7 +1,7 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, ChatEvent, FolderOutcome, KeyOutcome, RaidsView, ReservesView, SyncStatus } from "../bridge";
+import type { Bridge, ChangeOutcome, ChatEvent, FolderOutcome, KeyOutcome, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
 import { addonRow, addonSwitchSection, addonUpdates } from "./addonUpdate";
@@ -11,6 +11,7 @@ import { el } from "./components";
 import { syncNews, withSync, type SyncActions, type Told } from "./sync";
 import { trayStatusOf } from "./tray";
 import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
+import { keySection, stagingSection, type KeyActions } from "./keySettings";
 import { helperUpdates, versionsSection } from "./update";
 
 /** How often the helper looks for a newer version of itself while it runs. */
@@ -120,6 +121,8 @@ const KEY_SHAPE = /^bfh_[A-Za-z0-9_-]{43}$/;
 const EMPTY_KEY_MESSAGE = "Paste your helper key.";
 const MALFORMED_KEY_MESSAGE = "That doesn’t look like a helper key. Copy it again from the officer area.";
 const FAILED_CHECK_MESSAGE = "The helper couldn’t check your key. Try again.";
+const FAILED_REMOVE_MESSAGE = "The helper couldn’t remove your key. Try again.";
+const FAILED_SWITCH_MESSAGE = "The helper couldn’t switch sites. Try again.";
 const FAILED_FOLDER_MESSAGE = "The helper couldn’t check that folder. Try again.";
 const FAILED_INSTALL_MESSAGE = "The helper couldn’t install the add-on. Try again.";
 
@@ -132,36 +135,54 @@ export function keyShapeError(key: string): string | undefined {
 /** The answers where trying again can help, so the button says "Try again". */
 const RETRYABLE: ReadonlySet<KeyOutcome["kind"]> = new Set(["siteOff", "stagingNotOpen", "unreachable", "storeFailed"]);
 
+/** How the key step was opened, which decides its "Back" link and what a failed key leaves behind. */
+export type KeyMode = Pick<KeyStep, "back" | "replacing">;
+
+const modeOf = (key: KeyStep | undefined): KeyMode => ({ back: key?.back, replacing: key?.replacing });
+
 /**
  * What a key check changes in the window. An accepted key connects the Guild site row; any
  * other answer puts the setup screen's key step in its state, with the engine's own words.
  * `pasted` is what was typed, kept in the field; `stored` says whether a key is already saved.
+ * Replacing a key, a refused new one changes nothing else: the saved key still works.
  */
-export function applyKeyOutcome(state: AppState, outcome: KeyOutcome, pasted = "", stored = false): AppState {
+export function applyKeyOutcome(
+  state: AppState,
+  outcome: KeyOutcome,
+  pasted = "",
+  stored = false,
+  mode: KeyMode = {},
+): AppState {
   if (outcome.kind === "accepted") {
     return {
       ...state,
       status: connectedStatus(state.chain),
       chain: { ...state.chain, site: connected(outcome.officer) },
       setup: { key: emptyKey },
+      keyStored: true,
+      keyPanel: undefined,
     };
   }
   const key: KeyStep =
     outcome.kind === "noKey"
-      ? emptyKey
+      ? { ...emptyKey, ...mode }
       : {
+          ...mode,
           value: pasted,
           checking: false,
           error: outcome.message,
           action: RETRYABLE.has(outcome.kind) ? "Try again" : undefined,
           stored,
         };
+  if (mode.replacing) return { ...state, setup: { key }, keyPanel: undefined };
   return {
     ...state,
     status: initialState.status,
     chain: { ...state.chain, site: initialState.chain.site },
     setup: { key },
     folder: undefined,
+    keyStored: outcome.kind !== "noKey" && stored,
+    keyPanel: undefined,
   };
 }
 
@@ -214,7 +235,12 @@ export async function startWindow(
   const addon = addonUpdates(store, bridge, (s) => addonRow(s.chain.addon, s.addon, s.addonVersion, addon));
 
   /** Runs one key check and shows its result. `pasted` stays in the field if it fails. */
-  async function check(run: () => Promise<KeyOutcome>, pasted: string, stored: boolean): Promise<void> {
+  async function check(
+    run: () => Promise<KeyOutcome>,
+    pasted: string,
+    stored: boolean,
+    mode: KeyMode = {},
+  ): Promise<void> {
     let outcome: KeyOutcome;
     try {
       outcome = await run();
@@ -222,7 +248,7 @@ export async function startWindow(
       // The Rust side failed outright; say so in the field rather than leave it checking.
       outcome = { kind: "unreachable", message: FAILED_CHECK_MESSAGE };
     }
-    store.set((s) => applyKeyOutcome(s, outcome, pasted, stored));
+    store.set((s) => applyKeyOutcome(s, outcome, pasted, stored, mode));
     if (outcome.kind === "accepted") {
       // A new key ends a "key refused" status; ask for the status that follows it.
       bridge.syncStatus().then((status) => hearSync(status), () => {});
@@ -361,22 +387,68 @@ export async function startWindow(
     const key = raw.trim();
     const current = store.get().setup?.key;
     const stored = current?.stored ?? false;
+    const mode = modeOf(current);
     const checking = (value: string) =>
-      store.set((s) => ({ ...s, setup: { key: { value, checking: true, stored } } }));
+      store.set((s) => ({ ...s, setup: { key: { ...mode, value, checking: true, stored } } }));
     if (!key && stored) {
       // "Try again" on a saved key whose check failed: ask again, don't make them paste it.
       checking("");
-      void check(() => bridge.checkStored(), "", true);
+      void check(() => bridge.checkStored(), "", true, mode);
       return;
     }
     const error = keyShapeError(key);
     if (error) {
-      store.set((s) => ({ ...s, setup: { key: { value: raw, checking: false, error, stored } } }));
+      store.set((s) => ({ ...s, setup: { key: { ...mode, value: raw, checking: false, error, stored } } }));
       return;
     }
     checking(key);
-    void check(() => bridge.connect(key), key, stored);
+    void check(() => bridge.connect(key), key, stored, mode);
   }
+
+  const panel = (change: Partial<NonNullable<AppState["keyPanel"]>> | undefined) =>
+    store.set((s) => ({ ...s, keyPanel: change && { busy: false, ...change } }));
+
+  /** Remove key: no question asked. Waiting awards stay in the queue; the key step comes back. */
+  async function removeKey(): Promise<void> {
+    if (store.get().keyPanel?.busy) return;
+    panel({ busy: true });
+    let outcome: ChangeOutcome | undefined;
+    try {
+      outcome = await bridge.removeKey();
+    } catch {
+      // The Rust side failed outright; Settings says so and the key stays.
+    }
+    if (outcome?.kind === "done") return store.set((s) => applyKeyOutcome(s, { kind: "noKey" }));
+    panel({ error: outcome?.kind === "storeFailed" ? outcome.message : FAILED_REMOVE_MESSAGE, source: "key" });
+  }
+
+  /**
+   * Turns the staging site on or off, then checks the key of the site now in use. The other
+   * site's key is untouched. A failed check leaves the switch where it is and shows the key step.
+   */
+  async function setStaging(on: boolean): Promise<void> {
+    if (store.get().keyPanel?.busy) return;
+    panel({ busy: true });
+    let outcome: ChangeOutcome | undefined;
+    try {
+      outcome = await bridge.setStaging(on);
+    } catch {
+      // The Rust side failed outright; the switch goes back to where it was.
+    }
+    if (outcome?.kind !== "done") {
+      const message = outcome?.kind === "settingsFailed" ? outcome.message : FAILED_SWITCH_MESSAGE;
+      return panel({ error: message, source: "staging" });
+    }
+    store.set((s) => ({ ...s, staging: on }));
+    await check(() => bridge.checkStored(), "", true, { back: true });
+  }
+
+  const keyActions: KeyActions = {
+    replace: () => store.set((s) => ({ ...s, setup: { key: { ...emptyKey, back: true, replacing: true } } })),
+    remove: () => void removeKey(),
+    add: () => store.set((s) => ({ ...s, setup: { key: { ...emptyKey, back: true } } })),
+    setStaging: (on) => void setStaging(on),
+  };
 
   // The sync status sits on top of the state: the window and the tray show `shown()`.
   let sync: SyncStatus | undefined;
@@ -400,12 +472,17 @@ export async function startWindow(
     settingsSections: () => {
       const s = store.get();
       return [
+        stagingSection(Boolean(s.staging), s.keyPanel, keyActions),
+        keySection(Boolean(s.keyStored), s.chain.site.tone === "ok", s.keyPanel, keyActions),
         gameFolderSection(s.gamePath, s.folder, actions, s.folderBusy),
         addonSwitchSection(),
         versionsSection(s.helperVersion, s.updateCheck, s.update?.phase === "installing", checkAsked, s.addonVersion),
       ];
     },
     onConnect: connect,
+    // Back from the key step returns to Settings and changes nothing.
+    onBack: () => store.set((s) => (s.setup?.key.checking ? s : { ...s, setup: undefined })),
+    onOpenOfficerArea: () => void bridge.openOfficerArea().catch(() => {}),
     folderActions: actions,
     updateActions: updates,
   });
@@ -533,6 +610,7 @@ export async function startWindow(
       if (outcome.kind === "unreachable") {
         // A connected helper that can't reach the site yet: offline, not the key step.
         startupOffline = true;
+        store.set((s) => ({ ...s, keyStored: true }));
         if (sync?.kind !== "offline") hearSync({ kind: "offline", waiting: 0 });
         return await startFolder();
       }
@@ -552,6 +630,13 @@ export async function startWindow(
     if (!sawSync) hearSync(first);
   } catch {
     // The sync status is unavailable; the window shows no sync problem.
+  }
+  // Which site is in use decides the band, and which site's key is checked.
+  try {
+    const staging = await bridge.staging();
+    store.set((s) => ({ ...s, staging }));
+  } catch {
+    // Unknown: the band stays hidden and the check below uses whatever the engine uses.
   }
   await verifyStored();
   return store;
