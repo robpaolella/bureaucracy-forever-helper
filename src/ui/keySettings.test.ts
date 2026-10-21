@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, ChangeOutcome, KeyOutcome } from "../bridge";
+import type { Bridge, ChangeOutcome, KeyOutcome, SyncStatus } from "../bridge";
 import { keySection, stagingSection, storeName } from "./keySettings";
 import { startWindow } from "./realWindow";
 
@@ -242,6 +242,50 @@ describe("Settings → Guild site", () => {
   it("can't be flipped again while a switch is running", () => {
     const section = stagingSection(false, { busy: true }, { replace() {}, remove() {}, add() {}, setStaging() {} });
     expect(section.querySelector<HTMLButtonElement>("#staging")?.disabled).toBe(true);
+  });
+});
+
+describe("staging with no staging key", () => {
+  it("at start-up shows the key step with the band and a Back link to Settings, where the switch turns staging off", async () => {
+    const check = vi.fn<() => Promise<KeyOutcome>>().mockResolvedValueOnce({ kind: "noKey" }).mockResolvedValueOnce(accepted);
+    const bridge = bridgeWith({ staging: () => Promise.resolve(true), checkStored: check });
+    const root = document.createElement("div");
+    document.body.append(root);
+    await startWindow(root, bridge);
+    expect(root.querySelector("h1")?.textContent).toBe("Connect the helper");
+    expect(band(root)).toBe("Staging site");
+    press(root, "Back");
+    expect(root.querySelector("h1")?.textContent).toBe("Settings");
+    staging(root).click();
+    await flush();
+    expect(bridge.setStaging).toHaveBeenCalledWith(false);
+    expect(band(root)).toBeUndefined();
+    expect(root.textContent).toContain("Working");
+  });
+
+  it("after Remove key on staging, still leaves a way back to Settings", async () => {
+    const bridge = bridgeWith({ staging: () => Promise.resolve(true) });
+    const root = await settings(bridge);
+    press(root, "Remove key");
+    await flush();
+    expect(root.querySelector("h1")?.textContent).toBe("Connect the helper");
+    expect(back(root)).not.toBeNull();
+  });
+});
+
+describe("the key's state in Settings", () => {
+  it("doesn't say Working once the site has refused the key", async () => {
+    let push: (s: SyncStatus) => void = () => {};
+    const bridge = bridgeWith({
+      onSyncStatus: (l) => ((push = l), Promise.resolve(() => {})),
+      syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+    });
+    const root = await settings(bridge);
+    expect(root.textContent).toContain("Working");
+    push({ kind: "keyStopped" });
+    root.querySelector<HTMLButtonElement>(".back")!.click();
+    root.querySelector<HTMLButtonElement>('button[aria-label="Settings"]')!.click();
+    expect(root.textContent).not.toContain("Working");
   });
 });
 

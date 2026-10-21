@@ -138,10 +138,15 @@ const syncing = (sync: SyncStatus, list: ActivityEvent[], sent: number): DemoSta
 };
 
 /** The window with raids listed and `reserves` written, drawn by the real window code. */
-const written = (reserves: ReservesView, list: ActivityEvent[], minutes: number[]): DemoState => {
+const written = (
+  reserves: ReservesView,
+  list: ActivityEvent[],
+  minutes: number[],
+  names = ["Molten Core", "Blackwing Lair"],
+): DemoState => {
   const at = (h: number, m: number) => new Date().setHours(h, m, 0, 0);
   const startsAt = (h: number, m: number) => Math.floor(new Date().setHours(h, m, 0, 0) / 1000);
-  const raids = ["Molten Core", "Blackwing Lair"].map((name, i) => ({
+  const raids = names.map((name, i) => ({
     id: `r${i}`, code: "c", name, startsAt: startsAt(21 + i * 2, i * 30), durationMin: 180, instance: null, hasLootTable: true,
   }));
   const state = applyRaids(
@@ -194,7 +199,36 @@ export const demoStates: Record<string, DemoState> = {
     },
   },
   ready: ready(),
-  staging: { app: { ...ready().app, staging: true } },
+  staging: {
+    app: {
+      ...written(
+        { state: { kind: "inGame", raids: ["Practice: Ragefire Chasm"] }, changes: 1, first: true, problem: null },
+        [
+          { at: 0, tone: "ok", kind: "Reserves written", text: "for Practice: Ragefire Chasm. Type /reload in game." },
+          { at: 0, tone: "ok", kind: "Connected", text: "to the staging site." },
+        ],
+        [2, 1],
+        ["Practice: Ragefire Chasm"],
+      ).app,
+      staging: true,
+    },
+  },
+  "key-replace": {
+    app: { ...ready().app, setup: { key: { value: "", checking: false, back: true, replacing: true } } },
+  },
+  "key-staging": { app: { ...keyStep({ value: "", checking: false }).app, staging: true } },
+  "key-staging-closed": {
+    app: {
+      ...keyStep({
+        value: "",
+        checking: false,
+        error: "The staging site isn't open yet.",
+        action: "Try again",
+        stored: true,
+      }).app,
+      staging: true,
+    },
+  },
   "helper-update": helperUpdate({ phase: "available", version: "0.3.0" }),
   "helper-installing": helperUpdate({ phase: "installing", version: "0.3.0", percent: 45 }),
   "helper-update-failed": helperUpdate({ phase: "failed", version: "0.3.0", reason: "badSignature" }, [

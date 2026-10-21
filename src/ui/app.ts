@@ -57,7 +57,7 @@ export interface KeyStep {
   action?: string;
   /** A key is already saved, so an empty field with "Try again" checks it again. */
   stored?: boolean;
-  /** The step was opened from Settings, so a "Back" link returns there and changes nothing. */
+  /** The step was opened from Settings (or staging is on), so a "Back" link returns there and changes nothing. */
   back?: boolean;
   /** Replace key: the saved key stays and keeps the window connected until the new one is accepted. */
   replacing?: boolean;
@@ -257,7 +257,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
 
   function setupScreen(s: AppState, key: KeyStep): Node[] {
     let left: Node = el("span");
-    if (key.back) {
+    if (key.back || s.staging) {
       const goBack = back("Back", () => options.onBack?.());
       goBack.disabled = key.checking;
       left = goBack;

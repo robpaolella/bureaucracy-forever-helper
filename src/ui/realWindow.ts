@@ -473,15 +473,20 @@ export async function startWindow(
       const s = store.get();
       return [
         stagingSection(Boolean(s.staging), s.keyPanel, keyActions),
-        keySection(Boolean(s.keyStored), s.chain.site.tone === "ok", s.keyPanel, keyActions),
+        keySection(Boolean(s.keyStored), shown().chain.site.tone === "ok", s.keyPanel, keyActions),
         gameFolderSection(s.gamePath, s.folder, actions, s.folderBusy),
         addonSwitchSection(),
         versionsSection(s.helperVersion, s.updateCheck, s.update?.phase === "installing", checkAsked, s.addonVersion),
       ];
     },
     onConnect: connect,
-    // Back from the key step returns to Settings and changes nothing.
-    onBack: () => store.set((s) => (s.setup?.key.checking ? s : { ...s, setup: undefined })),
+    // Back from the key step returns to Settings and changes nothing (with staging on, even
+    // at first run, so the switch is always in reach).
+    onBack: () => {
+      if (store.get().setup?.key.checking) return;
+      store.set((s) => ({ ...s, setup: undefined }));
+      app.show("settings");
+    },
     onOpenOfficerArea: () => void bridge.openOfficerArea().catch(() => {}),
     folderActions: actions,
     updateActions: updates,
