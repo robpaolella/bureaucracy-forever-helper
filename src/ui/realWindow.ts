@@ -1,7 +1,7 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, ChangeOutcome, ChatEvent, FolderOutcome, KeyOutcome, RaidsView, ReservesView, SyncStatus } from "../bridge";
+import type { Bridge, ChangeOutcome, ChatEvent, RaidChoice, FolderOutcome, KeyOutcome, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
 import { addonRow, addonSwitchSection, addonUpdates } from "./addonUpdate";
@@ -9,6 +9,7 @@ import { addEvent, chatEvent, nameList, raidStart, reservesEvent } from "./activ
 import type { ChainRow } from "./chain";
 import { el } from "./components";
 import { syncNews, withSync, type SyncActions, type Told } from "./sync";
+import { choiceRow, raidChoiceLine } from "./raidChoice";
 import { trayStatusOf } from "./tray";
 import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
 import { keySection, stagingSection, type KeyActions } from "./keySettings";
@@ -106,6 +107,17 @@ const HEADLINE_WORDS: ReadonlySet<string> = new Set(["Connected", "Ready", "Need
 export function applyRaids(state: AppState, view: RaidsView, reserves?: ReservesView): AppState {
   const chain = { ...state.chain, reserves: reservesRow(view, reserves) };
   return { ...state, chain, status: HEADLINE_WORDS.has(state.status.word) ? connectedStatus(chain) : state.status };
+}
+
+/**
+ * `state` with the Awards row and the tray's second line saying how the raid was chosen,
+ * from the add-on's saved reading (#91). With no information the state is as it was.
+ */
+export function withChoice(state: AppState, now: number): AppState {
+  if (state.setup) return state;
+  const line = raidChoiceLine({ choice: state.choice ?? null, raids: state.raidList ?? [], awardsRaid: state.awardsRaid, now });
+  if (!line) return state;
+  return { ...state, awardsLine: line.trayLine, chain: { ...state.chain, awards: choiceRow(line) } };
 }
 
 const connected = (officer: string): ChainRow => ({
@@ -462,7 +474,13 @@ export async function startWindow(
       clearShown();
     },
   };
-  const shown = () => withSync(store.get(), sync, syncActions, itemNames);
+  // A sync problem on the Awards row wins: then the raid choice is shown nowhere.
+  const shown = () => {
+    const s = store.get();
+    const chosen = withChoice(s, Date.now());
+    const synced = withSync(chosen, sync, syncActions, itemNames);
+    return synced.chain.awards === chosen.chain.awards ? synced : withSync(s, sync, syncActions, itemNames);
+  };
 
   const updates = helperUpdates(store, bridge);
   /** The officer's own check, from Settings or the tray: its answer shows in Settings. */
@@ -515,7 +533,7 @@ export async function startWindow(
   let reservesView: ReservesView | undefined;
   let announced = 0;
   let shownProblem: string | null = null;
-  const redraw = () => store.set((s) => applyRaids(s, raidsView, reservesView));
+  const redraw = () => store.set((s) => ({ ...applyRaids(s, raidsView, reservesView), raidList: raidsView.raids }));
   /** Each counted write adds one Activity line and, when a reload is needed, one notice. */
   function announce(view: ReservesView): void {
     if (view.problem && view.problem !== shownProblem) {
@@ -549,7 +567,17 @@ export async function startWindow(
     countDay = now;
     store.set((s) => ({ ...s, sentTonight: 0 }));
   };
-  setInterval(newDay, 60_000);
+  // The saved reading goes stale after 12 hours with no new event; redraw when that happens.
+  const choiceFresh = () => withChoice(store.get(), Date.now()) !== store.get();
+  let wasFresh = false;
+  setInterval(() => {
+    newDay();
+    const fresh = choiceFresh();
+    if (fresh !== wasFresh) {
+      wasFresh = fresh;
+      store.set((s) => ({ ...s }));
+    }
+  }, 60_000);
   try {
     await bridge.onChatLog((event) => {
       newDay();
@@ -578,6 +606,22 @@ export async function startWindow(
     }
   } catch {
     // The raids list is unavailable; the Reserves row keeps its last look.
+  }
+  // How the raid was chosen, from the add-on's saved file: the first answer, then every change.
+  let sawChoice = false;
+  const hearChoice = (choice: RaidChoice | null) => {
+    store.set((s) => ({ ...s, choice }));
+    wasFresh = choiceFresh();
+  };
+  try {
+    await bridge.onRaidChoice((choice) => {
+      sawChoice = true;
+      hearChoice(choice);
+    });
+    const first = await bridge.raidChoice();
+    if (!sawChoice) hearChoice(first);
+  } catch {
+    // The saved data is unavailable; the Awards row keeps its last look.
   }
   let sawReserves = false;
   try {

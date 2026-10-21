@@ -34,7 +34,7 @@ describe("raidChoiceLine", () => {
       tone: "normal",
     });
     expect(l.caption).toBe(
-      `Chosen by Aldric, as of your last /reload, ${TIME}. Change it on the add-on's Sync tab.`,
+      `Chosen by Aldric, as of your last /reload, ${TIME}. Change it on the add-on’s Sync tab.`,
     );
     expect(l.trayLine).toBe("Awards going to Molten Core");
   });
@@ -44,7 +44,7 @@ describe("raidChoiceLine", () => {
       const l = line({ choice: choice({ chosenBy }) })!;
       expect(l.state).toBe("chosen-no-name");
       expect(l.caption).toBe(
-        `Picked in game, as of your last /reload, ${TIME}. Change it on the add-on's Sync tab.`,
+        `Picked in game, as of your last /reload, ${TIME}. Change it on the add-on’s Sync tab.`,
       );
       expect(l.detail).toBe("Going to Molten Core");
     }
@@ -59,7 +59,7 @@ describe("raidChoiceLine", () => {
       tone: "warn",
     });
     expect(l.caption).toBe(
-      `Aldric chose a raid the add-on hasn't loaded yet. Type /reload in game to load it. As of your last /reload, ${TIME}.`,
+      `Aldric chose a raid the add-on hasn’t loaded yet. Type /reload in game to load it. As of your last /reload, ${TIME}.`,
     );
     expect(l.trayLine).toBe("Raid not loaded in game");
     expect(
@@ -114,7 +114,7 @@ describe("raidChoiceLine", () => {
       pill: "Sending",
       detail: "Going to Molten Core",
     });
-    expect(l.caption).toBe(`Chosen by Aldric, as of your last /reload, ${TIME}. Change it on the add-on's Sync tab.`);
+    expect(l.caption).toBe(`Chosen by Aldric, as of your last /reload, ${TIME}. Change it on the add-on’s Sync tab.`);
     expect(l.trayLine).toBe("Awards going to Molten Core");
     expect(
       line({ awardsRaid: { id: "r1" }, choice: choice({ chosenBy: null }) })!

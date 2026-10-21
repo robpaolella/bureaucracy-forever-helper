@@ -2,10 +2,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidsView, ReservesView, SyncStatus } from "../bridge";
+import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidChoice, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
 import { trayStatusOf } from "./tray";
+import { formatTime, guildTime, zoneName } from "./activity";
 import { applyRaids, initialState, reservesRow, startWindow } from "./realWindow";
 
 const accepted: KeyOutcome = {
@@ -894,5 +895,126 @@ describe("the sync states", () => {
     bridge.setTrayStatus = tray;
     push({ kind: "offline", waiting: 2 });
     expect(tray).toHaveBeenLastCalledWith(expect.objectContaining({ tone: "stop", word: "Offline" }));
+  });
+});
+
+describe("how the raid was chosen", () => {
+  const SAVED = Math.floor(Date.now() / 1000) - 600;
+  const raids: Raid[] = [
+    { id: "r1", code: "mc", name: "Molten Core", startsAt: SAVED + 3600, durationMin: 180, instance: null, hasLootTable: true },
+  ];
+  const reading = (over: Partial<RaidChoice> = {}): RaidChoice => ({
+    activeBy: "chosen", activeRaid: "r1", chosenBy: "Aldric", savedAt: SAVED, ...over,
+  });
+  const awardsOf = (root: HTMLElement) => root.querySelectorAll<HTMLElement>(".chain li")[4]!;
+
+  async function chosenWindow(first: RaidChoice | null) {
+    let hear: (c: RaidChoice) => void = () => {};
+    let sync: (s: SyncStatus) => void = () => {};
+    let chat: (e: ChatEvent) => void = () => {};
+    const tray = vi.fn(() => Promise.resolve());
+    const notify = vi.fn(() => Promise.resolve());
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+      raids: () => Promise.resolve({ state: { kind: "fresh" }, raids } as RaidsView),
+      onRaids: () => Promise.resolve(() => {}),
+      raidChoice: () => Promise.resolve(first),
+      onRaidChoice: (l: (c: RaidChoice) => void) => ((hear = l), Promise.resolve(() => {})),
+      onChatLog: (l: (e: ChatEvent) => void) => ((chat = l), Promise.resolve(() => {})),
+      syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+      onSyncStatus: (l: (s: SyncStatus) => void) => ((sync = l), Promise.resolve(() => {})),
+      setTrayStatus: tray,
+      notify,
+    } as unknown as Bridge;
+    const root = document.createElement("div");
+    const store = await startWindow(root, bridge);
+    return { root, store, tray, notify, hear: (c: RaidChoice) => hear(c), sync: (s: SyncStatus) => sync(s), chat: (e: ChatEvent) => chat(e) };
+  }
+  const trayLine = (tray: ReturnType<typeof vi.fn>) =>
+    (tray.mock.calls.at(-1) as unknown as [{ secondLine: string | null }])[0].secondLine;
+
+  it.each([
+    [reading(), "Going to Molten Core", "None yet", "closed", /^Chosen by Aldric, as of your last \/reload, .* \w+\. Change it on the add-on’s Sync tab\.$/, "Awards going to Molten Core"],
+    [reading({ chosenBy: null }), "Going to Molten Core", "None yet", "closed", /^Picked in game, as of your last \/reload/, "Awards going to Molten Core"],
+    [reading({ activeRaid: null }), "Raid not loaded", "Not loaded", "warn", /^Aldric chose a raid the add-on hasn’t loaded yet\. Type \/reload in game to load it\. As of your last \/reload/, "Raid not loaded in game"],
+    [reading({ activeBy: "none", activeRaid: null }), "Raid not chosen yet", "Not chosen", "warn", /^Awards wait in the add-on until an officer chooses the raid on its Sync tab\. As of/, "Raid not chosen yet"],
+    [reading({ activeBy: "off", activeRaid: null }), "Not a guild run", "Off", "closed", /^The add-on records nothing for this group\. As of/, "Not a guild run"],
+  ])("draws %#: row, pill, caption and tray line, and never opens the row", async (saved, detail, pill, tone, caption, line) => {
+    const { root, tray, store, notify } = await chosenWindow(saved);
+    expect(notify).not.toHaveBeenCalled();
+    const row = awardsOf(root);
+    expect(row.querySelector(".caption.detail")?.textContent).toBe(detail);
+    expect(row.querySelector(".pill")?.textContent).toBe(pill);
+    expect(row.querySelector(".pill")?.className).toContain(tone);
+    expect(row.querySelector(".under p")?.textContent?.replace(/\u00a0/g, " ")).toMatch(caption);
+    expect(row.className).not.toContain("link-open");
+    expect(trayLine(tray)).toBe(line);
+    expect(store.get().status.tone).toBe("ok");
+    expect((tray.mock.calls.at(-1) as unknown as [object])[0]).toMatchObject({ tone: "ok" });
+    expect(root.querySelector(".chain .pill.warn")?.closest("li") ?? null).toBe(tone === "warn" ? row : null);
+  });
+
+  it("shows the file's time in the local zone, with the guild time on hover and in the accessible name", async () => {
+    const { root } = await chosenWindow(reading());
+    const time = awardsOf(root).querySelector("time")!;
+    const at = SAVED * 1000;
+    const local = `${formatTime(at)} ${zoneName(at)}`;
+    expect(time.textContent?.replace(/\u00a0/g, " ")).toBe(local);
+    expect(time.title).toBe(`${guildTime(at)} guild time`);
+    expect(time.getAttribute("aria-label")).toBe(`${local}, ${guildTime(at)} guild time`);
+    expect(time.tabIndex).toBe(0);
+  });
+
+  it("follows a new reading, and Sending shows once the latest award went to the chosen raid", async () => {
+    const { root, hear, chat, tray, notify } = await chosenWindow(reading({ activeBy: "none", activeRaid: null }));
+    expect(trayLine(tray)).toBe("Raid not chosen yet");
+    hear(reading());
+    expect(awardsOf(root).querySelector(".pill")?.textContent).toBe("None yet");
+    chat({
+      kind: "sent", line: "award", item: 1, itemName: "Earthshaker", character: "Aldric", boss: "Magmadar",
+      raid: "r1", raidName: "Molten Core", at: 1,
+    });
+    expect(awardsOf(root).querySelector(".pill")?.textContent).toBe("Sending");
+    expect(awardsOf(root).querySelector(".under p")?.textContent).toContain("Chosen by Aldric, as of your last /reload");
+    expect(awardsOf(root).className).not.toContain("link-open");
+    expect(trayLine(tray)).toBe("Awards going to Molten Core");
+    expect(notify).not.toHaveBeenCalled();
+  });
+
+  it("a sync problem on the Awards row wins, in the window and the tray", async () => {
+    const { root, sync, tray } = await chosenWindow(reading({ activeBy: "none", activeRaid: null }));
+    sync({ kind: "offline", waiting: 2 });
+    expect(awardsOf(root).textContent).toContain("Kept until they can send");
+    expect(awardsOf(root).textContent).not.toContain("Awards wait in the add-on");
+    expect(trayLine(tray)).toBeNull();
+    sync({ kind: "idle", otherSite: 0 });
+    expect(awardsOf(root).textContent).toContain("Raid not chosen yet");
+    expect(trayLine(tray)).toBe("Raid not chosen yet");
+  });
+
+  it("leaves today's wording and the tray as they were with no information", async () => {
+    for (const none of [null, reading({ savedAt: SAVED - 13 * 3600 }), reading({ activeRaid: "gone" }), reading({ activeBy: "weird" })]) {
+      const { root, tray } = await chosenWindow(none);
+      expect(awardsOf(root).textContent).toBe("AwardsWaiting for the guild siteNot yet");
+      expect(awardsOf(root).querySelector("time")).toBeNull();
+      expect(trayLine(tray)).toBeNull();
+    }
+  });
+
+  it("drops the captions when the saved reading grows stale", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "Date"] });
+    try {
+      vi.setSystemTime(SAVED * 1000 + 60_000);
+      const { root, tray } = await chosenWindow(reading());
+      expect(awardsOf(root).textContent).toContain("Going to Molten Core");
+      vi.setSystemTime(SAVED * 1000 + 12 * 3600 * 1000 + 61_000);
+      vi.advanceTimersByTime(60_000);
+      expect(awardsOf(root).textContent).toBe("AwardsWaiting for the guild siteNot yet");
+      expect(trayLine(tray)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
