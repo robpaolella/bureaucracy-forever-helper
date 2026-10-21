@@ -173,8 +173,7 @@ const choosing = (over: Partial<RaidChoice>, live = false): DemoState => {
   }));
   const choice = { activeBy: "chosen", activeRaid: "r0", chosenBy: "Aldric", savedAt, ...over };
   const going = live ? { awardsRaid: { id: "r0", name: "Molten Core" }, sentTonight: 14 } : {};
-  const status = live ? { tone: "ok" as const, word: "Sending", title: "Sending awards" } : app.status;
-  return { app: withChoice({ ...app, ...going, status, choice, raidList }, savedAt * 1000 + 60_000) };
+  return { app: withChoice({ ...app, ...going, choice, raidList }, savedAt * 1000 + 60_000) };
 };
 /** The ready window with the helper's update card, as in the design's `helper-*` states. */
 const helperUpdate = (update: HelperUpdate, extra: ActivityEvent[] = []): DemoState => {
