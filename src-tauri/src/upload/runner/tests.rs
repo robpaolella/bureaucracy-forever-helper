@@ -329,6 +329,46 @@ fn a_damaged_queue_is_reported_and_picked_up_once_fixed() {
     );
 }
 
+/// An award too big to send, which the uploader refuses without asking the site.
+fn too_big(name: &str) -> Value {
+    let mut op = award(name, "staging");
+    op["note"] = Value::String("x".repeat(70 * 1024));
+    op
+}
+
+fn until_refused(app: &App) {
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !matches!(app.runner.status(), SyncStatus::Refused { .. }) {
+        assert!(Instant::now() < deadline, "still {:?}", app.runner.status());
+        std::thread::sleep(Duration::from_millis(5));
+    }
+}
+
+fn refused_ids(status: SyncStatus) -> Vec<String> {
+    match status {
+        SyncStatus::Refused { records, .. } => records.into_iter().map(|r| r.id).collect(),
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn refusals_the_window_shows_are_cleared_and_a_later_one_shows_again() {
+    let store = FakeStore::default();
+    store.put(Site::Staging, STAGING_KEY);
+    let app = App::start(store, &[too_big("big1")]);
+    assert_eq!(set_staging(&app.engine, true), ChangeOutcome::Done);
+    app.runner.restart();
+    until_refused(&app);
+    assert_eq!(refused_ids(app.runner.status()), [id("big1")]);
+    app.runner.clear_refused(vec![id("big1")]);
+    app.until(SyncStatus::Idle { other_site: 0 });
+    // A refusal after the clearing shows on its own.
+    app.add(too_big("big2"));
+    app.runner.restart();
+    until_refused(&app);
+    assert_eq!(refused_ids(app.runner.status()), [id("big2")]);
+}
+
 #[test]
 fn stopping_ends_it_promptly_while_it_waits_and_nothing_is_sent_after() {
     let store = FakeStore::default();

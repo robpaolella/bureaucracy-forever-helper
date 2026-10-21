@@ -321,7 +321,38 @@ fn a_refused_record_is_reported_once_and_the_rest_still_goes() {
             other_site: 0,
         }
     );
-    up.clear_refused();
+    up.clear_refused(&["rp-2222aaaa".to_string()]);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
+    // Cleared for good: a pass with nothing new doesn't bring it back.
+    up.pass(&mut queue, &site, Site::Staging, &key(KEY), now + IDLE * 2);
+    assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
+}
+
+#[test]
+fn clearing_by_ids_leaves_a_refusal_the_window_has_not_shown() {
+    let (mut queue, _) = queue_with(&[
+        award("aw-1111aaaa", "staging"),
+        award("aw-3333aaaa", "staging"),
+    ]);
+    let site = FakeSite {
+        reject: HashMap::from([
+            ("aw-1111aaaa".to_string(), "unknown-character".to_string()),
+            ("aw-3333aaaa".to_string(), "unknown-character".to_string()),
+        ]),
+        ..FakeSite::default()
+    };
+    let mut up = Uploader::new();
+    up.pass(&mut queue, &site, Site::Staging, &key(KEY), Instant::now());
+    // The window showed only the first when it asked for it to be cleared.
+    up.clear_refused(&["aw-1111aaaa".to_string()]);
+    match up.status() {
+        SyncStatus::Refused { records, .. } => {
+            let ids: Vec<_> = records.iter().map(|r| r.id.as_str()).collect();
+            assert_eq!(ids, ["aw-3333aaaa"]);
+        }
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+    up.clear_refused(&["aw-3333aaaa".to_string()]);
     assert_eq!(up.status(), SyncStatus::Idle { other_site: 0 });
 }
 

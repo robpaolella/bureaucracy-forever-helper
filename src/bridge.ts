@@ -84,6 +84,8 @@ export type SyncStatus =
 
 /** The event that carries each new sync status (`SYNC_STATUS_EVENT` in upload/runner.rs). */
 const SYNC_STATUS_EVENT = "sync-status";
+/** The event that says the window was shown or hidden (`WINDOW_VISIBLE_EVENT` in notify.rs). */
+const WINDOW_VISIBLE_EVENT = "window-visible";
 
 /** One upcoming site raid (`Raid` in raids.rs). `startsAt` is Unix seconds. */
 export interface Raid {
@@ -284,6 +286,8 @@ export interface Bridge {
   staging(): Promise<boolean>;
   setStaging(on: boolean): Promise<ChangeOutcome>;
   syncStatus(): Promise<SyncStatus>;
+  /** Tells the helper the window has shown these refused records (by id), so they stop counting. */
+  clearRefused(ids: string[]): Promise<void>;
   /** The upcoming raids and how the list stands now. */
   raids(): Promise<RaidsView>;
   /** How the reserves stand in the game now. */
@@ -301,6 +305,9 @@ export interface Bridge {
   pickFolder(): Promise<string | null>;
   /** Calls `listener` with every later sync status; resolves to a function that stops it. */
   onSyncStatus(listener: (status: SyncStatus) => void): Promise<() => void>;
+  /** Calls `listener` with `true` each time the window is shown and `false` each time it is hidden;
+   * resolves to a function that stops it. */
+  onWindowVisible(listener: (visible: boolean) => void): Promise<() => void>;
   /** Calls `listener` with every later raids view; resolves to a function that stops it. */
   onRaids(listener: (view: RaidsView) => void): Promise<() => void>;
   /** Calls `listener` with every later reserves view; resolves to a function that stops it. */
@@ -351,6 +358,7 @@ export const tauriBridge: Bridge = {
   staging: () => invoke("get_staging"),
   setStaging: (on) => invoke("set_staging_site", { on }),
   syncStatus: () => invoke("get_sync_status"),
+  clearRefused: (ids) => invoke("clear_refused", { ids }),
   raids: () => invoke("get_raids"),
   reserves: () => invoke("get_reserves"),
   raidChoice: () => invoke("get_raid_choice"),
@@ -363,6 +371,7 @@ export const tauriBridge: Bridge = {
     return typeof picked === "string" ? picked : null;
   },
   onSyncStatus: (listener) => listen<SyncStatus>(SYNC_STATUS_EVENT, (event) => listener(event.payload)),
+  onWindowVisible: (listener) => listen<boolean>(WINDOW_VISIBLE_EVENT, (event) => listener(event.payload)),
   onRaids: (listener) => listen<RaidsView>(RAIDS_EVENT, (event) => listener(event.payload)),
   onReserves: (listener) => listen<ReservesView>(RESERVES_EVENT, (event) => listener(event.payload)),
   onRaidChoice: (listener) => listen<RaidChoice>(RAID_CHOICE_EVENT, (event) => listener(event.payload)),

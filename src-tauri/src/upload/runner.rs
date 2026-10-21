@@ -27,6 +27,8 @@ struct Control {
     /// Goes up on every restart, so a run can tell its key and site are out of date.
     generation: u64,
     stopped: bool,
+    /// Refused records the window has shown, waiting for the thread to clear them.
+    shown: Vec<String>,
 }
 
 #[derive(Default)]
@@ -45,11 +47,16 @@ impl Shared {
         control.stopped || control.generation != generation
     }
 
-    /// Waits for `wait`, or less if the runner is stopped or restarted.
+    fn take_shown(&self) -> Vec<String> {
+        std::mem::take(&mut self.control().shown)
+    }
+
+    /// Waits for `wait`, or less if the runner is stopped or restarted, or the window has
+    /// shown refused records.
     fn sleep(&self, generation: u64, wait: Duration) {
         let deadline = Instant::now() + wait;
         let mut control = self.control();
-        while !control.stopped && control.generation == generation {
+        while !control.stopped && control.generation == generation && control.shown.is_empty() {
             let left = deadline.saturating_duration_since(Instant::now());
             if left.is_zero() {
                 return;
@@ -109,6 +116,13 @@ impl Runner {
         self.shared.wake.notify_all();
     }
 
+    /// The window has shown these refused records (by id): they stop counting. Records
+    /// refused since stay.
+    pub fn clear_refused(&self, shown: Vec<String>) {
+        self.shared.control().shown.extend(shown);
+        self.shared.wake.notify_all();
+    }
+
     /// Stops sending. It doesn't wait for a request in flight, which is resent next time.
     pub fn stop(&self) {
         self.shared.control().stopped = true;
@@ -140,6 +154,10 @@ fn run<S: SecretStore>(
             }
             control.generation
         };
+        let shown = shared.take_shown();
+        if !shown.is_empty() {
+            uploader.clear_refused(&shown);
+        }
         if last.replace(generation).is_some_and(|g| g != generation) {
             uploader.changed();
         }
@@ -165,7 +183,19 @@ fn run<S: SecretStore>(
                 uploader.pass(&mut queue, &guarded, site, &key, Instant::now())
             }
         };
-        shared.sleep(generation, wait);
+        // Waking for shown refusals clears them and goes on waiting out the rest of `wait`.
+        let deadline = Instant::now() + wait;
+        loop {
+            shared.sleep(
+                generation,
+                deadline.saturating_duration_since(Instant::now()),
+            );
+            let shown = shared.take_shown();
+            if shown.is_empty() {
+                break;
+            }
+            uploader.clear_refused(&shown);
+        }
     }
 }
 

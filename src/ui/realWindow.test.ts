@@ -27,6 +27,8 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     staging: unused,
     setStaging: unused,
     syncStatus: unused,
+    clearRefused: unused,
+    onWindowVisible: unused,
     searchFolder: unused,
     checkPickedFolder: unused,
     rememberVersion: unused,
@@ -742,6 +744,86 @@ describe("the sync states", () => {
     });
     awards(root).querySelector("button")!.click();
     expect(bridge.openLootLog).toHaveBeenCalledWith("r1");
+  });
+
+  describe("clearing a refusal once the window has shown it", () => {
+    let setShown: (visible: boolean) => void = () => {};
+    const visibility = (state: "visible" | "hidden") => setShown(state === "visible");
+    async function shownWindow() {
+      const clearRefused = vi.fn(() => Promise.resolve());
+      let push: (s: SyncStatus) => void = () => {};
+      const notify = vi.fn(() => Promise.resolve());
+      const bridge = {
+        ...fakeBridge(() => Promise.resolve(accepted)),
+        syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+        onSyncStatus: (l: (s: SyncStatus) => void) => ((push = l), Promise.resolve(() => {})),
+        onWindowVisible: (l: (visible: boolean) => void) => ((setShown = l), Promise.resolve(() => {})),
+        rememberedFolder: () =>
+          Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+        notify,
+        clearRefused,
+        openLootLog: vi.fn(() => Promise.resolve()),
+      } as Bridge;
+      const root = document.createElement("div");
+      const store = await startWindow(root, bridge);
+      return { root, store, push, notify, bridge, clearRefused };
+    }
+
+    it("clicking Open the loot log clears the records it showed; the Activity line stays", async () => {
+      const { root, store, push, clearRefused } = await shownWindow();
+      push(refused(2));
+      awards(root).querySelector("button")!.click();
+      expect(clearRefused).toHaveBeenCalledTimes(1);
+      expect(clearRefused).toHaveBeenCalledWith(["r0", "r1"]);
+      push({ kind: "idle", otherSite: 0 });
+      expect(awards(root).querySelector(".pill")?.textContent).not.toContain("refused");
+      expect(store.get().activity.filter((a) => a.kind === "Refused")).toHaveLength(2);
+    });
+
+    it("closing the window after it displayed a refusal clears it, once", async () => {
+      const { push, clearRefused } = await shownWindow();
+      push(refused(1));
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledWith(["r0"]);
+      push({ kind: "idle", otherSite: 0 });
+      visibility("visible");
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledTimes(1);
+    });
+
+    it("a clear that fails is tried again on the next click or close", async () => {
+      const { root, push, clearRefused } = await shownWindow();
+      clearRefused.mockRejectedValueOnce(new Error("no"));
+      push(refused(1));
+      awards(root).querySelector("button")!.click();
+      await Promise.resolve();
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledTimes(2);
+      expect(clearRefused).toHaveBeenLastCalledWith(["r0"]);
+    });
+
+    it("a refusal that arrives while the window is hidden is cleared only after it was shown", async () => {
+      const { root, push, clearRefused } = await shownWindow();
+      visibility("hidden");
+      push(refused(1));
+      expect(clearRefused).not.toHaveBeenCalled();
+      visibility("visible");
+      expect(awards(root).querySelector(".pill")?.textContent).toBe("1 refused");
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledWith(["r0"]);
+    });
+
+    it("a refusal after the clearing shows again with its own notice", async () => {
+      const { push, notify, clearRefused } = await shownWindow();
+      push(refused(1));
+      visibility("hidden");
+      push({ kind: "idle", otherSite: 0 });
+      visibility("visible");
+      push({ kind: "refused", otherSite: 0, records: [{ id: "r9", item: null, character: null, code: "x" }] });
+      expect(notify).toHaveBeenCalledTimes(2);
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenLastCalledWith(["r9"]);
+    });
   });
 
   it("a revoked key: stopped, 'Add a new key' opens the key step, one notice", async () => {

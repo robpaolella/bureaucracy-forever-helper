@@ -184,13 +184,12 @@ impl Uploader {
         self.batch_limit = None;
     }
 
-    /// Forgets the refused records once the window has shown them.
-    pub fn clear_refused(&mut self) {
-        self.refused.clear();
+    /// Forgets the refused records the window has shown, by id. One that was refused after
+    /// the window last looked stays, and keeps the status amber.
+    pub fn clear_refused(&mut self, shown: &[String]) {
+        self.refused.retain(|r| !shown.contains(&r.id));
         if matches!(self.status(), SyncStatus::Refused { .. }) {
-            self.status.set(SyncStatus::Idle {
-                other_site: self.other_site,
-            });
+            self.status.set(self.settled());
         }
     }
 

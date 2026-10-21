@@ -31,6 +31,8 @@ describe("tauriBridge", () => {
     expect(invoke).toHaveBeenLastCalledWith("set_staging_site", { on: true });
     await tauriBridge.syncStatus();
     expect(invoke).toHaveBeenLastCalledWith("get_sync_status");
+    await tauriBridge.clearRefused(["aw-1"]);
+    expect(invoke).toHaveBeenLastCalledWith("clear_refused", { ids: ["aw-1"] });
     await tauriBridge.raids();
     expect(invoke).toHaveBeenLastCalledWith("get_raids");
     await tauriBridge.reserves();
@@ -96,6 +98,23 @@ describe("tauriBridge", () => {
     emit({ payload: { kind: "noKey" } });
     emit({ payload: { kind: "idle", otherSite: 0 } });
     expect(heard).toEqual([{ kind: "noKey" }, { kind: "idle", otherSite: 0 }]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
+  it("passes on whether the window is shown from the window-visible event until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard: boolean[] = [];
+    const unlisten = await tauriBridge.onWindowVisible((visible) => heard.push(visible));
+    expect(listen).toHaveBeenCalledWith("window-visible", expect.any(Function));
+    emit({ payload: false });
+    emit({ payload: true });
+    expect(heard).toEqual([false, true]);
     unlisten();
     expect(stop).toHaveBeenCalled();
   });
