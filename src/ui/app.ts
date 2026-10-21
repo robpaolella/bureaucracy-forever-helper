@@ -3,6 +3,7 @@
 // design (design/2-helper-window/index.html); styles live in window.css.
 import wordmark from "../assets/wordmark.png";
 import { ACTIVITY_RECENT, formatTime, guildTime, showSeeAll, zoneName, type ActivityEvent } from "./activity";
+import type { Raid, RaidChoice } from "../bridge";
 import type { AddonUpdate } from "./addonUpdate";
 import { ROW_NAMES, ROW_ORDER, firstBroken, type ChainRow, type ChainState, type RowId } from "./chain";
 import { button, el, field, link, pill, type Child, type Tone } from "./components";
@@ -21,6 +22,10 @@ export interface AppState {
   awardsLine?: string;
   /** The raid the latest handled award went to, for the Awards row's caption (#60). */
   awardsRaid?: { id: string; name: string };
+  /** The add-on's newest saved reading of how the raid was chosen (#60); null before the game has saved one. */
+  choice?: RaidChoice | null;
+  /** The raids list (#12), to name the chosen raid. */
+  raidList?: readonly Raid[];
   /** The staging site is in use: the band shows at the top of every screen. */
   staging?: boolean;
   /** A key is saved for the current site. */

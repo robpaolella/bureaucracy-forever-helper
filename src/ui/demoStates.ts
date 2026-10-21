@@ -1,11 +1,11 @@
 // Sample window states for the test-only demo page, named as in the approved design
 // (design/2-helper-window/index.html). Every name is invented.
-import type { ReservesView, SyncStatus } from "../bridge";
+import type { RaidChoice, ReservesView, SyncStatus } from "../bridge";
 import type { ActivityEvent } from "./activity";
 import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
 import type { FolderStep } from "./folder";
-import { applyRaids } from "./realWindow";
+import { applyRaids, withChoice } from "./realWindow";
 import { addonFailedEvent, addonRow, addonUpdatedEvent, type AddonUpdate } from "./addonUpdate";
 import { withSync } from "./sync";
 import { updateFailedEvent, type HelperUpdate } from "./update";
@@ -164,6 +164,18 @@ const written = (
 };
 const both = ["Molten Core", "Blackwing Lair"];
 const ready = (): DemoState => written({ state: { kind: "inGame", raids: both }, changes: 1, first: true, problem: null }, [wrote, joined], [12, 11]);
+/** The ready window with how the raid was chosen, drawn by the real code (the design's `chosen`, `not-loaded` … states). */
+const choosing = (over: Partial<RaidChoice>, live = false): DemoState => {
+  const { app } = ready();
+  const savedAt = Math.floor(new Date().setHours(20, 47, 0, 0) / 1000);
+  const raidList = both.map((name, i) => ({
+    id: `r${i}`, code: "c", name, startsAt: savedAt + 3600, durationMin: 180, instance: null, hasLootTable: true,
+  }));
+  const choice = { activeBy: "chosen", activeRaid: "r0", chosenBy: "Aldric", savedAt, ...over };
+  const going = live ? { awardsRaid: { id: "r0", name: "Molten Core" }, sentTonight: 14 } : {};
+  const status = live ? { tone: "ok" as const, word: "Sending", title: "Sending awards" } : app.status;
+  return { app: withChoice({ ...app, ...going, status, choice, raidList }, savedAt * 1000 + 60_000) };
+};
 /** The ready window with the helper's update card, as in the design's `helper-*` states. */
 const helperUpdate = (update: HelperUpdate, extra: ActivityEvent[] = []): DemoState => {
   const { app } = ready();
@@ -200,6 +212,12 @@ export const demoStates: Record<string, DemoState> = {
     },
   },
   ready: ready(),
+  chosen: choosing({}),
+  "chosen-live": choosing({}, true),
+  "chosen-no-name": choosing({ chosenBy: null }),
+  "not-loaded": choosing({ activeRaid: null }),
+  "not-chosen": choosing({ activeBy: "none", activeRaid: null }),
+  "not-guild-run": choosing({ activeBy: "off", activeRaid: null }),
   staging: {
     app: {
       ...written(

@@ -2,7 +2,9 @@
 // revision 4). One pure function turns the newest saved reading into a state; `null` means
 // "no information", and the row keeps today's wording. Part 2 (#91) draws the result.
 import type { Raid, RaidChoice } from "../bridge";
-import { formatTime, zoneName } from "./activity";
+import { formatTime, guildTime, zoneName } from "./activity";
+import type { ChainRow } from "./chain";
+import { el } from "./components";
 
 /** Saved data older than this is ignored. */
 export const CHOICE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -41,7 +43,7 @@ export interface RaidChoiceInput {
   now: number;
 }
 
-const CHANGE = "Change it on the add-on's Sync tab.";
+const CHANGE = "Change it on the add-on’s Sync tab.";
 
 export function raidChoiceLine({
   choice,
@@ -85,7 +87,7 @@ export function raidChoiceLine({
           detail: "Raid not loaded",
           pill: "Not loaded",
           tone: "warn",
-          caption: `${who ?? "An officer"} chose a raid the add-on hasn't loaded yet. Type /reload in game to load it. ${capital(asOf)}.`,
+          caption: `${who ?? "An officer"} chose a raid the add-on hasn’t loaded yet. Type /reload in game to load it. ${capital(asOf)}.`,
           trayLine: "Raid not loaded in game",
         };
       }
@@ -130,4 +132,33 @@ export function raidChoiceLine({
 
 function capital(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/**
+ * The Awards row for `line`: its detail and pill, and the caption under it, with the file's
+ * time in the officer's zone and the guild's time on hover and for screen readers. Never
+ * `broken`, so the row never opens.
+ */
+export function choiceRow(line: RaidChoiceLine): ChainRow {
+  const at = line.savedAt * 1000;
+  const local = `${formatTime(at)} ${zoneName(at)}`.trim();
+  const guild = `${guildTime(at)} guild time`;
+  const caption = el("p", "caption");
+  const [before, ...rest] = line.caption.split(local);
+  if (rest.length === 0) {
+    caption.append(line.caption);
+  } else {
+    const time = el("time", "tabular", [local.replace(/ (?=\S+$)/, "\u00a0")]);
+    time.dateTime = new Date(at).toISOString();
+    time.tabIndex = 0;
+    time.title = guild;
+    time.setAttribute("aria-label", `${local}, ${guild}`);
+    caption.append(before ?? "", time, rest.join(local));
+  }
+  return {
+    tone: line.state === "chosen-live" ? "ok" : line.tone === "warn" ? "warn" : "closed",
+    word: line.pill,
+    detail: line.detail,
+    under: [caption],
+  };
 }
