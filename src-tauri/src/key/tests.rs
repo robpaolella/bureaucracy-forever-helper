@@ -103,10 +103,17 @@ fn read_head(stream: &mut TcpStream) -> String {
     String::from_utf8_lossy(&head).into_owned()
 }
 
-/// An address where nothing answers.
+/// An address where nothing answers: connections are accepted and dropped at once.
 fn closed_address() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    format!("http://{}", listener.local_addr().unwrap())
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    // Keep the port held, hanging up on every caller, so no other test's server can take it.
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            drop(stream);
+        }
+    });
+    address
 }
 
 fn client(production: &str, staging: &str) -> SiteClient {

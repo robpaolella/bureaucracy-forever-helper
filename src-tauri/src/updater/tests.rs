@@ -348,10 +348,17 @@ fn a_signature_for_another_version_or_none_is_refused() {
     }
 }
 
-/// An address nothing listens on.
+/// An address nothing listens on: connections are accepted and dropped at once.
 fn nowhere() -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    format!("http://{}", listener.local_addr().unwrap())
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    // Keep the port held, hanging up on every caller, so no other test's server can take it.
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            drop(stream);
+        }
+    });
+    address
 }
 
 #[test]
