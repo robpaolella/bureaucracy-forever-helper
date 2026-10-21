@@ -399,3 +399,63 @@ describe("Settings → Start the helper when the computer starts", () => {
     expect(finishLoginSetup).not.toHaveBeenCalled();
   });
 });
+
+describe("setup screen → Use the staging site", () => {
+  const KEY = `bfh_${"3kZ9q2Lw8VtR4mXc7Pn1".padEnd(43, "x")}`;
+  const useStaging = (root: HTMLElement) =>
+    [...root.querySelectorAll<HTMLAnchorElement>("a.link")].find((a) => a.textContent === "Use the staging site");
+  const noKey = () => Promise.resolve<KeyOutcome>({ kind: "noKey" });
+  const setup = async (over: Partial<Bridge> = {}) => {
+    const bridge = bridgeWith({ checkStored: noKey, ...over });
+    const root = document.createElement("div");
+    document.body.append(root);
+    await startWindow(root, bridge);
+    return { bridge, root };
+  };
+
+  it("shows the link with staging off; pressing it turns staging on and asks for the staging key", async () => {
+    const { bridge, root } = await setup();
+    expect(band(root)).toBeUndefined();
+    expect(back(root)).toBeNull();
+    useStaging(root)!.click();
+    await flush();
+    expect(bridge.setStaging).toHaveBeenCalledWith(true);
+    expect(band(root)).toBe("Staging site");
+    expect(root.querySelector("h1")?.textContent).toBe("Connect the helper");
+    expect(root.textContent).toContain("Paste your helper key");
+    expect(useStaging(root)).toBeUndefined();
+    expect(back(root)).not.toBeNull();
+  });
+
+  it("is not shown with staging on", async () => {
+    const { root } = await setup({ staging: () => Promise.resolve(true) });
+    expect(useStaging(root)).toBeUndefined();
+    expect(back(root)).not.toBeNull();
+  });
+
+  it("is disabled while a key is being checked", async () => {
+    const { bridge, root } = await setup({ connect: () => new Promise(() => {}) });
+    expect(useStaging(root)!.getAttribute("aria-disabled")).toBeNull();
+    const input = root.querySelector<HTMLInputElement>("#key")!;
+    input.value = KEY;
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter" }));
+    await flush();
+    const link = useStaging(root)!;
+    expect(link.getAttribute("aria-disabled")).toBe("true");
+    link.click();
+    await flush();
+    expect(bridge.setStaging).not.toHaveBeenCalled();
+    expect(band(root)).toBeUndefined();
+  });
+
+  it("shows the failure under Step 1 and leaves staging off when the setting can't be saved", async () => {
+    const { root } = await setup({
+      setStaging: () => Promise.resolve<ChangeOutcome>({ kind: "settingsFailed", message: "Couldn’t save that." }),
+    });
+    useStaging(root)!.click();
+    await flush();
+    expect(root.querySelector("#key-note")?.textContent).toBe("Couldn’t save that.");
+    expect(band(root)).toBeUndefined();
+    expect(useStaging(root)).toBeDefined();
+  });
+});

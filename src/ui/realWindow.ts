@@ -542,6 +542,7 @@ export async function startWindow(
       store.set((s) => ({ ...s, setup: undefined }));
       app.show("settings");
     },
+    onUseStaging: () => void setStaging(true),
     onOpenOfficerArea: () => void bridge.openOfficerArea().catch(() => {}),
     folderActions: actions,
     updateActions: updates,
