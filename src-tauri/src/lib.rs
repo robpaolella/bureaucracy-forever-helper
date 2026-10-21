@@ -177,6 +177,7 @@ pub fn run() {
                 WindowEvent::CloseRequested { api, .. } => {
                     api.prevent_close();
                     let _ = window.hide();
+                    let _ = window.emit(notify::WINDOW_VISIBLE_EVENT, false);
                 }
                 // The menu bar's brightness follows the system theme, so the icon is redrawn.
                 WindowEvent::ThemeChanged(_) => tray::refresh(window.app_handle()),

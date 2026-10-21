@@ -605,7 +605,8 @@ export async function startWindow(
   // loot log or the window is closed; the Activity line stays. One that arrives while the
   // window is hidden is only counted as displayed when it is next shown.
   const displayed = new Set<string>();
-  const showing = () => document.visibilityState !== "hidden";
+  let windowShown = true;
+  const showing = () => windowShown;
   const markDisplayed = () => {
     if (sync?.kind === "refused" && showing()) sync.records.forEach((r) => displayed.add(r.id));
   };
@@ -616,7 +617,14 @@ export async function startWindow(
     // A failed clear keeps the ids, so the next click or close tries again.
     bridge.clearRefused(ids).catch(() => ids.forEach((id) => displayed.add(id)));
   }
-  document.addEventListener("visibilitychange", () => (showing() ? markDisplayed() : clearShown()));
+  // The app says when it shows or hides the window (the webview's own events differ by system).
+  bridge
+    .onWindowVisible((visible) => {
+      windowShown = visible;
+      if (visible) markDisplayed();
+      else clearShown();
+    })
+    .catch(() => {});
   const hearSync = (status: SyncStatus) => {
     sync = status;
     markDisplayed();

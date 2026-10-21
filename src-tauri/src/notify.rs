@@ -5,7 +5,7 @@
 //! of detail. Feature issues call `raise` from Rust or `raise_notification` from the window.
 
 use serde::Deserialize;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 /// One notice: a bold headline and one line of detail.
@@ -41,10 +41,15 @@ pub fn open_window_on_click(app: &AppHandle) -> tauri::Result<()> {
         .map_err(|e| tauri::Error::Anyhow(e.into()))
 }
 
+/// The event that tells the window it was shown (`true`) or hidden (`false`). The webview's
+/// own visibility events differ between systems, so the app says it itself.
+pub const WINDOW_VISIBLE_EVENT: &str = "window-visible";
+
 pub fn show_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
         let _ = window.set_focus();
+        let _ = window.emit(WINDOW_VISIBLE_EVENT, true);
     }
 }
 

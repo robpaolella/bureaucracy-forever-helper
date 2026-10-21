@@ -27,6 +27,7 @@ function bridgeWith(over: Partial<Bridge> = {}): Bridge {
     setStaging: vi.fn(() => Promise.resolve(done)),
     syncStatus: unused,
     clearRefused: unused,
+    onWindowVisible: unused,
     searchFolder: unused,
     checkPickedFolder: unused,
     rememberVersion: unused,

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
@@ -28,6 +28,7 @@ function fakeBridge(check: () => Promise<KeyOutcome>, connect?: (key: string) =>
     setStaging: unused,
     syncStatus: unused,
     clearRefused: unused,
+    onWindowVisible: unused,
     searchFolder: unused,
     checkPickedFolder: unused,
     rememberVersion: unused,
@@ -746,17 +747,27 @@ describe("the sync states", () => {
   });
 
   describe("clearing a refusal once the window has shown it", () => {
-    const visibility = (state: "visible" | "hidden") => {
-      Object.defineProperty(document, "visibilityState", { value: state, configurable: true });
-      document.dispatchEvent(new Event("visibilitychange"));
-    };
+    let setShown: (visible: boolean) => void = () => {};
+    const visibility = (state: "visible" | "hidden") => setShown(state === "visible");
     async function shownWindow() {
-      const made = await connected();
       const clearRefused = vi.fn(() => Promise.resolve());
-      Object.assign(made.bridge, { clearRefused, openLootLog: vi.fn(() => Promise.resolve()) });
-      return { ...made, clearRefused };
+      let push: (s: SyncStatus) => void = () => {};
+      const notify = vi.fn(() => Promise.resolve());
+      const bridge = {
+        ...fakeBridge(() => Promise.resolve(accepted)),
+        syncStatus: () => Promise.resolve<SyncStatus>({ kind: "idle", otherSite: 0 }),
+        onSyncStatus: (l: (s: SyncStatus) => void) => ((push = l), Promise.resolve(() => {})),
+        onWindowVisible: (l: (visible: boolean) => void) => ((setShown = l), Promise.resolve(() => {})),
+        rememberedFolder: () =>
+          Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+        notify,
+        clearRefused,
+        openLootLog: vi.fn(() => Promise.resolve()),
+      } as Bridge;
+      const root = document.createElement("div");
+      const store = await startWindow(root, bridge);
+      return { root, store, push, notify, bridge, clearRefused };
     }
-    afterEach(() => visibility("visible"));
 
     it("clicking Open the loot log clears the records it showed; the Activity line stays", async () => {
       const { root, store, push, clearRefused } = await shownWindow();

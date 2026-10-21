@@ -19,6 +19,7 @@ function fakeEngine(engine: { check?: () => Promise<CheckOutcome>; install?: () 
     setStaging: unused,
     syncStatus: unused,
     clearRefused: unused,
+    onWindowVisible: unused,
     onSyncStatus: unused,
     raids: unused,
     onRaids: unused,

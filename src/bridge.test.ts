@@ -102,6 +102,23 @@ describe("tauriBridge", () => {
     expect(stop).toHaveBeenCalled();
   });
 
+  it("passes on whether the window is shown from the window-visible event until stopped", async () => {
+    const stop = vi.fn();
+    let emit: (event: { payload: unknown }) => void = () => {};
+    listen.mockImplementation((_name, handler: typeof emit) => {
+      emit = handler;
+      return Promise.resolve(stop);
+    });
+    const heard: boolean[] = [];
+    const unlisten = await tauriBridge.onWindowVisible((visible) => heard.push(visible));
+    expect(listen).toHaveBeenCalledWith("window-visible", expect.any(Function));
+    emit({ payload: false });
+    emit({ payload: true });
+    expect(heard).toEqual([false, true]);
+    unlisten();
+    expect(stop).toHaveBeenCalled();
+  });
+
   it("passes on each raids view from the raids event until stopped", async () => {
     const stop = vi.fn();
     let emit: (event: { payload: unknown }) => void = () => {};
