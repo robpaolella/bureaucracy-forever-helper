@@ -1,7 +1,7 @@
 // The real helper window: the screens from app.ts drawn from one state, with the Guild site
 // row filled in by the key engine through the bridge. Later issues add their own rows and
 // Settings sections by changing the state through the same store.
-import type { Bridge, ChangeOutcome, ChatEvent, RaidChoice, FolderOutcome, KeyOutcome, RaidsView, ReservesView, SyncStatus } from "../bridge";
+import type { Bridge, ChangeOutcome, LoginOutcome, ChatEvent, RaidChoice, FolderOutcome, KeyOutcome, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore, type Store } from "../state";
 import { mountApp, type AppState, type KeyStep } from "./app";
 import { addonRow, addonSwitchSection, addonUpdates } from "./addonUpdate";
@@ -12,7 +12,7 @@ import { syncNews, withSync, type SyncActions, type Told } from "./sync";
 import { choiceRow, raidChoiceLine } from "./raidChoice";
 import { trayStatusOf } from "./tray";
 import { gameFolderSection, shortPath, stepFor, type FolderActions, type FolderStep } from "./folder";
-import { keySection, stagingSection, type KeyActions } from "./keySettings";
+import { keySection, loginControls, stagingSection, type KeyActions } from "./keySettings";
 import { helperUpdates, versionsSection } from "./update";
 
 /** How often the helper looks for a newer version of itself while it runs. */
@@ -135,6 +135,7 @@ const MALFORMED_KEY_MESSAGE = "That doesn’t look like a helper key. Copy it ag
 const FAILED_CHECK_MESSAGE = "The helper couldn’t check your key. Try again.";
 const FAILED_REMOVE_MESSAGE = "The helper couldn’t remove your key. Try again.";
 const FAILED_SWITCH_MESSAGE = "The helper couldn’t switch sites. Try again.";
+const FAILED_LOGIN_MESSAGE = "Your computer didn’t allow that change, so the helper won’t start by itself. Check your computer’s startup settings and try again.";
 const FAILED_FOLDER_MESSAGE = "The helper couldn’t check that folder. Try again.";
 const FAILED_INSTALL_MESSAGE = "The helper couldn’t install the add-on. Try again.";
 
@@ -300,6 +301,7 @@ export async function startWindow(
       if (!outcome) return failed(FAILED_FOLDER_MESSAGE, versionFolder);
       if (outcome.kind === "found") {
         store.set((s) => applyFolderDone(s, outcome.versionFolder));
+        finishLoginSetup();
         return void addon.check();
       }
       if (outcome.kind === "settingsFailed") return failed(outcome.message, versionFolder);
@@ -322,6 +324,7 @@ export async function startWindow(
     const remembered = await ask(() => bridge.rememberedFolder());
     if (remembered?.kind === "found") {
       store.set((s) => applyFolderDone(s, remembered.versionFolder));
+      finishLoginSetup();
       return void addon.check();
     }
     if (remembered?.kind === "gone" || remembered?.kind === "noAddon") return show(stepFor(remembered));
@@ -455,6 +458,34 @@ export async function startWindow(
     await check(() => bridge.checkStored(), "", true, { back: true });
   }
 
+  /** Shows what the system has for starting at login, and its refusal if there was one. */
+  const hearLogin = (outcome: LoginOutcome) =>
+    store.set((s) => ({
+      ...s,
+      startAtLogin: outcome.on,
+      login: { busy: false, error: outcome.kind === "refused" ? outcome.message : undefined },
+    }));
+
+  /** The switch in Settings. The switch shows the real state, so a refusal puts it back. */
+  async function setLogin(on: boolean): Promise<void> {
+    if (store.get().login?.busy) return;
+    store.set((s) => ({ ...s, login: { busy: true } }));
+    try {
+      hearLogin(await bridge.setStartAtLogin(on));
+    } catch {
+      // The Rust side failed outright: same words, and the switch shows what the system has.
+      const real = await bridge.startAtLogin().catch(() => !on);
+      hearLogin({ kind: "refused", message: FAILED_LOGIN_MESSAGE, on: real });
+    }
+  }
+
+  /** Both setup steps are done: the first time, the helper adds the login item. */
+  const finishLoginSetup = () => {
+    // Only with an accepted key: a key that couldn't be checked yet doesn't count.
+    if (store.get().chain.site.tone !== "ok") return;
+    bridge.finishLoginSetup().then(hearLogin, () => {});
+  };
+
   const keyActions: KeyActions = {
     replace: () => store.set((s) => ({ ...s, setup: { key: { ...emptyKey, back: true, replacing: true } } })),
     remove: () => void removeKey(),
@@ -496,7 +527,10 @@ export async function startWindow(
         stagingSection(Boolean(s.staging), s.keyPanel, keyActions),
         keySection(Boolean(s.keyStored), shown().chain.site.tone === "ok", s.keyPanel, keyActions),
         gameFolderSection(s.gamePath, s.folder, actions, s.folderBusy),
-        addonSwitchSection(),
+        el("section", "stack", [
+          ...loginControls(Boolean(s.startAtLogin), s.login?.error, Boolean(s.login?.busy), (on) => void setLogin(on)),
+          ...addonSwitchSection().children,
+        ]),
         versionsSection(s.helperVersion, s.updateCheck, s.update?.phase === "installing", checkAsked, s.addonVersion),
       ];
     },
@@ -637,6 +671,7 @@ export async function startWindow(
   // The helper's own version and update: progress and the tray's check, a check now, then
   // one every few hours. Each part that fails leaves the rest of the window as it is.
   bridge.helperVersion().then((helperVersion) => store.set((s) => ({ ...s, helperVersion })), () => {});
+  bridge.startAtLogin().then((startAtLogin) => store.set((s) => ({ ...s, startAtLogin })), () => {});
   bridge.onUpdateProgress(updates.progress).catch(() => {});
   bridge.onTrayCheck(checkAsked).catch(() => {});
   bridge.onAddonProgress(addon.progress).catch(() => {});
@@ -664,13 +699,20 @@ export async function startWindow(
     bridge.clearRefused(ids).catch(() => ids.forEach((id) => displayed.add(id)));
   }
   // The app says when it shows or hides the window (the webview's own events differ by system).
-  bridge
-    .onWindowVisible((visible) => {
+  // A start at login leaves it hidden, so it is asked first; an event that lands first is newer.
+  let sawVisible = false;
+  try {
+    await bridge.onWindowVisible((visible) => {
+      sawVisible = true;
       windowShown = visible;
       if (visible) markDisplayed();
       else clearShown();
-    })
-    .catch(() => {});
+    });
+    const first = await bridge.windowVisible();
+    if (!sawVisible) windowShown = first;
+  } catch {
+    // Unknown: the window counts as shown, as it is when the officer opened the helper.
+  }
   const hearSync = (status: SyncStatus) => {
     sync = status;
     markDisplayed();

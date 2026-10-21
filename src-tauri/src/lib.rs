@@ -1,4 +1,5 @@
 pub mod addon_update;
+pub mod autostart;
 pub mod chatlog;
 pub mod commands;
 pub mod game_folder;
@@ -30,6 +31,11 @@ use upload::{Runner, SYNC_STATUS_EVENT};
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .args([autostart::LOGIN_ARG])
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
@@ -47,6 +53,7 @@ pub fn run() {
                 data_dir.join(SETTINGS_FILE),
             ));
             app.manage(Arc::clone(&folders));
+            app.manage(autostart::SettingsPath(data_dir.join(SETTINGS_FILE)));
             let engine = Engine::new(KeyEngine::open(
                 data_dir.join(SETTINGS_FILE),
                 SystemStore::default(),
@@ -143,6 +150,13 @@ pub fn run() {
             app.manage(queue);
             tray::build(app.handle())?;
             notify::open_window_on_click(app.handle())?;
+            // The window starts hidden (tauri.conf.json). Opened by the officer it shows;
+            // started by the login item, only the tray is visible.
+            if !autostart::started_at_login(std::env::args()) {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                }
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -171,6 +185,10 @@ pub fn run() {
             site_link::open_officer_area,
             tray::set_tray_status,
             notify::raise_notification,
+            notify::is_window_visible,
+            autostart::get_start_at_login,
+            autostart::set_start_at_login,
+            autostart::finish_login_setup,
         ])
         .on_window_event(|window, event| {
             match event {

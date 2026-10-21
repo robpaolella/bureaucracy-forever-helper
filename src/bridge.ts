@@ -2,7 +2,7 @@
 // can hand it a fake. The result shapes mirror `KeyOutcome` and `ChangeOutcome` in
 // src-tauri/src/commands.rs, `FolderOutcome` in src-tauri/src/game_folder.rs, `SyncStatus` in src-tauri/src/upload.rs, `ReservesView` in src-tauri/src/reserves.rs, `RaidChoice` in src-tauri/src/savedvars/choice.rs,
 // the update outcomes in src-tauri/src/updater.rs, the add-on update outcomes in
-// src-tauri/src/addon_update.rs, `TrayStatus` and `Notice` in tray.rs and notify.rs, and
+// src-tauri/src/addon_update.rs, `LoginOutcome` in src-tauri/src/autostart.rs, `TrayStatus` and `Notice` in tray.rs and notify.rs, and
 // `ChatEvent` in src-tauri/src/chatlog/follower.rs.
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
@@ -54,6 +54,13 @@ export type FolderOutcome =
   | { kind: "gone"; message: string; path: string }
   | { kind: "nothingRemembered" }
   | { kind: "settingsFailed"; message: string };
+
+/** How turning the login item on or off ended (`LoginOutcome` in src-tauri/src/autostart.rs);
+ * `on` is what the system has now, which the switch shows. */
+export type LoginOutcome =
+  | { kind: "done"; on: boolean }
+  /** The system refused the change; the wording is in `message`. */
+  | { kind: "refused"; message: string; on: boolean };
 
 /** A record kept out of the upload. */
 export interface RefusedRecord {
@@ -309,6 +316,8 @@ export interface Bridge {
   pickFolder(): Promise<string | null>;
   /** Calls `listener` with every later sync status; resolves to a function that stops it. */
   onSyncStatus(listener: (status: SyncStatus) => void): Promise<() => void>;
+  /** Whether the window is shown now; a start at login leaves it hidden. */
+  windowVisible(): Promise<boolean>;
   /** Calls `listener` with `true` each time the window is shown and `false` each time it is hidden;
    * resolves to a function that stops it. */
   onWindowVisible(listener: (visible: boolean) => void): Promise<() => void>;
@@ -351,6 +360,13 @@ export interface Bridge {
   onAddonProgress(listener: (progress: AddonProgress) => void): Promise<() => void>;
   /** Shows the tray its new status: icon dot, menu and hover text. */
   setTrayStatus(status: TrayStatus): Promise<void>;
+  /** Whether the helper starts when the computer starts, as the system has it. */
+  startAtLogin(): Promise<boolean>;
+  /** Turns starting at login on or off. */
+  setStartAtLogin(on: boolean): Promise<LoginOutcome>;
+  /** Tells the helper the key and game folder steps are done: the first time, it turns starting
+   * at login on; after that it changes nothing. */
+  finishLoginSetup(): Promise<LoginOutcome>;
   /** Raises a system notification. Only when the officer must act, never for routine news. */
   notify(notice: Notice): Promise<void>;
 }
@@ -374,6 +390,7 @@ export const tauriBridge: Bridge = {
     const picked = await open({ directory: true, multiple: false });
     return typeof picked === "string" ? picked : null;
   },
+  windowVisible: () => invoke("is_window_visible"),
   onSyncStatus: (listener) => listen<SyncStatus>(SYNC_STATUS_EVENT, (event) => listener(event.payload)),
   onWindowVisible: (listener) => listen<boolean>(WINDOW_VISIBLE_EVENT, (event) => listener(event.payload)),
   onRaids: (listener) => listen<RaidsView>(RAIDS_EVENT, (event) => listener(event.payload)),
@@ -396,5 +413,8 @@ export const tauriBridge: Bridge = {
   onAddonProgress: (listener) =>
     listen<AddonProgress>(ADDON_PROGRESS_EVENT, (event) => listener(event.payload)),
   setTrayStatus: (status) => invoke("set_tray_status", { status }),
+  startAtLogin: () => invoke("get_start_at_login"),
+  setStartAtLogin: (on) => invoke("set_start_at_login", { on }),
+  finishLoginSetup: () => invoke("finish_login_setup"),
   notify: (notice) => invoke("raise_notification", { notice }),
 };

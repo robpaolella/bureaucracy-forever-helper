@@ -41,7 +41,7 @@ function fake(folder: Folder = {}): Bridge {
     setStaging: unused,
     syncStatus: unused,
     clearRefused: unused,
-    onWindowVisible: unused,
+    onWindowVisible: unused, windowVisible: unused, startAtLogin: unused, setStartAtLogin: unused, finishLoginSetup: unused,
     onSyncStatus: unused,
     raids: unused,
     onRaids: unused,

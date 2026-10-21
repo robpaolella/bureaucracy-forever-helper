@@ -84,3 +84,15 @@ export function keySection(
     ...failure(panel, "key"),
   ]);
 }
+
+/**
+ * The switch for starting the helper at login, and under it the system's refusal if there was
+ * one. No hint line, as designed. It shares Settings' unlabelled section with the add-on switch.
+ */
+export function loginControls(on: boolean, error: string | undefined, busy: boolean, onChange: (on: boolean) => void): Node[] {
+  const sw = switchControl({ id: "login", label: "Start the helper when the computer starts", checked: on, disabled: busy, onChange });
+  if (!error) return [sw];
+  const note = el("p", "note err", [error]);
+  note.setAttribute("role", "alert");
+  return [sw, note];
+}

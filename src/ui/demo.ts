@@ -4,7 +4,8 @@
 import { addonSwitchSection } from "./addonUpdate";
 import { mountApp } from "./app";
 import { gameFolderSection } from "./folder";
-import { keySection, stagingSection } from "./keySettings";
+import { el } from "./components";
+import { keySection, loginControls, stagingSection } from "./keySettings";
 import { versionsSection } from "./update";
 import { demoStates } from "./demoStates";
 import { button, card, choice, field, link, pill, switchControl, tag } from "./components";
@@ -43,7 +44,7 @@ export function renderDemo(root: HTMLElement, name = ""): void {
     mountApp(root, {
       getState: () => state.app,
       view: state.view,
-      settingsSections: () => [stagingSection(Boolean(state.app.staging), undefined, keyInert), keySection(true, true, undefined, keyInert), gameFolderSection(state.app.gamePath, undefined, inert), addonSwitchSection(), versionsSection(state.app.helperVersion, undefined, false, () => {}, state.app.addonVersion)],
+      settingsSections: () => [stagingSection(Boolean(state.app.staging), undefined, keyInert), keySection(true, true, undefined, keyInert), gameFolderSection(state.app.gamePath, undefined, inert), el("section", "stack", [...loginControls(true, undefined, false, () => {}), ...addonSwitchSection().children]), versionsSection(state.app.helperVersion, undefined, false, () => {}, state.app.addonVersion)],
       folderActions: inert,
       updateActions: { install() {}, later() {}, notes() {} },
     });

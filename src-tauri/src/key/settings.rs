@@ -37,6 +37,15 @@ pub(crate) fn write_game_folder(path: &Path, folder: &str) -> io::Result<()> {
     write_entry(path, "gameFolder", json!(folder))
 }
 
+/// Whether the officer (or first setup) has decided on starting at login: `None` until then.
+pub(crate) fn read_start_at_login(path: &Path) -> Option<bool> {
+    read(path)?.get("startAtLogin").and_then(Value::as_bool)
+}
+
+pub(crate) fn write_start_at_login(path: &Path, on: bool) -> io::Result<()> {
+    write_entry(path, "startAtLogin", json!(on))
+}
+
 /// Sets one entry, keeping the others, through a temporary file renamed over the old one.
 fn write_entry(path: &Path, name: &str, value: Value) -> io::Result<()> {
     let _turn = WRITING.lock().unwrap_or_else(|e| e.into_inner());
