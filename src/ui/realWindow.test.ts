@@ -780,6 +780,17 @@ describe("the sync states", () => {
       expect(clearRefused).toHaveBeenCalledTimes(1);
     });
 
+    it("a clear that fails is tried again on the next click or close", async () => {
+      const { root, push, clearRefused } = await shownWindow();
+      clearRefused.mockRejectedValueOnce(new Error("no"));
+      push(refused(1));
+      awards(root).querySelector("button")!.click();
+      await Promise.resolve();
+      visibility("hidden");
+      expect(clearRefused).toHaveBeenCalledTimes(2);
+      expect(clearRefused).toHaveBeenLastCalledWith(["r0"]);
+    });
+
     it("a refusal that arrives while the window is hidden is cleared only after it was shown", async () => {
       const { root, push, clearRefused } = await shownWindow();
       visibility("hidden");

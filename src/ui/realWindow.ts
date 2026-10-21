@@ -613,7 +613,8 @@ export async function startWindow(
     if (displayed.size === 0) return;
     const ids = [...displayed];
     displayed.clear();
-    bridge.clearRefused(ids).catch(() => {});
+    // A failed clear keeps the ids, so the next click or close tries again.
+    bridge.clearRefused(ids).catch(() => ids.forEach((id) => displayed.add(id)));
   }
   document.addEventListener("visibilitychange", () => (showing() ? markDisplayed() : clearShown()));
   const hearSync = (status: SyncStatus) => {
