@@ -17,7 +17,8 @@
         "width": 420,
         "height": 640,
         "resizable": false,
-        "maximizable": false
+        "maximizable": false,
+        "visible": false
       }
     ],
     "security": { "csp": null }

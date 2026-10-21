@@ -53,6 +53,15 @@ pub fn show_window(app: &AppHandle) {
     }
 }
 
+/// Whether the window is shown now. A start at login leaves it hidden, before the window has
+/// heard any `window-visible` event.
+#[tauri::command]
+pub fn is_window_visible(app: AppHandle) -> bool {
+    app.get_webview_window("main")
+        .and_then(|window| window.is_visible().ok())
+        .unwrap_or(false)
+}
+
 /// Shows `notice` as a system notification. The system may refuse (notifications turned off
 /// for the app); that is returned for the caller to log, never a reason to stop.
 pub fn raise(app: &AppHandle, notice: &Notice) -> Result<(), String> {
