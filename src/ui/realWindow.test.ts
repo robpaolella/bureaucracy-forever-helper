@@ -942,7 +942,8 @@ describe("how the raid was chosen", () => {
     [reading({ activeBy: "none", activeRaid: null }), "Raid not chosen yet", "Not chosen", "warn", /^Awards wait in the add-on until an officer chooses the raid on its Sync tab\. As of/, "Raid not chosen yet"],
     [reading({ activeBy: "off", activeRaid: null }), "Not a guild run", "Off", "closed", /^The add-on records nothing for this group\. As of/, "Not a guild run"],
   ])("draws %#: row, pill, caption and tray line, and never opens the row", async (saved, detail, pill, tone, caption, line) => {
-    const { root, tray, store } = await chosenWindow(saved);
+    const { root, tray, store, notify } = await chosenWindow(saved);
+    expect(notify).not.toHaveBeenCalled();
     const row = awardsOf(root);
     expect(row.querySelector(".caption.detail")?.textContent).toBe(detail);
     expect(row.querySelector(".pill")?.textContent).toBe(pill);
@@ -967,7 +968,7 @@ describe("how the raid was chosen", () => {
   });
 
   it("follows a new reading, and Sending shows once the latest award went to the chosen raid", async () => {
-    const { root, hear, chat, tray } = await chosenWindow(reading({ activeBy: "none", activeRaid: null }));
+    const { root, hear, chat, tray, notify } = await chosenWindow(reading({ activeBy: "none", activeRaid: null }));
     expect(trayLine(tray)).toBe("Raid not chosen yet");
     hear(reading());
     expect(awardsOf(root).querySelector(".pill")?.textContent).toBe("None yet");
@@ -977,7 +978,9 @@ describe("how the raid was chosen", () => {
     });
     expect(awardsOf(root).querySelector(".pill")?.textContent).toBe("Sending");
     expect(awardsOf(root).querySelector(".under p")?.textContent).toContain("Chosen by Aldric, as of your last /reload");
+    expect(awardsOf(root).className).not.toContain("link-open");
     expect(trayLine(tray)).toBe("Awards going to Molten Core");
+    expect(notify).not.toHaveBeenCalled();
   });
 
   it("a sync problem on the Awards row wins, in the window and the tray", async () => {
