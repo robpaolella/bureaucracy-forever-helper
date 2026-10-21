@@ -868,7 +868,12 @@ fn the_site_client_posts_the_upload_with_the_key_and_reads_retry_after() {
 fn the_site_client_reports_no_answer_without_the_key() {
     let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let address = format!("http://{}", listener.local_addr().unwrap());
-    drop(listener);
+    // Keep the port held, hanging up on every caller, so no other test's server can take it.
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            drop(stream);
+        }
+    });
     let client = SiteClient::with_addresses(&address, &address, Duration::from_secs(5));
     let problem = client
         .post_operations(Site::Production, &key(KEY), "{}")
