@@ -123,6 +123,30 @@ describe("settings", () => {
   });
 });
 
+describe("scroll position", () => {
+  const scrolled = (root: HTMLElement, top?: number) => {
+    const body = root.querySelector<HTMLElement>("main.win-body")!;
+    if (top !== undefined) body.scrollTop = top;
+    return body.scrollTop;
+  };
+
+  it("is kept when the same screen is drawn again, and starts at the top on another screen", () => {
+    const root = document.createElement("div");
+    const section = Object.assign(document.createElement("section"), { textContent: "A" });
+    const app = mountApp(root, { getState: () => state(), settingsSections: () => [section] });
+    app.show("settings");
+    scrolled(root, 240);
+    app.refresh();
+    expect(scrolled(root)).toBe(240);
+    app.refresh();
+    expect(scrolled(root)).toBe(240);
+    app.show("activity");
+    expect(scrolled(root)).toBe(0);
+    app.show("settings");
+    expect(scrolled(root)).toBe(0);
+  });
+});
+
 describe("activity time hover", () => {
   const original = process.env.TZ;
   afterEach(() => {

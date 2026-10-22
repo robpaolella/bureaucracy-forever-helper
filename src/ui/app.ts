@@ -313,9 +313,14 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
     return [header(back("Done", () => go("main"))), el("main", "win-body roomy", body)];
   }
 
+  /** Which screen is drawn now; a re-draw of the same one keeps its scroll position. */
+  let drawn: string | undefined;
+
   function render(): void {
     const s = options.getState();
     const setup = s.setup;
+    const key = setup ? "setup" : view;
+    const scrollTop = drawn === key ? root.querySelector<HTMLElement>("main.win-body")?.scrollTop ?? 0 : 0;
     const screen = setup
       ? setupScreen(s, setup.key)
       : view === "settings"
@@ -324,6 +329,9 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
           ? activityScreen(s)
           : mainScreen(s);
     root.replaceChildren(...(s.staging ? [stagingBand()] : []), ...screen);
+    drawn = key;
+    const body = root.querySelector<HTMLElement>("main.win-body");
+    if (body && scrollTop) body.scrollTop = scrollTop;
     if (setup && (s.chain.site.tone !== "ok" || setup.key.replacing) && !setup.key.checking) root.querySelector<HTMLInputElement>("#key")?.focus();
   }
 
