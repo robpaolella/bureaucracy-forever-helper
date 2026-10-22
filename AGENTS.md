@@ -81,6 +81,7 @@ src-tauri/capabilities/**
 ```
 
 ## Watch out for
+- Game facts must hold for WoW Forever, never for Classic or retail by default: character names, items, bosses, instances, levels, the add-on API and client limits. Check them against the Forever client, its beta results, or a Forever source (wago.tools data for a Forever build, Wowhead's Forever pages, foreverchanges.pro), and say so when a fact is unchecked for Forever. For example, a character name is a first and a last name separated by a space (the site's rule: 2–12 letters each), not Classic's single word.
 - The window only appears under xvfb inside `dbus-run-session xvfb-run …`.
 - Closing the window hides it; only the tray's Quit exits.
 - The tray icon is the guild's column mark with a status dot (#73); the VM's light theme shows only the light-bar icon, so dark-bar, macOS and Windows rendering wait for a release build.
