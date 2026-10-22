@@ -1,7 +1,7 @@
 //! Reads one line of the game's chat log (`WoWChatLog.txt`) and turns the add-on's own
 //! award, undo and replacement lines into the operation to send (ADDON-SPEC 9).
 //!
-//! This is the privacy boundary: only raid chat carrying a `<BF…>` machine part is
+//! This is the privacy boundary: only raid or party chat carrying a `<BF…>` machine part is
 //! ours. Every other line gives `NotOurs` and nothing is kept from it.
 
 use chrono::{Datelike, Local, LocalResult, NaiveDate, NaiveTime, TimeZone};
@@ -261,14 +261,14 @@ struct RaidChat<'a> {
 }
 
 /// Splits `10/13 10:01:51.269  |Hchannel:RAID|h[Raid Leader]|h Name: text`, or gives
-/// `None` for anything but the RAID and RAID_LEADER channels.
+/// `None` for anything but the RAID, RAID_LEADER, PARTY and PARTY_LEADER channels.
 fn raid_chat(line: &str) -> Option<RaidChat<'_>> {
     let line = line.trim_end_matches(['\r', '\n']);
     let (date, rest) = line.split_once(' ')?;
     let (time, rest) = rest.split_once(' ')?;
     let rest = rest.trim_start_matches(' ').strip_prefix("|Hchannel:")?;
     let (channel, rest) = rest.split_once("|h")?;
-    if channel != "RAID" && channel != "RAID_LEADER" {
+    if !matches!(channel, "RAID" | "RAID_LEADER" | "PARTY" | "PARTY_LEADER") {
         return None;
     }
     let (_label, rest) = rest.strip_prefix('[')?.split_once("]|h ")?;

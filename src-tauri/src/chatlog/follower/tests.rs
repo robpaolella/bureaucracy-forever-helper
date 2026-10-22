@@ -37,6 +37,8 @@ fn raids() -> Vec<NamedRaid> {
     }]
 }
 
+const PARTY: &str = "10/13 10:01:51.269  |Hchannel:PARTY|h[Party]|h Rae Quill: ";
+
 fn award(key: &str, winner: &str) -> String {
     format!("{RAID}{LINK} goes to {winner} (HR, roll 91) <BF1;A;SA0001;{key};16805;ifron;HR;91;{winner}>\n")
 }
@@ -59,6 +61,7 @@ fn other_chat() -> String {
         format!("10/13 10:01:51.269  To Rae Quill: {PRIVATE}"),
         format!("10/13 10:01:51.269  Rae Quill says: {PRIVATE}"),
         format!("{RAID}{PRIVATE}"),
+        format!("{PARTY}{PRIVATE}"),
         "10/13 10:01:51.269  Shootier Hek receives loot: [Nomad Buckler of Healing].".into(),
     ]
     .map(|l| l + "\n")
@@ -215,6 +218,28 @@ fn only_add_on_lines_reach_the_queue_and_no_other_chat_is_kept() {
             "tailLength"
         ]
     );
+}
+
+#[test]
+fn a_party_award_line_is_sent_once() {
+    let mut rig = Rig::new();
+    rig.pass();
+    rig.append(&format!(
+        "{PARTY}{LINK} goes to Zoé Brûlé (HR, roll 91) <BF1;A;SA0001;aw-9d2f6h1j;16805;ifron;HR;91;Zoé Brûlé>\n"
+    ));
+    rig.append(&format!("{PARTY}{PRIVATE}\n"));
+    rig.pass();
+    assert_eq!(rig.ids(), ["aw-9d2f6h1j"]);
+    rig.acknowledge_all();
+    rig.pass();
+    assert!(rig.ids().is_empty(), "sent again: {:?}", rig.ids());
+    for entry in fs::read_dir(&rig.dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path != rig.log {
+            let text = fs::read_to_string(&path).unwrap();
+            assert!(!text.contains("hunter2"), "{} holds it", path.display());
+        }
+    }
 }
 
 #[test]
