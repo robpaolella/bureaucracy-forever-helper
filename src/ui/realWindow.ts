@@ -120,6 +120,24 @@ export function withChoice(state: AppState, now: number): AppState {
   return { ...state, awardsLine: line.trayLine, chain: { ...state.chain, awards: choiceRow(line) } };
 }
 
+const CHOOSE_FOLDER_MESSAGE = "Choose your game folder so the helper can reach the add-on.";
+
+/**
+ * `state` with the Game folder row to fix when the helper is connected but no game folder is
+ * saved. Only once the folder step has an answer, so a search or a save doesn't flash it. The
+ * pill and detail stay as they were; the stored state is never changed.
+ */
+export function withFolder(state: AppState, openFolderSettings: () => void): AppState {
+  const { folder, gamePath, folderBusy, chain } = state;
+  if (gamePath || folderBusy || !folder || folder.phase === "searching" || chain.site.tone !== "ok") return state;
+  const row: ChainRow = {
+    ...chain.folder,
+    broken: true,
+    message: { text: CHOOSE_FOLDER_MESSAGE, action: { label: "Choose game folder", variant: "secondary", onClick: openFolderSettings } },
+  };
+  return { ...state, chain: { ...chain, folder: row } };
+}
+
 const connected = (officer: string): ChainRow => ({
   tone: "ok",
   word: "Connected",
@@ -510,7 +528,8 @@ export async function startWindow(
     const s = store.get();
     const chosen = withChoice(s, Date.now());
     const synced = withSync(chosen, sync, syncActions, itemNames);
-    return synced.chain.awards === chosen.chain.awards ? synced : withSync(s, sync, syncActions, itemNames);
+    const result = synced.chain.awards === chosen.chain.awards ? synced : withSync(s, sync, syncActions, itemNames);
+    return withFolder(result, () => app.show("settings", "gameFolder"));
   };
 
   const updates = helperUpdates(store, bridge);

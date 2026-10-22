@@ -149,7 +149,7 @@ export function gameFolderSection(
   actions: FolderActions,
   busy = false,
 ): HTMLElement {
-  return el("section", "stack", [
+  const section = el("section", "stack", [
     el("h3", "th", ["Game folder"]),
     ...mono(path),
     ...(step ? folderBody(step, actions) : []),
@@ -157,4 +157,6 @@ export function gameFolderSection(
       el("div", "row", [button({ label: "Change folder", variant: "secondary", small: true, disabled: busy, onClick: actions.choose })]),
     ]),
   ]);
+  section.id = "settings-game-folder";
+  return section;
 }

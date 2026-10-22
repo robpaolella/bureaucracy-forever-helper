@@ -2,12 +2,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, CheckOutcome, ChatEvent, KeyOutcome, Raid, RaidChoice, RaidsView, ReservesView, SyncStatus } from "../bridge";
+import type { Bridge, CheckOutcome, ChatEvent, FolderOutcome, KeyOutcome, Raid, RaidChoice, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore } from "../state";
-import { mountApp } from "./app";
+import { mountApp, type AppState } from "./app";
 import { trayStatusOf } from "./tray";
 import { formatTime, guildTime, zoneName } from "./activity";
-import { applyRaids, initialState, reservesRow, startWindow } from "./realWindow";
+import { applyFolderDone, applyRaids, initialState, reservesRow, startWindow, withFolder } from "./realWindow";
 
 const accepted: KeyOutcome = {
   kind: "accepted",
@@ -1096,5 +1096,85 @@ describe("Settings keeps its scroll position when the window re-draws", () => {
     expect(body().scrollTop).toBe(240);
     await flush();
     expect(body().scrollTop).toBe(240);
+  });
+});
+
+describe("the Game folder row without a saved folder", () => {
+  const MESSAGE = "Choose your game folder so the helper can reach the add-on.";
+  const gone: FolderOutcome = { kind: "gone", message: "The game folder moved.", path: "/g" };
+  const noAddon: FolderOutcome = { kind: "noAddon", message: "No add-on there.", path: "/g", versionFolders: ["/g/_retail_"] };
+  const folderRow = (root: HTMLElement) => root.querySelectorAll(".chain li")[1] as HTMLElement;
+
+  /** A connected window whose remembered folder gives `remembered`, left on the main screen (as Back leaves it). */
+  async function openWindow(remembered: FolderOutcome = gone) {
+    const bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      syncStatus: () => Promise.resolve({ kind: "idle" }),
+      rememberedFolder: () => Promise.resolve(remembered),
+      rememberVersion: () => Promise.reject(new Error("no")),
+    } as unknown as Bridge;
+    const root = document.createElement("div");
+    const store = await startWindow(root, bridge);
+    store.set((s) => ({ ...s, setup: undefined }));
+    return { root, store };
+  }
+
+  it("opens the row with the message and a button that shows Settings at the Game folder", async () => {
+    const { root, store } = await openWindow();
+    expect(folderRow(root).classList.contains("link-open")).toBe(true);
+    expect(folderRow(root).querySelector(".msg")?.textContent).toBe(MESSAGE);
+    expect(folderRow(root).textContent).toContain("Not yet");
+    expect(store.get().chain.folder.broken).toBeUndefined();
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    (folderRow(root).querySelector(".open-body button") as HTMLButtonElement).click();
+    expect(root.querySelector("h1")?.textContent).toBe("Settings");
+    expect(scrolled).toHaveBeenCalledTimes(1);
+    expect((scrolled.mock.contexts[0] as HTMLElement).id).toBe("settings-game-folder");
+  });
+
+  it("applies when the add-on is missing in the remembered folder", async () => {
+    const { root } = await openWindow(noAddon);
+    expect(folderRow(root).querySelector(".msg")?.textContent).toBe(MESSAGE);
+  });
+
+  it("reads Found with no message once a folder is saved", async () => {
+    const { root, store } = await openWindow();
+    store.set((s) => applyFolderDone(s, "/g/_retail_"));
+    expect(folderRow(root).textContent).toContain("Found");
+    expect(root.querySelector(".msg")).toBeNull();
+  });
+
+  const base = (over: Partial<AppState> = {}): AppState => ({
+    ...initialState,
+    chain: { ...initialState.chain, site: { tone: "ok", word: "Connected", detail: "Connected as A" } },
+    folder: { phase: "found", path: "/g" },
+    ...over,
+  });
+  const broken = (s: AppState) => Boolean(withFolder(s, () => {}).chain.folder.broken);
+
+  it("stays as it is while the site is not connected", () => {
+    expect(broken(base({ chain: initialState.chain }))).toBe(false);
+    expect(broken(base({ chain: { ...initialState.chain, site: { tone: "warn", word: "Offline", detail: "x" } } }))).toBe(false);
+  });
+
+  it("doesn't flash while searching or saving, and is broken once a failed save is over", () => {
+    expect(broken(base({ folder: { phase: "searching" } }))).toBe(false);
+    expect(broken(base({ folderBusy: true }))).toBe(false);
+    expect(broken(base({ folder: { phase: "found", path: "/g", error: "failed" } }))).toBe(true);
+    expect(broken(base({ folder: undefined }))).toBe(false);
+  });
+
+  it("is never broken with a saved folder", () => {
+    expect(broken(base({ gamePath: "/g/_retail_" }))).toBe(false);
+  });
+
+  it("leaves the headline and the tray status as they are", async () => {
+    const { root, store } = await openWindow();
+    const open = trayStatusOf(withFolder(store.get(), () => {}));
+    const plain = trayStatusOf(store.get());
+    expect(open).toEqual(plain);
+    expect(withFolder(store.get(), () => {}).status).toBe(store.get().status);
+    expect(root.querySelector(".status")?.textContent).toContain("Connected to the guild site");
   });
 });
