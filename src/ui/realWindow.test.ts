@@ -2,7 +2,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type { Bridge, ChatEvent, KeyOutcome, Raid, RaidChoice, RaidsView, ReservesView, SyncStatus } from "../bridge";
+import type { Bridge, CheckOutcome, ChatEvent, KeyOutcome, Raid, RaidChoice, RaidsView, ReservesView, SyncStatus } from "../bridge";
 import { createStore } from "../state";
 import { mountApp } from "./app";
 import { trayStatusOf } from "./tray";
@@ -1028,5 +1028,73 @@ describe("how the raid was chosen", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("Settings keeps its scroll position when the window re-draws", () => {
+  const upToDate: CheckOutcome = { kind: "upToDate" };
+  const found: CheckOutcome = { kind: "available", version: "9.9.9", notesUrl: "https://example.test/v9.9.9" };
+  const failed: CheckOutcome = { kind: "failed", reason: "checkFailed", message: "" };
+
+  /** Settings with the window's body scrolled to 240. `answer` settles the officer's checks. */
+  async function scrolledSettings(over: Partial<Bridge> = {}) {
+    let answer: (o: CheckOutcome) => void = () => {};
+    let first = true;
+    const bridge: Bridge = {
+      ...fakeBridge(() => Promise.resolve(accepted)),
+      rememberedFolder: () =>
+        Promise.resolve({ kind: "found", gameFolder: "/g", version: "_retail_", versionFolder: "/g/_retail_", addonFolder: "" }),
+      staging: () => Promise.resolve(false),
+      setStaging: () => Promise.resolve({ kind: "done" }),
+      startAtLogin: () => Promise.resolve(false),
+      setStartAtLogin: (on) => Promise.resolve({ kind: "done", on }),
+      helperVersion: () => Promise.resolve("1.0.0"),
+      // The check at start-up answers at once; the officer's own checks wait for `answer`.
+      checkForUpdate: () =>
+        first ? ((first = false), Promise.resolve(upToDate)) : new Promise<CheckOutcome>((r) => (answer = r)),
+      ...over,
+    };
+    const root = document.createElement("div");
+    document.body.append(root);
+    await startWindow(root, bridge);
+    await flush();
+    root.querySelector<HTMLButtonElement>('button[aria-label="Settings"]')!.click();
+    const body = () => root.querySelector<HTMLElement>("main.win-body")!;
+    body().scrollTop = 240;
+    return { root, body, settle: (o: CheckOutcome) => answer(o) };
+  }
+  const checkButton = (root: HTMLElement) =>
+    [...root.querySelectorAll("button")].find((b) => /^Check(ing)?/.test(b.textContent ?? ""))!;
+
+  it.each([
+    ["up to date", upToDate, "latest"],
+    ["an update is found", found, ""],
+    ["the check fails", failed, "Couldn’t check"],
+  ])("Check for updates: unchanged as it starts and when %s", async (_name, outcome, text) => {
+    const { root, body, settle } = await scrolledSettings();
+    checkButton(root).click();
+    expect(checkButton(root).textContent).toBe("Checking…");
+    expect(body().scrollTop).toBe(240);
+    settle(outcome);
+    await flush();
+    expect(checkButton(root).textContent).toBe("Check for updates");
+    expect(root.textContent).toContain(text);
+    expect(body().scrollTop).toBe(240);
+  });
+
+  it("the start at login switch keeps it", async () => {
+    const { root, body } = await scrolledSettings();
+    root.querySelector<HTMLButtonElement>("#login")!.click();
+    expect(body().scrollTop).toBe(240);
+    await flush();
+    expect(body().scrollTop).toBe(240);
+  });
+
+  it("the staging switch keeps it", async () => {
+    const { root, body } = await scrolledSettings();
+    root.querySelector<HTMLButtonElement>("#staging")!.click();
+    expect(body().scrollTop).toBe(240);
+    await flush();
+    expect(body().scrollTop).toBe(240);
   });
 });
