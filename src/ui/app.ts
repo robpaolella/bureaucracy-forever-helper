@@ -82,6 +82,8 @@ export interface AppOptions {
   onConnect?: (value: string) => void;
   /** Called by the key step's "Back" link. */
   onBack?: () => void;
+  /** Called by "Use the staging site" on the key step (staging off). */
+  onUseStaging?: () => void;
   /** Called by "Open the officer area" on the key step. */
   onOpenOfficerArea?: () => void;
   /** What the buttons on the game folder step do. */
@@ -218,7 +220,13 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
   }
 
   /** The Guild site row's open body: the key field and its button. */
-  function keyBody(key: KeyStep): Node[] {
+  function keyBody(s: AppState, key: KeyStep): Node[] {
+    // A failed staging switch from this screen shows under the field, where the officer is looking.
+    const error = key.error ?? (s.keyPanel?.source === "staging" ? s.keyPanel.error : undefined);
+    const stagingLink =
+      s.staging || key.replacing
+        ? []
+        : [link({ label: "Use the staging site", disabled: key.checking || Boolean(s.keyPanel?.busy), onClick: () => options.onUseStaging?.() })];
     const note = key.checking ? "Checking your key with the guild site…" : "Create a key in the officer area of the guild site, then paste it here.";
     const input = field({
       id: "key",
@@ -227,7 +235,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
       placeholder: "Paste your key",
       mono: true,
       readOnly: key.checking,
-      error: key.error,
+      error,
       note,
     });
     input.querySelector("input")?.addEventListener("keydown", (e) => {
@@ -237,7 +245,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
       ? button({ label: "Checking…", loading: true })
       : button({ label: key.action ?? "Connect", onClick: connect });
     const officerArea = link({ label: "Open the officer area", onClick: () => options.onOpenOfficerArea?.() });
-    return [input, el("div", "row", [go, el("span", "spacer"), officerArea])];
+    return [input, el("div", "row", [go, el("span", "spacer"), officerArea]), ...stagingLink];
   }
 
   /** Step 2: opens with the folder screens once the key is in. */
@@ -255,7 +263,7 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
     const next = (detail: string): ChainRow => ({ tone: "closed", word: "Next", detail });
     return {
       site: keyOpen
-        ? { tone: "closed", word: "Step 1", detail: "Paste your helper key", broken: true, body: keyBody(key) }
+        ? { tone: "closed", word: "Step 1", detail: "Paste your helper key", broken: true, body: keyBody(s, key) }
         : s.chain.site,
       folder: folderRow(s, keyOpen),
       addon: next("Checked with the folder"),

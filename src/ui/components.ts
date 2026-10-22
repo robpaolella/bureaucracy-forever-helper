@@ -51,15 +51,21 @@ export interface LinkOptions {
   label: string;
   href?: string;
   onClick?: () => void;
+  /** Not pressable for now (like a disabled button). */
+  disabled?: boolean;
 }
 
 /** A text link with a 44px-tall hit area. */
 export function link(o: LinkOptions): HTMLAnchorElement {
   const node = el("a", "link link-row small", [o.label]);
   node.href = o.href ?? "#";
+  if (o.disabled) {
+    node.setAttribute("aria-disabled", "true");
+    node.classList.add("disabled");
+  }
   node.addEventListener("click", (e) => {
-    if (!o.href) e.preventDefault();
-    o.onClick?.();
+    if (!o.href || o.disabled) e.preventDefault();
+    if (!o.disabled) o.onClick?.();
   });
   return node;
 }
