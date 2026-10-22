@@ -1169,12 +1169,21 @@ describe("the Game folder row without a saved folder", () => {
     expect(broken(base({ gamePath: "/g/_retail_" }))).toBe(false);
   });
 
-  it("leaves the headline and the tray status as they are", async () => {
+  it("makes the headline and the tray say to choose the folder, until one is saved", async () => {
     const { root, store } = await openWindow();
-    const open = trayStatusOf(withFolder(store.get(), () => {}));
-    const plain = trayStatusOf(store.get());
-    expect(open).toEqual(plain);
-    expect(withFolder(store.get(), () => {}).status).toBe(store.get().status);
+    const open = withFolder(store.get(), () => {});
+    expect(open.status).toEqual({ tone: "warn", word: "Needs you", title: "Choose your game folder" });
+    expect(trayStatusOf(open)).toMatchObject({ tone: "warn", word: "Needs you" });
+    expect(root.querySelector(".status")?.textContent).toContain("Choose your game folder");
+    store.set((s) => applyFolderDone(s, "/g/_retail_"));
     expect(root.querySelector(".status")?.textContent).toContain("Connected to the guild site");
+    expect(withFolder(store.get(), () => {}).status).toBe(store.get().status);
+  });
+
+  it("keeps a stopping problem's headline ahead of it", () => {
+    const stopped = { tone: "stop", word: "Stopped", title: "Your helper key no longer works" } as const;
+    expect(withFolder(base({ status: stopped }), () => {}).status).toBe(stopped);
+    const refused = { tone: "warn", word: "Needs you", title: "The site refused 1 award" } as const;
+    expect(withFolder(base({ status: refused }), () => {}).status).toBe(refused);
   });
 });

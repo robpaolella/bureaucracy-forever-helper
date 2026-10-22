@@ -125,7 +125,9 @@ const CHOOSE_FOLDER_MESSAGE = "Choose your game folder so the helper can reach t
 /**
  * `state` with the Game folder row to fix when the helper is connected but no game folder is
  * saved. Only once the folder step has an answer, so a search or a save doesn't flash it. The
- * pill and detail stay as they were; the stored state is never changed.
+ * pill and detail stay as they were; the stored state is never changed. A healthy headline
+ * becomes "Needs you · Choose your game folder" (so the tray follows); a problem that
+ * already shows (key refused, site off, sending stopped, awards refused) keeps its own.
  */
 export function withFolder(state: AppState, openFolderSettings: () => void): AppState {
   const { folder, gamePath, folderBusy, chain } = state;
@@ -135,7 +137,9 @@ export function withFolder(state: AppState, openFolderSettings: () => void): App
     broken: true,
     message: { text: CHOOSE_FOLDER_MESSAGE, action: { label: "Choose game folder", variant: "secondary", onClick: openFolderSettings } },
   };
-  return { ...state, chain: { ...chain, folder: row } };
+  const status: AppState["status"] =
+    state.status.tone === "ok" ? { tone: "warn", word: "Needs you", title: "Choose your game folder" } : state.status;
+  return { ...state, status, chain: { ...chain, folder: row } };
 }
 
 const connected = (officer: string): ChainRow => ({
