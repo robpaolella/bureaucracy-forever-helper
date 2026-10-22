@@ -313,9 +313,19 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
     return [header(back("Done", () => go("main"))), el("main", "win-body roomy", body)];
   }
 
+  /** Which screen is drawn now; a re-draw of the same one keeps its scroll position. */
+  let drawn: string | undefined;
+  /** Where Settings was scrolled to when the key step took its place, for when it comes back. */
+  let settingsTop = 0;
+
   function render(): void {
     const s = options.getState();
     const setup = s.setup;
+    const key = setup ? "setup" : view;
+    const top = root.querySelector<HTMLElement>("main.win-body")?.scrollTop ?? 0;
+    if (drawn === "settings" && key === "setup") settingsTop = top;
+    const scrollTop = drawn === key ? top : drawn === "setup" && key === "settings" ? settingsTop : 0;
+    if (key !== "setup") settingsTop = 0;
     const screen = setup
       ? setupScreen(s, setup.key)
       : view === "settings"
@@ -324,6 +334,9 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
           ? activityScreen(s)
           : mainScreen(s);
     root.replaceChildren(...(s.staging ? [stagingBand()] : []), ...screen);
+    drawn = key;
+    const body = root.querySelector<HTMLElement>("main.win-body");
+    if (body && scrollTop) body.scrollTop = scrollTop;
     if (setup && (s.chain.site.tone !== "ok" || setup.key.replacing) && !setup.key.checking) root.querySelector<HTMLInputElement>("#key")?.focus();
   }
 
