@@ -143,6 +143,31 @@ fn accented_sender_and_raid_channel() {
 }
 
 #[test]
+fn party_lines_read_as_raid_lines_do() {
+    let lines = [
+        "<BF1;A;SA0001;aw-9d2f6h1j;16805;ifron;HR;91;Zoé Brûlé>",
+        "<BF1;V;SA0001;vd-2s9t4w7y;aw-9d2f6h1j>",
+        "<BF1;R;SA0001;rp-3n7b5x0c;aw-9d2f6h1j;aw-6k1m4v8z;16805;ifron;SR;77;Bo Marsh>",
+    ];
+    for machine in lines {
+        let text = format!("{LINK} {machine}");
+        let expected = parse(&format!(
+            "10/13 10:01:51.269  |Hchannel:RAID|h[Raid]|h Rae Quill: {text}"
+        ));
+        assert!(matches!(expected, LineResult::Operation(_)), "{expected:?}");
+        for (channel, label) in [
+            ("PARTY", "Party"),
+            ("PARTY_LEADER", "Party Leader"),
+            ("RAID_LEADER", "Raid Leader"),
+        ] {
+            let line =
+                format!("10/13 10:01:51.269  |Hchannel:{channel}|h[{label}]|h Rae Quill: {text}");
+            assert_eq!(parse(&line), expected, "{line}");
+        }
+    }
+}
+
+#[test]
 fn disenchant_without_winner_or_roll() {
     let line = award_line("<BF1;A;SA0001;aw-9d2f6h1j;16805;trash;DISENCHANT_BANK;;>");
     let LineResult::Operation(Operation::Award(award)) = parse(&line) else {
@@ -183,7 +208,7 @@ fn other_chat_is_not_ours() {
     let lines = [
         format!("10/13 10:01:51.269  |Hchannel:GUILD|h[Guild]|h Rae Quill: {machine}"),
         format!("10/13 10:01:51.269  |Hchannel:OFFICER|h[Officer]|h Rae Quill: {machine}"),
-        format!("10/13 10:01:51.269  |Hchannel:PARTY|h[Party]|h Rae Quill: {machine}"),
+        format!("10/13 10:01:51.269  |Hchannel:INSTANCE_CHAT|h[Instance]|h Rae Quill: {machine}"),
         format!(
             "10/13 10:01:51.269  |Hchannel:RAID_WARNING|h[Raid Warning]|h Rae Quill: {machine}"
         ),
