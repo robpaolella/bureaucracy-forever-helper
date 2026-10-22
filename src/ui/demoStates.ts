@@ -5,7 +5,7 @@ import type { ActivityEvent } from "./activity";
 import type { AppState, KeyStep, View } from "./app";
 import type { ChainRow, ChainState } from "./chain";
 import type { FolderStep } from "./folder";
-import { applyRaids, withChoice } from "./realWindow";
+import { applyRaids, withChoice, withFolder } from "./realWindow";
 import { addonFailedEvent, addonRow, addonUpdatedEvent, type AddonUpdate } from "./addonUpdate";
 import { withSync } from "./sync";
 import { updateFailedEvent, type HelperUpdate } from "./update";
@@ -314,6 +314,26 @@ export const demoStates: Record<string, DemoState> = {
     [{ at: 0, tone: "stop", kind: "Stopped", text: "The waiting list is damaged. Nothing was deleted." }],
     7,
   ),
+  // Connected, but the game folder step was left before a folder was saved.
+  "folder-unsaved": {
+    app: withFolder(
+      {
+        status: { tone: "ok", word: "Connected", title: "Connected to the guild site" },
+        chain: {
+          site: ok("Connected", "Connected as Aldric"),
+          folder: { tone: "closed", word: "Not yet", detail: "Not set up yet" },
+          addon: { tone: "closed", word: "Not yet", detail: "Not set up yet" },
+          reserves: { tone: "closed", word: "Not yet", detail: "Waiting for the guild site" },
+          awards: { tone: "closed", word: "Not yet", detail: "Waiting for the guild site" },
+        },
+        activity: [],
+        sentTonight: 0,
+        folder: { phase: "found", path: `${MAC}/_classic_` },
+        helperVersion: "0.2.1",
+      },
+      () => {},
+    ),
+  },
   "folder-searching": folderStep({ phase: "searching" }),
   "folder-found": folderStep({ phase: "found", path: `${MAC}/_classic_` }),
   "folder-several": folderStep({

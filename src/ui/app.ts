@@ -94,6 +94,10 @@ export interface AppOptions {
 
 export type View = "main" | "settings" | "activity";
 
+/** A Settings section to scroll into view when Settings opens. */
+export type SettingsTarget = "gameFolder";
+const TARGET_IDS: Record<SettingsTarget, string> = { gameFolder: "settings-game-folder" };
+
 const GEAR =
   '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M3 5h12M3 13h12"/><circle cx="7" cy="5" r="1.8" fill="var(--ink-900)"/><circle cx="11" cy="13" r="1.8" fill="var(--ink-900)"/></svg>';
 const CHEVRON =
@@ -179,10 +183,12 @@ function stagingBand(): HTMLElement {
   return band;
 }
 
-export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): void; show(view: View): void } {
+export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): void; show(view: View, target?: SettingsTarget): void } {
   let view: View = options.view ?? "main";
-  const go = (next: View) => {
+  let target: SettingsTarget | undefined;
+  const go = (next: View, to?: SettingsTarget) => {
     view = next;
+    target = to;
     render();
   };
 
@@ -337,6 +343,10 @@ export function mountApp(root: HTMLElement, options: AppOptions): { refresh(): v
     drawn = key;
     const body = root.querySelector<HTMLElement>("main.win-body");
     if (body && scrollTop) body.scrollTop = scrollTop;
+    if (target && view === "settings" && !setup) {
+      root.querySelector(`#${TARGET_IDS[target]}`)?.scrollIntoView?.();
+      target = undefined;
+    }
     if (setup && (s.chain.site.tone !== "ok" || setup.key.replacing) && !setup.key.checking) root.querySelector<HTMLInputElement>("#key")?.focus();
   }
 
