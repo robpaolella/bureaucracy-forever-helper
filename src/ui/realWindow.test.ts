@@ -1173,7 +1173,13 @@ describe("the Game folder row without a saved folder", () => {
     const { root, store } = await openWindow();
     const open = withFolder(store.get(), () => {});
     expect(open.status).toEqual({ tone: "warn", word: "Needs you", title: "Choose your game folder" });
-    expect(trayStatusOf(open)).toMatchObject({ tone: "warn", word: "Needs you" });
+    expect(trayStatusOf(open)).toEqual({
+      tone: "warn",
+      word: "Needs you",
+      sentTonight: 0,
+      staging: false,
+      secondLine: "Choose your game folder",
+    });
     expect(root.querySelector(".status")?.textContent).toContain("Choose your game folder");
     store.set((s) => applyFolderDone(s, "/g/_retail_"));
     expect(root.querySelector(".status")?.textContent).toContain("Connected to the guild site");
@@ -1183,6 +1189,7 @@ describe("the Game folder row without a saved folder", () => {
   it("keeps a stopping problem's headline ahead of it", () => {
     const stopped = { tone: "stop", word: "Stopped", title: "Your helper key no longer works" } as const;
     expect(withFolder(base({ status: stopped }), () => {}).status).toBe(stopped);
+    expect(withFolder(base({ status: stopped }), () => {}).awardsLine).toBeUndefined();
     const refused = { tone: "warn", word: "Needs you", title: "The site refused 1 award" } as const;
     expect(withFolder(base({ status: refused }), () => {}).status).toBe(refused);
   });

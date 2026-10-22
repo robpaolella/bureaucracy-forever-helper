@@ -120,6 +120,7 @@ export function withChoice(state: AppState, now: number): AppState {
   return { ...state, awardsLine: line.trayLine, chain: { ...state.chain, awards: choiceRow(line) } };
 }
 
+const CHOOSE_FOLDER_TITLE = "Choose your game folder";
 const CHOOSE_FOLDER_MESSAGE = "Choose your game folder so the helper can reach the add-on.";
 
 /**
@@ -137,9 +138,10 @@ export function withFolder(state: AppState, openFolderSettings: () => void): App
     broken: true,
     message: { text: CHOOSE_FOLDER_MESSAGE, action: { label: "Choose game folder", variant: "secondary", onClick: openFolderSettings } },
   };
-  const status: AppState["status"] =
-    state.status.tone === "ok" ? { tone: "warn", word: "Needs you", title: "Choose your game folder" } : state.status;
-  return { ...state, status, chain: { ...chain, folder: row } };
+  const next = { ...state, chain: { ...chain, folder: row } };
+  if (state.status.tone !== "ok") return next;
+  // The tray shows the pill word and a second line, so the headline's words go on the second line.
+  return { ...next, status: { tone: "warn", word: "Needs you", title: CHOOSE_FOLDER_TITLE }, awardsLine: CHOOSE_FOLDER_TITLE };
 }
 
 const connected = (officer: string): ChainRow => ({
