@@ -35,6 +35,7 @@ const KEYS: &[&str] = &[
     "char",
     "code",
     "durationMin",
+    "encounter",
     "env",
     "formatVersion",
     "generated",
