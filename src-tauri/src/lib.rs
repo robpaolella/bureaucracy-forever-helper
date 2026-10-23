@@ -3,6 +3,7 @@ pub mod autostart;
 pub mod chatlog;
 pub mod commands;
 pub mod game_folder;
+pub mod game_running;
 pub mod inbox;
 pub mod key;
 pub mod notify;
@@ -86,6 +87,7 @@ pub fn run() {
             // The reserves for those raids, written into the add-on's inbox when they change.
             // The game saving its variables (at `/reload`) tells it the officer reloaded.
             let (handle, remembered) = (app.handle().clone(), Arc::clone(&folders));
+            let running_in = Arc::clone(&folders);
             let reserves = Reserves::start(
                 engine.clone(),
                 Inputs {
@@ -98,6 +100,12 @@ pub fn run() {
                         _ => None,
                     },
                     now: || chrono::Utc::now().timestamp(),
+                    game: move || match running_in.remembered() {
+                        game_folder::FolderOutcome::Found(install) => {
+                            game_running::check(std::path::Path::new(&install.version_folder))
+                        }
+                        _ => game_running::GameStatus::Unknown,
+                    },
                     timing: reserves::Timing::default(),
                 },
                 move |view| {
