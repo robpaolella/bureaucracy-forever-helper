@@ -14,11 +14,14 @@
 //! share (`throttle`). A `429` is waited out as the site asks.
 //!
 //! The first file written (none there) is "in the game"; a later change is a reload prompt,
-//! and so is a file on disk from an earlier run that differs. The prompt stays until the
-//! game saves its variables after the write, which it does at `/reload`.
+//! and so is a file on disk from an earlier run that differs, but only if the game was
+//! running at the write or can't be told: a game that is closed reads the file when it
+//! starts. The prompt stays until the game saves its variables after the write, which it
+//! does at `/reload`, or until a game process is seen that started after the write.
 
 use crate::chatlog::{Env, KnownRaid, NamedRaid};
 use crate::commands::Engine;
+use crate::game_running::GameStatus;
 use crate::inbox::{self, InboxError, OnDisk, RaidData};
 use crate::key::{HelperKey, SecretStore, Site, SiteClient, SiteError};
 use crate::raids::{Raid, RaidsFailure, RaidsState, RaidsView};
@@ -221,7 +224,7 @@ pub struct Reserves {
 }
 
 /// What the timer reads from the app.
-pub struct Inputs<R, V, T, N> {
+pub struct Inputs<R, V, T, N, G> {
     pub source: R,
     /// The upcoming raids list.
     pub raids: V,
@@ -229,15 +232,17 @@ pub struct Inputs<R, V, T, N> {
     pub target: T,
     /// The time now, Unix seconds.
     pub now: N,
+    /// Whether the game is running, and since when.
+    pub game: G,
     pub timing: Timing,
 }
 
 impl Reserves {
     /// Starts the timer with the key and site from `engine`. `on_change` hears every change
     /// of the view.
-    pub fn start<S, R, V, T, N>(
+    pub fn start<S, R, V, T, N, G>(
         engine: Engine<S>,
-        inputs: Inputs<R, V, T, N>,
+        inputs: Inputs<R, V, T, N, G>,
         on_change: impl Fn(&ReservesView) + Send + Sync + 'static,
     ) -> Reserves
     where
@@ -246,6 +251,7 @@ impl Reserves {
         V: Fn() -> RaidsView + Send + 'static,
         T: Fn() -> Option<PathBuf> + Send + 'static,
         N: Fn() -> i64 + Send + 'static,
+        G: Fn() -> GameStatus + Send + 'static,
     {
         let shared = Arc::new(Shared {
             control: Mutex::default(),
@@ -344,10 +350,10 @@ enum Write {
     Changed(Vec<String>),
 }
 
-fn run<S, R, V, T, N>(
+fn run<S, R, V, T, N, G>(
     shared: &Shared,
     engine: &Engine<S>,
-    inputs: Inputs<R, V, T, N>,
+    inputs: Inputs<R, V, T, N, G>,
     on_change: &dyn Fn(&ReservesView),
 ) where
     S: SecretStore,
@@ -355,12 +361,14 @@ fn run<S, R, V, T, N>(
     V: Fn() -> RaidsView,
     T: Fn() -> Option<PathBuf>,
     N: Fn() -> i64,
+    G: Fn() -> GameStatus,
 {
     let Inputs {
         source,
         raids,
         target,
         now,
+        game,
         timing,
     } = inputs;
     // What was last written, and where: a new game folder starts from its own file.
@@ -392,6 +400,7 @@ fn run<S, R, V, T, N>(
                 on_change(&after);
             }
         };
+        clear_if_game_restarted(shared, &game, &publish);
         let wait = match engine.upload_target() {
             (_, Err(_)) => timing.slow,
             (_, Ok(None)) => timing.tick,
@@ -422,6 +431,7 @@ fn run<S, R, V, T, N>(
                                     entries,
                                     &mut before,
                                     now(),
+                                    &game,
                                     &publish,
                                     &wanted,
                                 );
@@ -553,12 +563,14 @@ type Publish<'a> = dyn Fn(&dyn Fn(&mut Inner)) + 'a;
 
 /// Compares the fetched `data` with what was last written (or, after a start, with the file
 /// on disk) and writes it only if it really changed, publishing what the window should show.
+#[allow(clippy::too_many_arguments)]
 fn settle(
     path: &Path,
     data: &[RaidData],
     entries: Vec<Entry>,
     last: &mut Option<Vec<Entry>>,
     now: i64,
+    game: &dyn Fn() -> GameStatus,
     publish: &Publish<'_>,
     wanted: &dyn Fn() -> bool,
 ) {
@@ -588,6 +600,14 @@ fn settle(
         Err(error) => publish(&|inner| inner.view.problem = Some(error.to_string())),
         Ok(()) => {
             *last = Some(entries.clone());
+            // Only a game known to be closed, or one that started after this write and so
+            // loaded the file, spares the officer a `/reload`.
+            let closed = matches!(action, Write::Changed(_))
+                && match game() {
+                    GameStatus::NotRunning => true,
+                    GameStatus::Running { started } => started > now,
+                    GameStatus::Unknown => false,
+                };
             publish(&|inner| {
                 inner.written_at = now;
                 inner.view.problem = None;
@@ -604,14 +624,43 @@ fn settle(
                     }
                     Write::Changed(changed) => {
                         inner.view.first = false;
-                        inner.view.state = ReservesState::Reload {
-                            raids: names(&entries),
-                            changed: changed.clone(),
+                        inner.view.state = match closed {
+                            // The game reads the file when it starts.
+                            true => in_game(&entries),
+                            false => ReservesState::Reload {
+                                raids: names(&entries),
+                                changed: changed.clone(),
+                            },
                         };
                     }
                 }
             });
         }
+    }
+}
+
+/// While a reload is asked for, looks for a game that started after the write: it loaded the
+/// latest file, so the prompt is cleared. Anything else, an unknown answer included, keeps it.
+fn clear_if_game_restarted(shared: &Shared, game: &dyn Fn() -> GameStatus, publish: &Publish<'_>) {
+    let written_at = {
+        let inner = shared.inner();
+        match inner.view.state {
+            ReservesState::Reload { .. } => inner.written_at,
+            _ => return,
+        }
+    };
+    // Strictly later: the same second can't be told from a game that was already running.
+    if matches!(game(), GameStatus::Running { started } if started > written_at) {
+        publish(&|inner| {
+            if inner.written_at != written_at {
+                return;
+            }
+            if let ReservesState::Reload { raids, .. } = &inner.view.state {
+                inner.view.state = ReservesState::InGame {
+                    raids: raids.clone(),
+                };
+            }
+        });
     }
 }
 

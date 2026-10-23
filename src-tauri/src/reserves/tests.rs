@@ -1,4 +1,5 @@
 use super::*;
+use crate::game_running::GameStatus;
 use crate::key::{KeyEngine, StoreError};
 use serde_json::json;
 use std::collections::HashMap;
@@ -167,6 +168,7 @@ struct Rig {
     inbox: PathBuf,
     folder: Arc<Mutex<PathBuf>>,
     now: Arc<AtomicI64>,
+    game: Arc<Mutex<GameStatus>>,
     events: Arc<Mutex<Vec<ReservesView>>>,
 }
 
@@ -212,6 +214,19 @@ impl Rig {
         source: FakeSource,
         old: Option<&[u8]>,
     ) -> Rig {
+        Rig::build_with_game(raids, timing, key, known, source, old, GameStatus::Unknown)
+    }
+
+    fn build_with_game(
+        raids: RaidsView,
+        timing: Timing,
+        key: bool,
+        known: bool,
+        source: FakeSource,
+        old: Option<&[u8]>,
+        status: GameStatus,
+    ) -> Rig {
+        let game = Arc::new(Mutex::new(status));
         let shared_raids = Arc::new(Mutex::new(raids));
         let inbox = scratch_dir().join("Inbox.lua");
         if let Some(old) = old {
@@ -236,6 +251,10 @@ impl Rig {
                     let now = Arc::clone(&now);
                     move || now.load(Ordering::SeqCst)
                 },
+                game: {
+                    let game = Arc::clone(&game);
+                    move || *game.lock().unwrap()
+                },
                 timing,
             },
             {
@@ -250,6 +269,7 @@ impl Rig {
             inbox,
             folder,
             now,
+            game,
             events,
         }
     }
@@ -887,4 +907,105 @@ fn a_new_game_folder_gets_the_reserves_even_when_nothing_changed() {
     *rig.folder.lock().unwrap() = other.clone();
     rig.wait_for("the other folder's file", |_| other.exists());
     assert_eq!(fs::read(&other).unwrap(), rig.file().unwrap());
+}
+
+const OLD_FILE: &[u8] = b"BureaucracyLootInbox = {formatVersion=1,written=5,raids={}}\n";
+
+fn one_raid() -> RaidsView {
+    view_of(RaidsState::Fresh, vec![raid("r1", "Molten Core")])
+}
+
+fn served_one() -> FakeSource {
+    let source = FakeSource::default();
+    source.serve("r1", "Molten Core", "Ana");
+    source
+}
+
+fn rig_with_game(status: GameStatus, old: &[u8]) -> Rig {
+    Rig::build_with_game(
+        one_raid(),
+        quick(),
+        true,
+        true,
+        served_one(),
+        Some(old),
+        status,
+    )
+}
+
+fn in_game_now(v: &ReservesView) -> bool {
+    matches!(v.state, ReservesState::InGame { .. })
+}
+
+fn reload_now(v: &ReservesView) -> bool {
+    matches!(v.state, ReservesState::Reload { .. })
+}
+
+#[test]
+fn a_changed_file_while_the_game_is_closed_is_in_the_game() {
+    let rig = rig_with_game(GameStatus::NotRunning, OLD_FILE);
+    rig.wait_for("a write", |v| v.changes == 1);
+    assert!(in_game_now(&rig.reserves.view()));
+    assert!(!rig.reserves.view().first);
+    rig.settle();
+    assert!(in_game_now(&rig.reserves.view()));
+}
+
+#[test]
+fn a_changed_file_while_the_game_runs_asks_for_a_reload() {
+    let rig = rig_with_game(GameStatus::Running { started: 10 }, OLD_FILE);
+    rig.wait_for("a reload prompt", reload_now);
+    rig.settle();
+    assert!(reload_now(&rig.reserves.view()), "started before the write");
+}
+
+#[test]
+fn a_changed_file_while_it_cannot_be_told_asks_for_a_reload() {
+    let rig = rig_with_game(GameStatus::Unknown, OLD_FILE);
+    rig.wait_for("a reload prompt", reload_now);
+    rig.settle();
+    assert!(reload_now(&rig.reserves.view()));
+}
+
+#[test]
+fn a_game_started_after_the_write_clears_the_prompt() {
+    let rig = rig_with_game(GameStatus::Running { started: 10 }, OLD_FILE);
+    rig.wait_for("a reload prompt", reload_now);
+    *rig.game.lock().unwrap() = GameStatus::Running {
+        started: WRITTEN + 1,
+    };
+    rig.wait_for("the prompt to clear", in_game_now);
+    assert_eq!(rig.reserves.view().changes, 1, "clearing is not a change");
+}
+
+#[test]
+fn a_game_started_in_the_same_second_keeps_the_prompt() {
+    let rig = rig_with_game(GameStatus::Running { started: 10 }, OLD_FILE);
+    rig.wait_for("a reload prompt", reload_now);
+    *rig.game.lock().unwrap() = GameStatus::Running { started: WRITTEN };
+    rig.settle();
+    assert!(reload_now(&rig.reserves.view()));
+}
+
+#[test]
+fn a_failed_lookup_or_a_closed_game_keeps_the_prompt() {
+    let rig = rig_with_game(GameStatus::Running { started: 10 }, OLD_FILE);
+    rig.wait_for("a reload prompt", reload_now);
+    for status in [GameStatus::Unknown, GameStatus::NotRunning] {
+        *rig.game.lock().unwrap() = status;
+        rig.settle();
+        assert!(reload_now(&rig.reserves.view()));
+    }
+}
+
+#[test]
+fn a_game_that_started_after_the_write_is_already_loaded() {
+    let rig = rig_with_game(
+        GameStatus::Running {
+            started: WRITTEN + 1,
+        },
+        OLD_FILE,
+    );
+    rig.wait_for("a write", |v| v.changes == 1);
+    assert!(in_game_now(&rig.reserves.view()));
 }
