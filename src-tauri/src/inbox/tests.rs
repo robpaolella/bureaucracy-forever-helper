@@ -176,10 +176,32 @@ fn worked_example_is_written_as_expected() {
 }
 
 #[test]
+fn boss_encounter_ids_are_accepted_and_kept() {
+    let mut s = worked_example();
+    s["bosses"][0]["encounter"] = json!(663);
+    s["bosses"][1]["encounter"] = json!(664);
+    let text = String::from_utf8(render_one(s).unwrap()).unwrap();
+    assert!(text.contains("{encounter=663,id=\"lb_lucifron\""));
+    assert!(text.contains("{encounter=664,id=\"lb_magmadar\""));
+    // The Trash row has none, and the field is optional.
+    assert!(text.contains("{id=\"lb_trash\",items={17011,18861},name=\"Trash\",trash=true}"));
+}
+
+#[test]
+fn a_boss_row_without_encounter_is_accepted() {
+    let text = String::from_utf8(render_one(worked_example()).unwrap()).unwrap();
+    assert!(!text.contains("encounter"));
+}
+
+#[test]
 fn unknown_keys_are_refused() {
     let mut s = worked_example();
     s["note"] = json!("x");
     assert!(bad_data(render_one(s)).contains("field named \"note\""));
+
+    let mut s = worked_example();
+    s["bosses"][0]["encounterId"] = json!(663);
+    assert!(bad_data(render_one(s)).contains("field named \"encounterId\""));
 
     for key in [
         "016805",
