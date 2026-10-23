@@ -600,8 +600,14 @@ fn settle(
         Err(error) => publish(&|inner| inner.view.problem = Some(error.to_string())),
         Ok(()) => {
             *last = Some(entries.clone());
-            // Only a game known to be closed spares the officer a `/reload`.
-            let closed = matches!(action, Write::Changed(_)) && game() == GameStatus::NotRunning;
+            // Only a game known to be closed, or one that started after this write and so
+            // loaded the file, spares the officer a `/reload`.
+            let closed = matches!(action, Write::Changed(_))
+                && match game() {
+                    GameStatus::NotRunning => true,
+                    GameStatus::Running { started } => started > now,
+                    GameStatus::Unknown => false,
+                };
             publish(&|inner| {
                 inner.written_at = now;
                 inner.view.problem = None;

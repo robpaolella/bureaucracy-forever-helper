@@ -997,3 +997,15 @@ fn a_failed_lookup_or_a_closed_game_keeps_the_prompt() {
         assert!(reload_now(&rig.reserves.view()));
     }
 }
+
+#[test]
+fn a_game_that_started_after_the_write_is_already_loaded() {
+    let rig = rig_with_game(
+        GameStatus::Running {
+            started: WRITTEN + 1,
+        },
+        OLD_FILE,
+    );
+    rig.wait_for("a write", |v| v.changes == 1);
+    assert!(in_game_now(&rig.reserves.view()));
+}

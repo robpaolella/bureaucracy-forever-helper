@@ -69,9 +69,10 @@ pub fn classify(folder: &Path, processes: &[Process]) -> GameStatus {
     }
 }
 
-/// Paths compare without case on Windows and macOS, whose disks do not tell them apart.
+/// Paths compare without case on Windows, whose disks do not tell them apart. (macOS volumes
+/// may be case-sensitive, and a missed match only keeps the prompt.)
 fn normal(path: &Path) -> PathBuf {
-    if cfg!(any(windows, target_os = "macos")) {
+    if cfg!(windows) {
         PathBuf::from(path.to_string_lossy().to_lowercase())
     } else {
         path.to_path_buf()
