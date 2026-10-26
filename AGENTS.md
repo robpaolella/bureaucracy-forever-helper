@@ -63,13 +63,27 @@ The helper ships as installers on GitHub Releases. Convention: /git/maestro/docs
 The helper ships as GitHub Releases built by CI (#11, #16). Nothing is hosted and there are no servers, env vars or migrations.
 
 ## Needs Robert's own merge
-Agents may merge reviewed PRs into a `package/*` branch, except these, which only Robert
-merges (docs/git-workflow.md, Merging):
-- Any `risk:high` PR, and any change to `AGENTS.md` or `CLAUDE.md`.
-- Changes that reach beyond the package: real data, live hosting settings, logins and
-  secrets, outside accounts.
+Agents may merge reviewed PRs into a `package/*` branch or a Building branch below,
+except these, which only Robert merges (docs/git-workflow.md, Merging). Robert also merges
+every PR into a Live branch.
+- Any change to `AGENTS.md` or `CLAUDE.md`. A `risk:high` PR is merged by an agent only
+  after the `risky-review` role has passed it; in a package, the walkthrough marks steps
+  Robert follows himself before he merges the package.
+- Changes that reach beyond their branch: real data, live hosting settings, logins and
+  secrets, outside accounts. On a Building branch, deploying this repo's own code from it
+  is accepted.
 - CI workflows, which build and publish the releases.
-- The Tauri config and capabilities, which control what the app may do and will later hold the updater key setup.
+- The Tauri config and capabilities, which control what the app may do and will later hold
+  the updater key setup.
+
+Each branch's stage, read from this file on `main`. Building: its work reaches no one yet,
+so agents merge into it. Live: people rely on it, so Robert merges into it. A branch not
+listed counts as Live. One line per branch, `<branch>: Building` or `<branch>: Live`, with
+an exact name (no patterns, no `package/` branches); lines starting with `#` are skipped.
+A merge to `main` only refreshes the draft release Robert publishes, so `main` is Building.
+```stages
+main: Building
+```
 
 The guardrail refuses an agent's merge of a PR that changes a file matching a line
 below, read from this file on `main`. Paths start at the repo root; `**` crosses
