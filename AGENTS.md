@@ -69,7 +69,7 @@ every PR into a Live branch.
 - Any change to `AGENTS.md` or `CLAUDE.md`. A `risk:high` PR is merged by an agent only
   after the `risky-review` role has passed it; in a package, the walkthrough marks steps
   Robert follows himself before he merges the package.
-- Changes that reach beyond their branch: real data, live hosting settings, logins and
+- Changes that reach beyond their branch: real data, live hosting or DNS settings, logins and
   secrets, outside accounts. On a Building branch, deploying this repo's own code from it
   is accepted.
 - CI workflows, which build and publish the releases.
