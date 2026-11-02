@@ -55,7 +55,7 @@ The helper ships as installers on GitHub Releases. Convention: /git/maestro/docs
 - **What is released:** the desktop app for macOS (Apple silicon and Intel) and Windows (x64), as `bureaucracy-forever-helper_<version>_<platform>` files, plus the signed update files and `latest.json` the app's updater reads.
 - **Version rule:** Semantic Versioning from the PRs merged since the last published release: `fix` is a patch, `feat` a minor, `!` or a `BREAKING CHANGE:` footer a major, other types give no release. The first release is 1.0.0. Worked out by `release/plan.ts`.
 - **Where the version is stamped:** at build time by `.github/workflows/release.yml`, passed to `tauri build --config`. It is never committed and never hand-edited; the version in `tauri.conf.json` and `package.json` is a placeholder.
-- **Draft:** after each merge to `main` that calls for a release, the workflow builds the installers and creates or refreshes the one draft release (tag `v<version>`, targeting the built commit) on the repo's Releases page. Only Robert publishes it, after editing its notes if needed; no agent or workflow does. Publishing is also what makes the app offer the update to officers.
+- **Draft:** after each merge to `main` that calls for a release, the workflow builds the installers and creates or refreshes the one draft release (tag `v<version>`, targeting the built commit) on the repo's Releases page. The workflow never publishes. Once its PR is merged and the draft's files and notes are checked, an agent publishes the draft (docs/git-workflow.md, Releases; Robert's own repos), after editing its notes if needed. Publishing is also what makes the app offer the update to officers.
 - **Release notes:** every PR body has a `Release note:` line, one plain-English sentence for officers, and a `Release:` line (the bump and the version it makes). `Release note: none` only for non-`feat`/`fix` types. A note starting with `Before you update:` (a breaking change, a restart or a manual step) goes under the "Before you update" heading in the notes with the prefix stripped; others go under "New" and "Fixed". `ship` and the reviewer check these.
 - **Changelog:** the Releases page; there is no `CHANGELOG.md`. The README's Install section links to it.
 
@@ -63,30 +63,41 @@ The helper ships as installers on GitHub Releases. Convention: /git/maestro/docs
 The helper ships as GitHub Releases built by CI (#11, #16). Nothing is hosted and there are no servers, env vars or migrations.
 
 ## Needs Robert's own merge
-Agents may merge reviewed PRs into a `package/*` branch or a Building branch below,
-except these, which only Robert merges (docs/git-workflow.md, Merging). Robert also merges
-every PR into a Live branch.
+"Robert's own merge" means Robert says "merge" for it in chat and an agent then merges it;
+he never presses Merge (docs/git-workflow.md, Merging). Agents merge reviewed PRs into a
+`package/*` branch or a Building branch below without his word, except these, which wait
+for it. Every PR into a Live branch waits for his word too.
 - Any change to `AGENTS.md` or `CLAUDE.md`. A `risk:high` PR is merged by an agent only
   after the `risky-review` role has passed it; in a package, the walkthrough marks steps
-  Robert follows himself before he merges the package.
-- Changes that reach beyond their branch: real data, live hosting or DNS settings, logins and
-  secrets, outside accounts. On a Building branch, deploying this repo's own code from it
-  is accepted.
-- CI workflows, which build and publish the releases.
+  Robert follows himself before he says "merge" for the package.
+- Changes that reach beyond their branch: real data, live hosting or DNS settings, logins
+  and secrets, outside accounts. On a Building branch, deploying this repo's own code from
+  it is accepted.
+- CI workflows, which build the releases.
 - The Tauri config and capabilities, which control what the app may do and will later hold
   the updater key setup.
 
+In Robert's own repos (a blank Client column in /git/maestro/docs/projects.md; #820) agents
+merge everything above once it is reviewed, Live branches and releases included, and changes
+to `AGENTS.md`, `CLAUDE.md` or the `paths` list once `risky-review` has passed them. Only a
+change that could lose real data for good, secrets and logins, and hosting, DNS or
+outside-account settings wait for him there, as questions; the other lines are checked by
+`risky-review` (docs/git-workflow.md, Robert's own repos).
+
 Each branch's stage, read from this file on `main`. Building: its work reaches no one yet,
-so agents merge into it. Live: people rely on it, so Robert merges into it. A branch not
-listed counts as Live. One line per branch, `<branch>: Building` or `<branch>: Live`, with
-an exact name (no patterns, no `package/` branches); lines starting with `#` are skipped.
-A merge to `main` only refreshes the draft release Robert publishes, so `main` is Building.
+so agents merge into it. Live: people rely on it, so every merge into it waits for Robert's
+word. A branch not listed counts as Live. The standing `release` branch counts as Building
+unless the repo's `stages` list names it; then the list wins, Live or Building. One line per
+branch, `<branch>: Building` or `<branch>: Live`, with an exact name (no patterns, no
+`package/` branches); lines starting with `#` are skipped.
+A merge to `main` refreshes the draft release, which an agent then publishes (see Releases);
+`main` stays Building.
 ```stages
 main: Building
 ```
 
-The guardrail refuses an agent's merge of a PR that changes a file matching a line
-below, read from this file on `main`. Paths start at the repo root; `**` crosses
+A PR that changes a file matching a line below, read from this file on `main`, waits for
+Robert's word. Paths start at the repo root; `**` crosses
 folders, `*` and `?` stay within one folder; end a folder with `/**`.
 ```paths
 .github/workflows/**
