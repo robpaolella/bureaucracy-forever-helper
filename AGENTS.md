@@ -96,8 +96,8 @@ A merge to `main` refreshes the draft release, which an agent then publishes (se
 main: Building
 ```
 
-The guardrail refuses an agent's merge of a PR that changes a file matching a line
-below, read from this file on `main`. Paths start at the repo root; `**` crosses
+A PR that changes a file matching a line below, read from this file on `main`, waits for
+Robert's word. Paths start at the repo root; `**` crosses
 folders, `*` and `?` stay within one folder; end a folder with `/**`.
 ```paths
 .github/workflows/**
