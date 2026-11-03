@@ -1,6 +1,7 @@
 # After each merge to main that calls for a release: builds the signed installers and update
 # files, and creates or refreshes the one draft release for the next version (release/draft.ts).
-# Robert publishes it on GitHub; nothing here publishes a release or pushes a tag.
+# Nothing here publishes a release or pushes a tag: an agent publishes the draft on GitHub once
+# its files and notes are checked.
 # Only the signed build step sees the update-signing key, in jobs with a read-only token; only
 # the draft job can write, and it never sees the key or runs build code. Pull requests never run
 # this workflow (their unsigned build is in ci.yml).
